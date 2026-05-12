@@ -74,6 +74,14 @@ Engine and helper tests are valuable scaffolding, but they NEVER satisfy a TC ab
 
 ---
 
+## `cli-developer` skill (mandatory for Go CLI work)
+
+The **`cli-developer`** skill at `.claude/skills/cli-developer/` is the authoritative guide for writing Go CLI code in this repo. It MUST be invoked for any Go CLI coding task — implementing a new command, adding flags, refactoring command wiring, writing/fixing tests at the CLI boundary, anything that produces or modifies Go code. Invoke it before writing or editing Go files, not after.
+
+If you find yourself editing `*.go` and haven't loaded the skill, stop and load it first.
+
+---
+
 ## TDD (mandatory)
 
 Use the **`/tdd`** skill for every implementation slice. The loop is:
