@@ -124,15 +124,19 @@ Run `go test ./... && go vet ./... && gofmt -l .` before every commit. CI runs t
 (Targets — directories are created as the corresponding OpenSpec proposals land.)
 
 - `cmd/tai/main.go` — entry point. Wires the root `urfave/cli` app and calls `App.Run`. Thin — no business logic.
-- `internal/cmd/` — one file per subcommand (`root.go`, `version.go`, etc.). Each file is the glue: parse flags, call into `internal/...`, format output. Tested via end-to-end command tests.
+- `internal/cmd/` — glue per top-level verb (`root.go` for the root assembly, `version.go` only if a `tai version` subcommand exists — the `--version` flag is handled by urfave/cli automatically). Each file parses flags, calls into `internal/...`, and formats output. Tested via end-to-end command tests.
 - `internal/<domain>/` — domain logic (pure where possible). One package per coherent concept. Unit-tested.
 - `internal/output/` — output formatters (text/JSON/etc.). Keep formatting out of domain logic.
 - `internal/config/` — config loading + validation.
+- `internal/version/` — build-metadata package exposing the linker-injectable `version.String`. Kept separate from `internal/cmd/` to isolate the project's sole package-level mutable-var exception (see Conventions).
+- `internal/cmdtest/` — shared test harness for end-to-end command tests: in-process CLI runner, assertion vocabulary, filesystem / env isolation. The single seam every command test goes through.
 - `test-cases.md` — BDD spec (see above).
 - `openspec/` — change proposals (see above).
 - `CLAUDE.md` — this file.
 
 Production code lives under `internal/` unless it's deliberately part of a public Go API (rare for a CLI). Anything under `internal/` cannot be imported by other modules — that's the contract.
+
+`go.mod` records direct dependencies; `go.sum` tracks transitive hashes (including dependencies-of-dependencies pulled in by their own test suites). `go.sum` is not the source of truth for what tai depends on — `go.mod` is.
 
 ---
 
@@ -144,7 +148,7 @@ Production code lives under `internal/` unless it's deliberately part of a publi
 
 Run the integration tier with `go test -tags=integration ./...`.
 
-Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCMD001_prints_version_string`. The TC-ID in the name is the breadcrumb back to `test-cases.md`.
+Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCCMD001_prints_version_string`. The `TCID` segment is the test-case ID with hyphens stripped, preserving every character — `TC-CMD-001 → TCCMD001`, not `TCMD001`. The TC-ID in the name is the breadcrumb back to `test-cases.md`.
 
 ---
 
@@ -154,7 +158,7 @@ Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVers
 - Wrap errors with `fmt.Errorf("context: %w", err)`. Never lose the cause.
 - Use `context.Context` for anything that might be cancellable or time out (network, long file walks, prompts).
 - Logging: `log/slog` from the standard library.
-- Don't write package-level mutable state.
+- Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow.
 - One exported symbol per file is a guideline, not a rule — but if a file has many, look for a missing package boundary.
 
 ---
