@@ -39,6 +39,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danielmastrorillo/tai/internal/cliexec"
+	"github.com/danielmastrorillo/tai/internal/cliout"
 	"github.com/urfave/cli/v3"
 )
 
@@ -74,16 +76,27 @@ func Run(t *testing.T, cmd *cli.Command, argv ...string) Result {
 }
 
 // RunWithStdin is like Run but pipes stdin as the command's standard input.
+//
+// Execution flows through internal/cliexec so panic recovery matches the
+// production binary; stderr is post-processed by internal/cliout.WriteError
+// on a non-nil error so tests observe the same foundation-template footer
+// the user does.
+//
+// urfave/cli does NOT propagate Writer/ErrWriter/Reader to subcommands;
+// the harness walks the tree and sets all three on every descendant so a
+// subcommand's c.Writer.Write reaches the captured buffer.
 func RunWithStdin(t *testing.T, cmd *cli.Command, stdin string, argv ...string) Result {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
-	cmd.Writer = &stdout
-	cmd.ErrWriter = &stderr
-	cmd.Reader = strings.NewReader(stdin)
+	reader := strings.NewReader(stdin)
+	wireStreams(cmd, &stdout, &stderr, reader)
 
 	fullArgs := append([]string{"tai"}, argv...)
-	err := cmd.Run(context.Background(), fullArgs)
+	err := cliexec.Run(context.Background(), cmd, fullArgs)
+	if err != nil {
+		cliout.WriteError(&stderr, err)
+	}
 
 	return Result{
 		Stdout:   stdout.String(),
@@ -93,9 +106,29 @@ func RunWithStdin(t *testing.T, cmd *cli.Command, stdin string, argv ...string) 
 	}
 }
 
+// wireStreams recursively assigns out, errOut, and in to cmd and every
+// (transitive) subcommand. Mirrors how a real process inherits stdio
+// across a command tree, since urfave/cli leaves descendant streams at
+// their nil-defaults (which setupDefaults later swaps for os.Std*).
+func wireStreams(cmd *cli.Command, out, errOut *bytes.Buffer, in *strings.Reader) {
+	cmd.Writer = out
+	cmd.ErrWriter = errOut
+	cmd.Reader = in
+	for _, child := range cmd.Commands {
+		wireStreams(child, out, errOut, in)
+	}
+}
+
 // exitCodeFor mirrors the mapping cmd/tai/main.go applies to translate a
 // cli.Command.Run error into an OS exit code. Keeping the logic here lets
 // tests assert on ExitCode without spawning a subprocess.
+//
+// Mirrors main.go exactly:
+//   - nil error → Success
+//   - error implementing cli.ExitCoder (which *errcode.Error does) → its
+//     ExitCode()
+//   - any other error → exitcode.Internal (since cliout has rendered it
+//     as INTERNAL_ERROR in the footer)
 func exitCodeFor(err error) int {
 	if err == nil {
 		return 0
@@ -104,7 +137,7 @@ func exitCodeFor(err error) int {
 	if errors.As(err, &ec) {
 		return ec.ExitCode()
 	}
-	return 1
+	return 70
 }
 
 // AssertNoError fails the test when r.Err is non-nil.

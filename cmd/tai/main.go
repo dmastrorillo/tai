@@ -1,29 +1,37 @@
 // Command tai is the entry point binary. It is intentionally thin: it
-// constructs the root urfave/cli command and runs it. All business logic
-// lives under internal/.
+// constructs the root urfave/cli command, runs it through internal/cliexec
+// (which adds panic recovery), and translates any error into the
+// foundation's stderr template plus the matching OS exit code.
 //
-// Exit-code mapping is performed here — main is the only place that
-// translates errors into exit codes (per the foundation contract). Until
-// add-tai-foundation lands (see openspec/changes/add-tai-foundation/
-// proposal.md), any non-nil error from cli.Run produces exit code 1 and
-// the error's string form is written to stderr.
-//
-// urfave/cli's default "Incorrect Usage: …" printer is suppressed in
-// NewRoot via OnUsageError so this file is the sole source of stderr
-// content on error.
+// main is the single place that calls os.Exit. Subcommands and library
+// code under internal/ MUST return errors; main maps them via
+// errcode.Code.ExitCode().
 package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
+	"github.com/danielmastrorillo/tai/internal/cliexec"
+	"github.com/danielmastrorillo/tai/internal/cliout"
 	"github.com/danielmastrorillo/tai/internal/cmd"
+	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/danielmastrorillo/tai/internal/exitcode"
 )
 
 func main() {
-	if err := cmd.NewRoot().Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	err := cliexec.Run(context.Background(), cmd.NewRoot(), os.Args)
+	if err == nil {
+		os.Exit(exitcode.Success)
 	}
+
+	cliout.WriteError(os.Stderr, err)
+
+	if e, ok := errcode.As(err); ok {
+		os.Exit(e.Code.ExitCode())
+	}
+	// Non-errcode errors are unexpected; cliout has surfaced them as
+	// INTERNAL_ERROR. Match the exit code so the footer and the OS
+	// exit code agree.
+	os.Exit(exitcode.Internal)
 }
