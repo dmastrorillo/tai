@@ -28,6 +28,9 @@ func TestCode_ExitCode_taxonomy(t *testing.T) {
 		{errcode.DataDirUnwritable, exitcode.Data},
 		{errcode.UnknownSubcommand, exitcode.Usage},
 		{errcode.InternalError, exitcode.Internal},
+		{errcode.DBOpenFailed, exitcode.Data},
+		{errcode.DBMigrationFailed, exitcode.Data},
+		{errcode.DBConstraintViolation, exitcode.Data},
 		{errcode.Code("UNKNOWN_FUTURE_CODE"), exitcode.Internal},
 	}
 	for _, tc := range cases {

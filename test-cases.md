@@ -355,9 +355,208 @@ Exercised by `TestParseIdentity_TCREPO007_malformed` (unit) and
 
 ## STG — storage layer
 
-<!-- Reserved for the storage proposal (add-storage-schema). Cases will
-cover the migration runner, every table's constraints, cascade rules, and
-the storage-layer error codes. -->
+### TC-STG-001 — WAL is the journal mode on every connection
+
+- **Given** a fresh tai.db on a real filesystem,
+- **When** `storage.OpenAt` runs,
+- **Then** `PRAGMA journal_mode` returns `wal`.
+
+Exercised by `internal/storage/storage_test.go` →
+`TestOpen_TCSTG001_WAL_active`.
+
+### TC-STG-002 — `foreign_keys` is on for every connection
+
+- **When** any tai-opened SQLite connection runs `PRAGMA foreign_keys`,
+- **Then** the value is `1`.
+
+Exercised by `TestOpen_TCSTG002_foreign_keys_on`.
+
+### TC-STG-003 — open failure surfaces `DB_OPEN_FAILED`
+
+- **Given** a path that cannot be opened (e.g. unwritable directory),
+- **When** `storage.OpenAt` is called,
+- **Then** the returned error is a `*errcode.Error{Code: DB_OPEN_FAILED}`.
+
+Exercised by `TestOpen_TCSTG003_open_failure`.
+
+### TC-STG-004 — fresh database applies all embedded migrations
+
+- **Given** a freshly-created database,
+- **When** the runner finishes,
+- **Then** every migration in `migrations/` is recorded in the
+  `migrations` table with a monotonically increasing version.
+
+Exercised by `TestMigrations_TCSTG004_fresh_db_applies_all`.
+
+### TC-STG-005 — second open against the same DB is a no-op
+
+- **Given** a database with every migration already applied,
+- **When** `OpenAt` is invoked again against the same path,
+- **Then** no new rows are added to the `migrations` table.
+
+Exercised by `TestMigrations_TCSTG005_second_open_is_noop`.
+
+### TC-STG-006 — failed migration rolls back, surfaces `DB_MIGRATION_FAILED`
+
+- **Given** a migration whose SQL is syntactically invalid,
+- **When** `applyOne` attempts to run it,
+- **Then** the returned error is a `*errcode.Error{Code:
+  DB_MIGRATION_FAILED}`,
+- **And** no row was inserted into the `migrations` table for that
+  version (the transaction rolled back).
+
+Exercised by `internal/storage/migrations_internal_test.go` →
+`TestMigrations_TCSTG006_failed_migration_rolls_back` (internal-package
+test, since the public Open path consumes the embedded migrations
+directory which cannot host an invalid file).
+
+### TC-STG-010 — `repos` insert succeeds for a new `owner_name`
+
+Exercised by `TestRepos_TCSTG010_insert`.
+
+### TC-STG-011 — duplicate `repos.owner_name` rejected
+
+A second `INSERT INTO repos` with the same `owner_name` violates the
+UNIQUE constraint and surfaces `DB_CONSTRAINT_VIOLATION`. Exercised by
+`TestRepos_TCSTG011_unique_owner_name`.
+
+### TC-STG-012 — deleting a repo cascades to PRs and branches
+
+Exercised by `TestRepos_TCSTG012_cascade_to_children`.
+
+### TC-STG-020 — `prs` insert succeeds
+
+Exercised by `TestPRs_TCSTG020_insert`.
+
+### TC-STG-021 — duplicate PR number within a repo rejected
+
+Exercised by `TestPRs_TCSTG021_unique_repo_number`.
+
+### TC-STG-022 — same PR number across two repos is allowed
+
+The `(repo_id, number)` UNIQUE is scoped per repo. Exercised by
+`TestPRs_TCSTG022_same_number_different_repos`.
+
+### TC-STG-023 — `head_branch` is NOT NULL
+
+Exercised by `TestPRs_TCSTG023_head_branch_not_null`.
+
+### TC-STG-030 — `branches` insert succeeds
+
+Exercised by `TestBranches_TCSTG030_insert`.
+
+### TC-STG-031 — duplicate branch name within a repo rejected
+
+Exercised by `TestBranches_TCSTG031_unique_repo_name`.
+
+### TC-STG-032 — deleting a repo cascades to branches
+
+Exercised by `TestBranches_TCSTG032_cascade_from_repo`.
+
+### TC-STG-040 — comment with PR parent inserts
+
+Exercised by `TestComments_TCSTG040_pr_parent`.
+
+### TC-STG-041 — comment with branch parent inserts
+
+Exercised by `TestComments_TCSTG041_branch_parent`.
+
+### TC-STG-042 — comment with both parents rejected (XOR CHECK)
+
+Exercised by `TestComments_TCSTG042_both_parents_rejected`.
+
+### TC-STG-043 — comment with no parents rejected (XOR CHECK)
+
+Exercised by `TestComments_TCSTG043_no_parents_rejected`.
+
+### TC-STG-044 — invalid severity value rejected
+
+Exercised by `TestComments_TCSTG044_invalid_severity`.
+
+### TC-STG-045 — invalid status value rejected
+
+Exercised by `TestComments_TCSTG045_invalid_status`.
+
+### TC-STG-046 — invalid category value rejected
+
+Exercised by `TestComments_TCSTG046_invalid_category`.
+
+### TC-STG-047 — missing enrichment column (NOT NULL) rejected
+
+Inserting a comment with `why_fix`, `suggested_fix`, or `consequences`
+NULL violates the NOT NULL constraint. Exercised by
+`TestComments_TCSTG047_missing_enrichment` (sub-tests for each column).
+
+### TC-STG-048 — deleting a PR cascades to its comments
+
+Exercised by `TestComments_TCSTG048_cascade_from_pr`.
+
+### TC-STG-049 — deleting a branch cascades to its comments
+
+Exercised by `TestComments_TCSTG049_cascade_from_branch`.
+
+### TC-STG-050 — multiple external refs of the same source_kind per comment
+
+When the `external_id` values differ, two refs for the same comment
+both persist. Exercised by `TestExternalRefs_TCSTG050_multiple_refs`.
+
+### TC-STG-051 — duplicate `(source_kind, external_id)` rejected
+
+Exercised by `TestExternalRefs_TCSTG051_duplicate_ref_rejected`.
+
+### TC-STG-052 — deleting a comment cascades to its external_refs
+
+Exercised by `TestExternalRefs_TCSTG052_cascade_from_comment`.
+
+### TC-STG-053 — deleting a batch sets member comments' batch_id to NULL
+
+The comment row survives the batch deletion (cascade-set-null, not
+cascade-delete). Exercised by
+`TestBatches_TCSTG053_delete_sets_batch_id_null`.
+
+### TC-STG-060 — `batches` insert with PR parent
+
+Exercised by `TestBatches_TCSTG060_insert`.
+
+### TC-STG-061 — duplicate `(parent, batch_key)` rejected
+
+Exercised by `TestBatches_TCSTG061_duplicate_key_rejected`.
+
+### TC-STG-062 — batch status `mixed` is a legal enum value
+
+Exercised by `TestBatches_TCSTG062_status_mixed_allowed`.
+
+### TC-STG-063 — batch with no parent rejected (XOR CHECK)
+
+Exercised by `TestBatches_TCSTG063_no_parent_rejected`.
+
+### TC-STG-064 — deleting a PR cascades to its batches
+
+Exercised by `TestBatches_TCSTG064_cascade_from_pr`.
+
+### TC-STG-065 — deleting a branch cascades to its batches
+
+Exercised by `TestBatches_TCSTG065_cascade_from_branch`.
+
+### TC-STG-070 — `ErrConstraint` maps constraint failures to `DB_CONSTRAINT_VIOLATION`
+
+- **Given** a SQL operation that fails with a constraint violation,
+- **When** the error passes through `storage.ErrConstraint`,
+- **Then** the returned error is a `*errcode.Error{Code:
+  DB_CONSTRAINT_VIOLATION}`.
+
+Exercised by `TestErrConstraint_TCSTG070_maps_to_DBConstraintViolation`.
+
+### TC-STG-071..073 — error-code CLI-boundary tests *(deferred)*
+
+The spec's "each error code produces the standard footer" scenarios
+([exit 3: DB_OPEN_FAILED] etc.) require a subcommand that opens the
+database to be wired in. The first such subcommand lands in
+`add-import-command`; the matching footer tests land alongside it.
+The internal error-code mapping is locked down by
+`internal/errcode`'s taxonomy test (every Code → exit code) and by
+`TC-STG-003` / `TC-STG-006` / `TC-STG-070` exercising each storage
+code at the storage-layer boundary.
 
 ---
 

@@ -41,6 +41,22 @@ const (
 	InternalError Code = "INTERNAL_ERROR"
 )
 
+// Storage-layer codes (introduced by add-storage-schema). Append-only;
+// see openspec/specs/storage/spec.md for their normative meanings.
+const (
+	// DBOpenFailed: the database file exists or can be created, but a
+	// connection-level operation (open, pragma) failed.
+	DBOpenFailed Code = "DB_OPEN_FAILED"
+
+	// DBMigrationFailed: one or more migrations failed to apply; the
+	// database is in its pre-migration state.
+	DBMigrationFailed Code = "DB_MIGRATION_FAILED"
+
+	// DBConstraintViolation: an insert or update violated a NOT NULL,
+	// CHECK, UNIQUE, or foreign-key constraint.
+	DBConstraintViolation Code = "DB_CONSTRAINT_VIOLATION"
+)
+
 // ExitCode returns the OS exit code mapped to c. Codes outside the known
 // taxonomy default to exitcode.Internal — this catches a programmer using
 // a Code that was forgotten in this switch.
@@ -54,6 +70,8 @@ func (c Code) ExitCode() int {
 		return exitcode.Data
 	case InternalError:
 		return exitcode.Internal
+	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
+		return exitcode.Data
 	default:
 		return exitcode.Internal
 	}

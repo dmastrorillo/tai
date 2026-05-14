@@ -158,7 +158,7 @@ The system SHALL maintain a stable, append-only taxonomy of error codes. Each er
 
 Once shipped, an error code MUST NOT be renamed or repurposed. Codes MAY be marked deprecated but their exit code and meaning MUST remain stable.
 
-The initial taxonomy is:
+The taxonomy is:
 
 | Code | Exit | Meaning |
 |------|------|---------|
@@ -167,13 +167,22 @@ The initial taxonomy is:
 | `DATA_DIR_UNWRITABLE` | 3 | The resolved data directory cannot be created or written to. |
 | `UNKNOWN_SUBCOMMAND` | 1 | The user invoked a subcommand the CLI does not recognise. |
 | `INTERNAL_ERROR` | 70 | An unexpected internal failure (panic recovery, I/O failure not anticipated by a more specific code). |
+| `DB_OPEN_FAILED` | 3 | The database file exists or can be created, but a connection-level operation (open, pragma) failed. |
+| `DB_MIGRATION_FAILED` | 3 | One or more migrations failed to apply; the database is in its pre-migration state. |
+| `DB_CONSTRAINT_VIOLATION` | 3 | An insert or update violated a `NOT NULL`, `CHECK`, `UNIQUE`, or foreign-key constraint. |
 
 Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its exit code and its meaning in the spec that introduces it.
 
 #### Scenario: Adding a new code does not change existing codes
 
 - **WHEN** a future proposal adds `COMMENT_INVALID_SCHEMA` to the taxonomy
-- **THEN** the existing codes `REPO_NOT_FOUND`, `REPO_FLAG_INVALID`, `DATA_DIR_UNWRITABLE`, `UNKNOWN_SUBCOMMAND`, and `INTERNAL_ERROR` retain their exit codes and meanings unchanged
+- **THEN** the existing codes retain their exit codes and meanings unchanged
+
+#### Scenario: Storage codes inherit foundation contract
+
+- **WHEN** a command exits with `DB_OPEN_FAILED`
+- **THEN** stderr's footer line matches `^\[exit 3: DB_OPEN_FAILED\]$`
+- **AND** the error follows the human-readable error contract (Error line, optional "What to do" block, footer)
 
 ### Requirement: Exit-code conventions
 
