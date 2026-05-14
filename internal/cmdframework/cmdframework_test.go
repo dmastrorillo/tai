@@ -190,9 +190,11 @@ func TestHashSource_matches_HashBody_on_extracted_body(t *testing.T) {
 	}
 }
 
-// TestLedger_unknown_verb_returns_empty: TC-CMD-007 — the foundation
-// stub returns an empty slice for any verb. add-install-command
-// replaces this with a real //go:embed-backed implementation.
+// TestLedger_unknown_verb_returns_empty: TC-CMD-007 — Ledger returns an
+// empty slice for any verb not in the embedded bundle. The foundation
+// shipped this as a hardcoded-empty stub; add-install-command replaced
+// it with the real //go:embed-backed reader that still returns empty
+// for unknown verbs (the contract).
 func TestLedger_TCCMD007_unknown_verb_returns_empty(t *testing.T) {
 	if got := cmdframework.Ledger("nonexistent-verb"); len(got) != 0 {
 		t.Fatalf("expected empty ledger for unknown verb, got %v", got)

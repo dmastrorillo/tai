@@ -1,82 +1,105 @@
 package cmdframework_test
 
 import (
-	"os"
-	"path/filepath"
+	"io/fs"
+	"path"
+	"strings"
 	"testing"
 
 	"github.com/danielmastrorillo/tai/internal/cmdframework"
 )
 
-// TestBundledCommands_hash_matches_frontmatter walks commands/*.md from
-// the repo root and verifies, for each bundled slash command, that the
-// frontmatter's content_hash equals HashSource(body). This is the
-// build-time invariant from add-tai-foundation tasks §5.6: if a body
-// is edited without updating the frontmatter's hash, this test fails
-// before merge.
+// TestBundle_TCINST003_current_hash_is_last_entry exercises the
+// build-time invariant: for every bundled verb in BundleFS, the body
+// hash of `commands/<verb>.md` equals the last element of
+// `commands/<verb>.ledger.json`. If a body is edited without re-running
+// the tai-ledger helper, this test fails before merge.
 //
-// When the commands/ directory does not yet exist (the case during
-// foundation application), the test is a no-op. Once add-install-command
-// authors the directory, every file there is checked automatically.
-func TestBundledCommands_hash_matches_frontmatter(t *testing.T) {
-	root := repoRoot(t)
-	commandsDir := filepath.Join(root, "commands")
-	entries, err := os.ReadDir(commandsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skip("commands/ directory does not yet exist — install-time bundle hasn't shipped")
-		}
-		t.Fatalf("ReadDir %s: %v", commandsDir, err)
+// Walks the embedded FS rather than the on-disk repo so the test sees
+// exactly what the production binary sees.
+func TestBundle_TCINST003_current_hash_is_last_entry(t *testing.T) {
+	verbs := cmdframework.Verbs()
+	if len(verbs) == 0 {
+		t.Log("no bundled verbs in this build — nothing to verify")
+		return
 	}
 
-	checked := 0
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
+	for _, verb := range verbs {
+		want, err := cmdframework.BundleHash(verb)
+		if err != nil {
+			t.Errorf("BundleHash(%q): %v", verb, err)
 			continue
 		}
-		path := filepath.Join(commandsDir, e.Name())
-		src, err := os.ReadFile(path)
+		hist, err := cmdframework.LedgerStrict(verb)
 		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
+			t.Errorf("LedgerStrict(%q): %v", verb, err)
+			continue
 		}
-
-		fm, body, err := cmdframework.Parse(src)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
+		if len(hist) == 0 {
+			t.Errorf("ledger for %q is empty — run `make ledger-update`", verb)
+			continue
 		}
-
-		want := cmdframework.HashBody(body)
-		if fm.ContentHash != want {
-			t.Errorf("%s: content_hash mismatch\n  frontmatter: %s\n  recomputed:  %s\n"+
-				"run the tai-ledger helper or recompute by hand before committing",
-				path, fm.ContentHash, want)
+		if got := hist[len(hist)-1]; got != want {
+			t.Errorf("%s: current body hash %s != last ledger entry %s\n"+
+				"run `make ledger-update` and re-commit", verb, want, got)
 		}
-		checked++
-	}
-
-	if checked == 0 {
-		t.Log("no commands/*.md files found — skipping bundled-command hash check")
 	}
 }
 
-// repoRoot walks up from the test's working directory until it finds a
-// directory containing go.mod, returning that directory. Used so this
-// test works regardless of where `go test` is invoked from.
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
+// TestBundle_frontmatter_matches_body_hash exercises the parallel
+// add-tai-foundation invariant: every bundled `<verb>.md`'s frontmatter
+// content_hash equals HashBody(body). Same invariant the foundation
+// guarded against before bundling existed, retained here so an edit to
+// a body without a frontmatter update is caught alongside the ledger
+// invariant.
+func TestBundle_frontmatter_matches_body_hash(t *testing.T) {
+	verbs := cmdframework.Verbs()
+	if len(verbs) == 0 {
+		t.Log("no bundled verbs in this build — nothing to verify")
+		return
 	}
-	dir := wd
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
+
+	for _, verb := range verbs {
+		src, err := cmdframework.BundleSource(verb)
+		if err != nil {
+			t.Errorf("BundleSource(%q): %v", verb, err)
+			continue
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatalf("could not find go.mod walking up from %s", wd)
+		fm, body, err := cmdframework.Parse(src)
+		if err != nil {
+			t.Errorf("parse %s.md: %v", verb, err)
+			continue
 		}
-		dir = parent
+		if want := cmdframework.HashBody(body); fm.ContentHash != want {
+			t.Errorf("%s: content_hash %s != recomputed %s",
+				verb, fm.ContentHash, want)
+		}
+	}
+}
+
+// TestBundleFS_only_known_extensions_present is a hygiene check: the
+// commands/ embed should contain ONLY the README, *.md, and
+// *.ledger.json files. A stray file likely indicates an editor backup
+// or a misnamed ledger.
+func TestBundleFS_only_known_extensions_present(t *testing.T) {
+	err := fs.WalkDir(cmdframework.BundleFS, "commands", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		base := path.Base(p)
+		switch {
+		case base == "README.md":
+		case strings.HasSuffix(base, ".ledger.json"):
+		case strings.HasSuffix(base, ".md"):
+		default:
+			t.Errorf("unexpected bundled file: %s", p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk commands/: %v", err)
 	}
 }

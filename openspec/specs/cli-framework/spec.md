@@ -170,12 +170,15 @@ The taxonomy is:
 | `DB_OPEN_FAILED` | 3 | The database file exists or can be created, but a connection-level operation (open, pragma) failed. |
 | `DB_MIGRATION_FAILED` | 3 | One or more migrations failed to apply; the database is in its pre-migration state. |
 | `DB_CONSTRAINT_VIOLATION` | 3 | An insert or update violated a `NOT NULL`, `CHECK`, `UNIQUE`, or foreign-key constraint. |
+| `INSTALL_TARGET_UNWRITABLE` | 3 | The install target directory cannot be created or is not writable. |
+| `INSTALL_INVALID_TARGET` | 1 | The value passed to `--commands-dir` is malformed. |
+| `INSTALL_LEDGER_CORRUPT` | 70 | An embedded ledger file failed to parse at runtime. |
 
 Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its exit code and its meaning in the spec that introduces it.
 
 #### Scenario: Adding a new code does not change existing codes
 
-- **WHEN** a future proposal adds `COMMENT_INVALID_SCHEMA` to the taxonomy
+- **WHEN** a future proposal adds a new code to the taxonomy
 - **THEN** the existing codes retain their exit codes and meanings unchanged
 
 #### Scenario: Storage codes inherit foundation contract
@@ -183,6 +186,12 @@ Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its ex
 - **WHEN** a command exits with `DB_OPEN_FAILED`
 - **THEN** stderr's footer line matches `^\[exit 3: DB_OPEN_FAILED\]$`
 - **AND** the error follows the human-readable error contract (Error line, optional "What to do" block, footer)
+
+#### Scenario: Install codes inherit foundation contract
+
+- **WHEN** a command exits with `INSTALL_TARGET_UNWRITABLE`
+- **THEN** stderr's footer line matches `^\[exit 3: INSTALL_TARGET_UNWRITABLE\]$`
+- **AND** the error follows the human-readable error contract
 
 ### Requirement: Exit-code conventions
 

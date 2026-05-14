@@ -562,10 +562,302 @@ code at the storage-layer boundary.
 
 ## INST — install / uninstall
 
-<!-- Reserved for the install proposal (add-install-command). Cases will
-cover the file-state classifier (missing / up-to-date / stale-but-untouched
-/ user-modified), the prompt UX, --force, TAI_ACCEPT_COMMAND_UPDATES, and
-the uninstall mirror. -->
+### TC-INST-001 — ledger files are JSON arrays of `sha256:<hex>` strings, oldest-first
+
+- **Given** any bundled `commands/<verb>.ledger.json` file is read,
+- **When** the file is parsed,
+- **Then** every entry matches `^sha256:[0-9a-f]{64}$`,
+- **And** the array order is oldest-first (the current build's body hash
+  is the last element).
+
+Exercised by `internal/cmdframework/ledger_test.go` →
+`TestLedger_TCINST001_well_formed_entries`.
+
+### TC-INST-002 — `Ledger(unknown)` returns an empty slice
+
+- **Given** a verb name with no matching `commands/<verb>.ledger.json`
+  in the embedded bundle,
+- **When** `cmdframework.Ledger(verb)` is called,
+- **Then** the returned slice is empty.
+
+Exercised by `TestLedger_TCINST002_missing_verb_empty`.
+
+### TC-INST-003 — the current build's body hash is the last entry in each ledger
+
+- **Given** every bundled `commands/<verb>.md` shipped in this build,
+- **When** the body hash is computed via `cmdframework.HashBody`,
+- **Then** the resulting hash equals the last element of
+  `commands/<verb>.ledger.json`.
+
+Exercised by `TestBundle_TCINST003_current_hash_is_last_entry`.
+
+### TC-INST-010 — classifier returns `missing` when the target file does not exist
+
+- **Given** the target path does not exist on disk,
+- **When** `installer.Classify(targetPath, ledger)` runs,
+- **Then** the returned classification is `missing`.
+
+Exercised by `internal/installer/classifier_test.go` →
+`TestClassify_TCINST010_missing`.
+
+### TC-INST-011 — classifier returns `up-to-date` when the body hash matches the current build's hash
+
+- **Given** the target file on disk has the same body bytes as the
+  bundled command,
+- **When** `installer.Classify(targetPath, ledger)` runs,
+- **Then** the returned classification is `up-to-date`.
+
+Exercised by `TestClassify_TCINST011_up_to_date`.
+
+### TC-INST-012 — classifier returns `stale-but-untouched` when the body hash is in the ledger but not current
+
+- **Given** the target file on disk has a body whose hash appears in
+  the ledger but is not the last (current) entry,
+- **When** `installer.Classify(targetPath, ledger)` runs,
+- **Then** the returned classification is `stale-but-untouched`.
+
+Exercised by `TestClassify_TCINST012_stale_but_untouched`.
+
+### TC-INST-013 — classifier returns `user-modified` when the body hash is absent from the ledger
+
+- **Given** the target file's body hash does not appear in the ledger,
+- **When** `installer.Classify(targetPath, ledger)` runs,
+- **Then** the returned classification is `user-modified`.
+
+Exercised by `TestClassify_TCINST013_user_modified`.
+
+### TC-INST-014 — classifier treats an unparseable target file as `user-modified`
+
+- **Given** the target file exists but cannot be parsed as
+  frontmatter+body (no leading `---`, garbage content, …),
+- **When** `installer.Classify(targetPath, ledger)` runs,
+- **Then** the returned classification is `user-modified` (the most
+  conservative label — we never assume ownership of something we
+  cannot recognise).
+
+Exercised by `TestClassify_TCINST014_unparseable_file_is_user_modified`.
+
+### TC-INST-020 — `tai install` writes every bundled command on a fresh target
+
+- **Given** the target directory does not yet contain any tai command,
+- **When** the user runs `tai install`,
+- **Then** every bundled command's markdown is written under the target
+  directory,
+- **And** stdout contains an `Installed: N command(s)` summary line,
+- **And** the exit code is `0`.
+
+Exercised by `internal/cmd/install_test.go` →
+`TestInstall_TCINST020_fresh_install`.
+
+### TC-INST-021 — `tai install` re-run on an up-to-date target is a no-op
+
+- **Given** every bundled command has been installed already,
+- **When** the user runs `tai install` again,
+- **Then** the summary reports `Installed: 0` and the rest under
+  `Skipped (up to date)`,
+- **And** no file modification times change.
+
+Exercised by `TestInstall_TCINST021_idempotent_rerun`.
+
+### TC-INST-022 — `tai install` overwrites `stale-but-untouched` silently
+
+- **Given** a target file's body hash matches an older ledger entry
+  (not the current one),
+- **When** `tai install` runs without `--force`,
+- **Then** the file is overwritten without a prompt,
+- **And** the summary reports it under `Updated`.
+
+Exercised by `TestInstall_TCINST022_stale_overwritten`.
+
+### TC-INST-023 — `tai install --force` overwrites `user-modified` without prompting
+
+- **Given** a target file's body hash is absent from the ledger,
+- **When** the user runs `tai install --force`,
+- **Then** the file is overwritten with no prompt,
+- **And** the summary reports it under `Updated`.
+
+Exercised by `TestInstall_TCINST023_force_overwrites_modified`.
+
+### TC-INST-024 — `TAI_ACCEPT_COMMAND_UPDATES=1` overwrites `user-modified` without prompting
+
+- **Given** a target file's body hash is absent from the ledger,
+- **And** `TAI_ACCEPT_COMMAND_UPDATES=1` is set in the environment,
+- **When** the user runs `tai install`,
+- **Then** the file is overwritten with no prompt,
+- **And** the summary reports it under `Updated`.
+
+Exercised by `TestInstall_TCINST024_env_overwrites_modified`.
+
+### TC-INST-025 — `TAI_ACCEPT_COMMAND_UPDATES` set to a non-truthy value is ignored
+
+- **Given** a target file's body hash is absent from the ledger,
+- **And** `TAI_ACCEPT_COMMAND_UPDATES=0` (or `false`, `no`, `off`, or an
+  unrecognised string) is set in the environment,
+- **And** stdin is not a TTY,
+- **When** the user runs `tai install`,
+- **Then** the file is left unchanged,
+- **And** the summary reports it under `Prompted-skipped`,
+- **And** the exit code is `0`.
+
+Exercised by `TestInstall_TCINST025_env_non_truthy_ignored`.
+
+### TC-INST-026 — `--commands-dir` overrides the default target
+
+- **Given** the user provides `--commands-dir /tmp/cmds` to a writable
+  directory,
+- **When** `tai install --commands-dir /tmp/cmds` runs,
+- **Then** the bundled commands are written under `/tmp/cmds/`.
+
+Exercised by `TestInstall_TCINST026_commands_dir_override`.
+
+### TC-INST-027 — unwritable target surfaces `INSTALL_TARGET_UNWRITABLE`
+
+- **Given** the target directory is on a read-only filesystem or cannot
+  be created,
+- **When** `tai install` runs,
+- **Then** the CLI exits with code `3`,
+- **And** the stderr footer is `[exit 3: INSTALL_TARGET_UNWRITABLE]`.
+
+Exercised by `TestInstall_TCINST027_unwritable_target`.
+
+### TC-INST-028 — malformed `--commands-dir` surfaces `INSTALL_INVALID_TARGET`
+
+- **Given** the user runs `tai install --commands-dir ""`,
+- **When** the CLI parses the flag,
+- **Then** the CLI exits with code `1`,
+- **And** the stderr footer is `[exit 1: INSTALL_INVALID_TARGET]`.
+
+Exercised by `TestInstall_TCINST028_invalid_commands_dir`.
+
+### TC-INST-029 — non-interactive stdin without override skips `user-modified` files
+
+- **Given** a target file's body hash is absent from the ledger,
+- **And** stdin is not a TTY,
+- **And** neither `--force` nor `TAI_ACCEPT_COMMAND_UPDATES=1` is set,
+- **When** `tai install` runs,
+- **Then** the file is left in place,
+- **And** the summary reports it under `Prompted-skipped`,
+- **And** the exit code is `0`.
+
+Exercised by `TestInstall_TCINST029_non_interactive_skip`.
+
+### TC-INST-030 — `tai uninstall` removes every recognised tai command
+
+- **Given** the target directory contains only files whose body hash
+  is in the corresponding verb's ledger,
+- **When** `tai uninstall` runs,
+- **Then** every file is removed,
+- **And** the now-empty directory is removed,
+- **And** the summary reports each verb under `Removed`,
+- **And** the exit code is `0`.
+
+Exercised by `internal/cmd/uninstall_test.go` →
+`TestUninstall_TCINST030_clean_uninstall`.
+
+### TC-INST-031 — `tai uninstall` leaves user-modified files in place
+
+- **Given** the target directory contains `<verb>.md` whose body hash
+  is not in the ledger,
+- **When** `tai uninstall` runs without `--force` and without
+  `TAI_ACCEPT_COMMAND_UPDATES=1`,
+- **Then** the file is preserved,
+- **And** the summary reports it under `Prompted-skipped`.
+
+Exercised by `TestUninstall_TCINST031_leaves_modified_in_place`.
+
+### TC-INST-032 — `tai uninstall --force` removes user-modified files
+
+- **Given** the target directory contains `<verb>.md` whose body hash
+  is not in the ledger,
+- **When** `tai uninstall --force` runs,
+- **Then** the file is removed,
+- **And** the summary reports it under `Removed`.
+
+Exercised by `TestUninstall_TCINST032_force_removes_modified`.
+
+### TC-INST-033 — `TAI_ACCEPT_COMMAND_UPDATES=1` removes user-modified files on uninstall
+
+- **Given** a target file whose body hash is not in the ledger,
+- **And** `TAI_ACCEPT_COMMAND_UPDATES=1` is set in the environment,
+- **When** `tai uninstall` runs without `--force`,
+- **Then** the file is removed.
+
+Exercised by `TestUninstall_TCINST033_env_removes_modified`.
+
+### TC-INST-034 — `tai uninstall` preserves files unrelated to known verbs
+
+- **Given** the target directory contains a file whose filename does
+  not match any bundled verb,
+- **When** `tai uninstall` runs,
+- **Then** the file is preserved untouched.
+
+Exercised by `TestUninstall_TCINST034_unrelated_preserved`.
+
+### TC-INST-035 — uninstall preserves the directory when non-empty after processing
+
+- **Given** the target directory still contains unrelated files after
+  the known verb files have been removed,
+- **When** `tai uninstall` runs,
+- **Then** the directory itself is preserved.
+
+Exercised by `TestUninstall_TCINST035_dir_preserved_when_non_empty`.
+
+### TC-INST-036 — uninstall removes the empty directory
+
+- **Given** the target directory contains only bundled tai command
+  files (all in their ledgers),
+- **When** `tai uninstall` runs,
+- **Then** the now-empty directory is removed.
+
+Exercised by `TestUninstall_TCINST036_empty_dir_removed`.
+
+### TC-INST-040 — `tai install` runs outside a git repository
+
+- **Given** the working directory is not inside any git repository,
+- **When** `tai install` runs,
+- **Then** the command succeeds with no `REPO_NOT_FOUND` footer,
+- **And** the exit code is `0`.
+
+Exercised by `TestInstall_TCINST040_outside_git_repo`.
+
+### TC-INST-041 — `tai install` does not touch the data directory
+
+- **Given** `TAI_DATA_DIR=/some/foreign/dir` is set,
+- **When** `tai install` runs,
+- **Then** no SQLite database is created under `TAI_DATA_DIR`,
+- **And** the data directory tree is unchanged.
+
+Exercised by `TestInstall_TCINST041_does_not_touch_data_dir`.
+
+### TC-INST-042 — `tai uninstall` runs outside a git repository
+
+- **Given** the working directory is not inside any git repository,
+- **When** `tai uninstall` runs,
+- **Then** the command succeeds with no `REPO_NOT_FOUND` footer,
+- **And** the exit code is `0`.
+
+Exercised by `internal/cmd/uninstall_test.go` →
+`TestUninstall_TCINST042_outside_git_repo`.
+
+<!-- Coverage notes:
+
+- TC-INST-025 verifies the env-var wiring at the CLI boundary using a
+  single representative non-truthy value (`0`). The full truthy/falsy
+  table is exercised exhaustively by the unit test
+  `TestIsTruthyEnv` in `internal/installer/env_test.go`. The split
+  exists because the CLI-boundary surface is the wiring, not the
+  parsing.
+
+- The interactive `[y/N]` prompt path (`IsTTY=true`) is exercised at
+  the engine boundary by `TestInstall_interactive_prompt_accept` and
+  `TestInstall_interactive_prompt_decline` in
+  `internal/installer/run_test.go`. There is no E2E variant via
+  `cmdtest.Run` because the harness wires a `strings.Reader` for stdin
+  (which is non-TTY); a real terminal cannot be synthesised inside
+  `go test` without an OS-level pty. The wiring from `c.Reader` →
+  `opts.IsTTY` is covered indirectly by TC-INST-029 (non-TTY skip).
+-->
+
 
 ---
 

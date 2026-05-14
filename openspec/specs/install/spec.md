@@ -1,4 +1,10 @@
-## ADDED Requirements
+# install Specification
+
+## Purpose
+
+The `install` capability defines the `tai install` and `tai uninstall` verbs that wire the binary's bundled Claude slash commands into the user's `~/.claude/commands/tai/` directory. It owns the concrete on-disk and embedded format of the per-command hash ledger, the four file-state classifications (`missing`, `up-to-date`, `stale-but-untouched`, `user-modified`), the prompt / `--force` / non-interactive UX, and the install-layer error codes. `tai install` is the entry point users run once after `brew install tai` (or equivalent) and after every upgrade to refresh any commands whose bodies changed without silently overwriting locally edited files.
+
+## Requirements
 
 ### Requirement: `tai install` writes bundled commands to the target directory
 
@@ -205,13 +211,13 @@ If the embedded ledger for a verb fails to parse at runtime, the CLI MUST exit w
 
 `tai install` and `tai uninstall` SHALL emit a human-readable summary block to stdout at the end of every successful run. The block contains, in order:
 
-1. A line per non-zero outcome bucket:
-   - `Installed: <N> command(s) (<comma-separated verbs>)`
-   - `Updated: <N> command(s) (<verbs>)`
-   - `Skipped: <N> command(s) (up to date)`
-   - `Prompted-skipped: <N> command(s) (<verbs and reason>)`
-   - `Removed: <N> command(s) (<verbs>)` (uninstall only)
-   - `Not-found: <N> command(s) (<verbs>)` (uninstall only, when a verb's file was already missing)
+1. A line per non-zero outcome bucket. The noun is `command` when `N == 1` and `commands` otherwise:
+   - `Installed: <N> command|commands (<comma-separated verbs>)`
+   - `Updated: <N> command|commands (<verbs>)`
+   - `Skipped: <N> command|commands (up to date)`
+   - `Prompted-skipped: <N> command|commands (<verbs and reason>)`
+   - `Removed: <N> command|commands (<verbs>)` (uninstall only)
+   - `Not-found: <N> command|commands (<verbs>)` (uninstall only, when a verb's file was already missing)
 2. A blank line.
 3. An exit-tag line `[exit 0]` when the run was fully successful, or the standard error footer `[exit <code>: <ERROR_CODE>]` on failure.
 

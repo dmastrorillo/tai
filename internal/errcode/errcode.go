@@ -57,6 +57,23 @@ const (
 	DBConstraintViolation Code = "DB_CONSTRAINT_VIOLATION"
 )
 
+// Install-layer codes (introduced by add-install-command). Append-only;
+// see openspec/changes/add-install-command/specs/install/spec.md for
+// their normative meanings.
+const (
+	// InstallTargetUnwritable: the install target directory cannot be
+	// created or is not writable.
+	InstallTargetUnwritable Code = "INSTALL_TARGET_UNWRITABLE"
+
+	// InstallInvalidTarget: the value passed to --commands-dir is
+	// malformed (empty string, traversal outside a writable area).
+	InstallInvalidTarget Code = "INSTALL_INVALID_TARGET"
+
+	// InstallLedgerCorrupt: an embedded ledger file failed to parse at
+	// runtime.
+	InstallLedgerCorrupt Code = "INSTALL_LEDGER_CORRUPT"
+)
+
 // ExitCode returns the OS exit code mapped to c. Codes outside the known
 // taxonomy default to exitcode.Internal — this catches a programmer using
 // a Code that was forgotten in this switch.
@@ -72,6 +89,12 @@ func (c Code) ExitCode() int {
 		return exitcode.Internal
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data
+	case InstallTargetUnwritable:
+		return exitcode.Data
+	case InstallInvalidTarget:
+		return exitcode.Usage
+	case InstallLedgerCorrupt:
+		return exitcode.Internal
 	default:
 		return exitcode.Internal
 	}
