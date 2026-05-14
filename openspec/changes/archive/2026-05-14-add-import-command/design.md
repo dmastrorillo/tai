@@ -34,7 +34,7 @@ The verb name `import` is used only with `-` as its sole argument, signalling "r
 **Alternatives considered:**
 
 - `tai import 142` that does its own `gh api` calls. Doubles the CLI's surface area, adds `gh`/network dependencies into the binary's contract, duplicates the slash command's collection logic. Rejected.
-- `tai import < file.json` (no explicit `-`). Works equivalently, since `urfave/cli` treats stdin as default if no positional given. We keep the explicit `-` as a documentation hint that "this command reads stdin" — `tai import` alone shows the help.
+- `tai import < file.json` (no explicit `-`). Works equivalently, since `urfave/cli` treats stdin as default if no positional given. We keep the explicit `-` as a documentation hint that "this command reads stdin" — `tai import` alone is a usage error (exit 1, `UNKNOWN_SUBCOMMAND`). Silent help would let a forgotten redirect produce no observable outcome; we want loud failure.
 
 ### D2. JSON schema is one target per payload; stack mode loops
 

@@ -93,6 +93,7 @@ func NewRoot(opts ...RootOption) *cli.Command {
 		Commands: []*cli.Command{
 			newInstallCommand(cfg.bundle),
 			newUninstallCommand(cfg.bundle),
+			newImportCommand(),
 		},
 
 		Action: func(_ context.Context, c *cli.Command) error {

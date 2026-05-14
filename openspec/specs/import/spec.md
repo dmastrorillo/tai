@@ -1,10 +1,16 @@
-## ADDED Requirements
+# import Specification
+
+## Purpose
+
+The `import` capability defines the `tai import -` CLI verb and its bundled `/tai:import` Claude slash command. It is the data-ingestion boundary between the unstructured outside world (GitHub PR comments, AI reviews, pasted notes, linter reports) and tai's strict SQLite schema. The CLI half owns JSON validation and transactional upsert; the slash-command half owns collection (remote via `gh` / staccato, or manual via file / conversation / prompt) and enrichment of comments with the five mandatory fields (`severity`, `category`, `why_fix`, `suggested_fix`, `consequences`). Triage state is sacred on re-import — accepted, dismissed, and completed comments are never overwritten; only pending rows are refreshed.
+
+## Requirements
 
 ### Requirement: `tai import -` reads JSON from stdin
 
 The system SHALL provide a `tai import` subcommand that accepts a single positional argument `-`, signalling that the JSON payload is read from stdin.
 
-Invoking `tai import` with no argument MUST print help and exit `0`. Invoking with any positional argument other than `-` MUST exit `1` with `UNKNOWN_SUBCOMMAND`-equivalent usage error (e.g. "tai import expects '-' to read from stdin").
+Invoking `tai import` with no argument MUST exit `1` with `UNKNOWN_SUBCOMMAND` (no implicit help). Invoking with any positional argument other than `-` MUST also exit `1` with `UNKNOWN_SUBCOMMAND` (e.g. "tai import expects '-' to read from stdin"). This is a deliberate departure from urfave/cli's default subcommand-without-args behaviour: import only makes sense with a payload, so silent help is misleading.
 
 `tai import` MUST NOT read from the network. It MUST NOT shell out to `gh`, `git`, `st`, or any other external command.
 
@@ -155,7 +161,7 @@ Any unknown top-level or nested key MUST be rejected (strict mode — no silent 
 #### Scenario: Unknown field rejected
 
 - **WHEN** a comment contains a key not listed in the schema (e.g. `"priority": "p0"`)
-- **THEN** the CLI exits `3` with `IMPORT_SCHEMA_INVALID`
+- **THEN** the CLI exits `1` with `IMPORT_INVALID_JSON` (the strict decoder rejects unknown keys at decode time, before schema validation runs)
 
 #### Scenario: batch_key references unknown batch rejected
 
@@ -268,13 +274,13 @@ For PR targets: `prs.title`, `prs.url`, and `prs.head_branch` are written ONLY o
 
 ### Requirement: Empty payload is a successful no-op
 
-The system SHALL accept payloads with `comments: []` and `batches: []` as valid. The repo and target rows are still upserted; the CLI exits `0` and reports `Imported: 0 comments, 0 batches`.
+The system SHALL accept payloads with `comments: []` and `batches: []` as valid. The repo and target rows are still upserted; the CLI exits `0` and prints the standard success header `Imported <owner>/<name> <target-label> (0 comments, 0 batches)` with no per-counter lines.
 
 #### Scenario: Empty payload succeeds
 
 - **WHEN** a valid payload with no comments and no batches is piped to `tai import -`
 - **THEN** the CLI exits `0`
-- **AND** the summary reads `Imported: 0 comments, 0 batches`
+- **AND** the summary header reads `Imported <owner>/<name> <target-label> (0 comments, 0 batches)`
 - **AND** the repo and target rows exist in the database after the call
 
 ### Requirement: Success output

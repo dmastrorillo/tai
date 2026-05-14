@@ -74,6 +74,22 @@ const (
 	InstallLedgerCorrupt Code = "INSTALL_LEDGER_CORRUPT"
 )
 
+// Import-layer codes (introduced by add-import-command). Append-only;
+// see openspec/changes/add-import-command/specs/import/spec.md for
+// their normative meanings.
+const (
+	// ImportInvalidJSON: the stdin payload is not valid JSON.
+	ImportInvalidJSON Code = "IMPORT_INVALID_JSON"
+
+	// ImportSchemaInvalid: the stdin JSON parses but fails one or more
+	// schema rules.
+	ImportSchemaInvalid Code = "IMPORT_SCHEMA_INVALID"
+
+	// ImportAmbiguousRefs: a comment's external_refs resolve to more
+	// than one existing comment row.
+	ImportAmbiguousRefs Code = "IMPORT_AMBIGUOUS_REFS"
+)
+
 // ExitCode returns the OS exit code mapped to c. Codes outside the known
 // taxonomy default to exitcode.Internal — this catches a programmer using
 // a Code that was forgotten in this switch.
@@ -95,6 +111,10 @@ func (c Code) ExitCode() int {
 		return exitcode.Usage
 	case InstallLedgerCorrupt:
 		return exitcode.Internal
+	case ImportInvalidJSON:
+		return exitcode.Usage
+	case ImportSchemaInvalid, ImportAmbiguousRefs:
+		return exitcode.Data
 	default:
 		return exitcode.Internal
 	}

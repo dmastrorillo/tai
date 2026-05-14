@@ -34,6 +34,9 @@ func TestCode_ExitCode_taxonomy(t *testing.T) {
 		{errcode.InstallTargetUnwritable, exitcode.Data},
 		{errcode.InstallInvalidTarget, exitcode.Usage},
 		{errcode.InstallLedgerCorrupt, exitcode.Internal},
+		{errcode.ImportInvalidJSON, exitcode.Usage},
+		{errcode.ImportSchemaInvalid, exitcode.Data},
+		{errcode.ImportAmbiguousRefs, exitcode.Data},
 		{errcode.Code("UNKNOWN_FUTURE_CODE"), exitcode.Internal},
 	}
 	for _, tc := range cases {

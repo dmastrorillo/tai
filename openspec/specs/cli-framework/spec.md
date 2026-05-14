@@ -173,6 +173,9 @@ The taxonomy is:
 | `INSTALL_TARGET_UNWRITABLE` | 3 | The install target directory cannot be created or is not writable. |
 | `INSTALL_INVALID_TARGET` | 1 | The value passed to `--commands-dir` is malformed. |
 | `INSTALL_LEDGER_CORRUPT` | 70 | An embedded ledger file failed to parse at runtime. |
+| `IMPORT_INVALID_JSON` | 1 | The stdin payload is not valid JSON. |
+| `IMPORT_SCHEMA_INVALID` | 3 | The stdin JSON parses but fails one or more schema rules. |
+| `IMPORT_AMBIGUOUS_REFS` | 3 | A comment's `external_refs` resolve to more than one existing comment row. |
 
 Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its exit code and its meaning in the spec that introduces it.
 
@@ -192,6 +195,12 @@ Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its ex
 - **WHEN** a command exits with `INSTALL_TARGET_UNWRITABLE`
 - **THEN** stderr's footer line matches `^\[exit 3: INSTALL_TARGET_UNWRITABLE\]$`
 - **AND** the error follows the human-readable error contract
+
+#### Scenario: Import codes inherit foundation contract
+
+- **WHEN** a command exits with `IMPORT_SCHEMA_INVALID`
+- **THEN** stderr's footer line matches `^\[exit 3: IMPORT_SCHEMA_INVALID\]$`
+- **AND** the error follows the human-readable error contract (Error line, "What to do" block, footer)
 
 ### Requirement: Exit-code conventions
 

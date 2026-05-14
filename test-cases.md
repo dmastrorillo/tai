@@ -839,6 +839,19 @@ Exercised by `TestInstall_TCINST041_does_not_touch_data_dir`.
 Exercised by `internal/cmd/uninstall_test.go` →
 `TestUninstall_TCINST042_outside_git_repo`.
 
+### TC-INST-043 — bundled `import.md` flows through `tai install` and classifies up-to-date
+
+- **Given** the production bundle (real `internal/cmdframework/commands/import.md` + its ledger),
+- **When** `tai install --commands-dir <fresh-dir>` runs,
+- **Then** the run exits `0` and the summary mentions `import`,
+- **And** immediately afterwards `installer.Classify(<dir>/import.md, ledger)` returns `up-to-date`.
+
+This is the production-bundle counterpart to the fake-bundle install
+tests (TC-INST-020..029) — it pins the round-trip from the embedded
+`commands/import.md` body through the install writer back to the
+classifier. Exercised by `internal/cmd/install_import_smoke_test.go` →
+`TestInstall_TCINST043_import_command_bundled`.
+
 <!-- Coverage notes:
 
 - TC-INST-025 verifies the env-var wiring at the CLI boundary using a
@@ -863,10 +876,374 @@ Exercised by `internal/cmd/uninstall_test.go` →
 
 ## IMP — import
 
-<!-- Reserved for the import proposal (add-import-command). Cases will
-cover JSON-payload validation, repo+target upsert, external_refs key
-resolution, the frozen-on-import rule, batch upsert, and the empty-payload
-success path. -->
+### TC-IMP-001 — well-formed PR payload accepted
+
+- **Given** a JSON payload with `target.kind=pr`, a complete `pr` body,
+  one batch, and one well-formed comment piped on stdin,
+- **When** `tai import -` runs,
+- **Then** the CLI succeeds with exit code `0`,
+- **And** the comment is persisted with `status='pending'`.
+
+Exercised by `internal/import/payload/payload_test.go` →
+`TestDecodeValidate_TCIMP001_well_formed_PR` (payload validation) and
+`internal/cmd/import_test.go` → `TestImport_TCIMP020_stdin_payload_persists`
+(end-to-end persistence).
+
+### TC-IMP-002 — well-formed branch payload accepted
+
+- **Given** a payload with `target.kind=branch` and `branch.name`,
+- **When** `tai import -` runs,
+- **Then** the CLI succeeds with exit `0`,
+- **And** the corresponding `branches` row exists in the database.
+
+Exercised at the payload-validation layer by
+`TestDecodeValidate_TCIMP002_well_formed_branch` and at the CLI
+boundary (including the DB-row check) by
+`internal/cmd/import_test.go` → `TestImport_TCIMP081_branch_header_format`.
+
+### TC-IMP-003 — missing `why_fix` rejected
+
+- **Given** a comment whose `why_fix` field is absent or empty,
+- **When** the payload is validated,
+- **Then** the validator reports `comments[N].why_fix`.
+
+Exercised by `TestValidate_TCIMP003_missing_why_fix_rejected`.
+
+### TC-IMP-004 — invalid severity rejected
+
+- **Given** a comment whose `severity` is not in the enum (e.g. `urgent`),
+- **When** the payload is validated,
+- **Then** the validator reports `comments[N].severity`.
+
+Exercised by `TestValidate_TCIMP004_invalid_severity_rejected`.
+
+### TC-IMP-005 — target with both pr and branch rejected
+
+- **Given** a `target` carrying both `pr` and `branch` bodies,
+- **When** the payload is validated,
+- **Then** the validator reports the violation under `target.branch`
+  (the "must be absent" path).
+
+Exercised by `TestValidate_TCIMP005_both_pr_and_branch`.
+
+### TC-IMP-006 — target.kind=pr without pr body rejected
+
+- **Given** a payload with `target.kind=pr` but no `target.pr` object,
+- **When** the payload is validated,
+- **Then** the validator reports `target.pr`.
+
+Exercised by `TestValidate_TCIMP006_kind_pr_without_pr_body`.
+
+### TC-IMP-007 — missing pr.number rejected
+
+- **Given** a payload with `target.pr.number = 0`,
+- **When** the payload is validated,
+- **Then** the validator reports `target.pr.number`.
+
+Exercised by `TestValidate_TCIMP007_missing_pr_number`.
+
+### TC-IMP-008 — empty external_refs rejected
+
+- **Given** a comment whose `external_refs` array is empty,
+- **When** the payload is validated,
+- **Then** the validator reports `comments[N].external_refs`.
+
+Exercised by `TestValidate_TCIMP008_empty_external_refs`.
+
+### TC-IMP-009 — unknown field rejected at decode time
+
+- **Given** a JSON payload containing a key not in the schema (e.g.
+  `"priority": "p0"` on a comment),
+- **When** the payload is decoded,
+- **Then** the decoder returns an error naming the unknown key (the CLI
+  maps this to `IMPORT_INVALID_JSON`).
+
+Exercised by `TestDecode_TCIMP009_unknown_field`.
+
+### TC-IMP-010 — multiple violations reported in one message
+
+- **Given** a payload with two distinct violations (e.g. invalid
+  severity and empty `why_fix`),
+- **When** the payload is validated,
+- **Then** both violations appear in the returned slice,
+- **And** when piped to `tai import -`, every violation path appears
+  in stderr (rendered as separate "What to do:" bullets per the
+  foundation contract).
+
+Exercised at the engine layer by `TestValidate_TCIMP010_multiple_errors`
+and at the CLI boundary by `TestImport_TCIMP010_multi_violation_body`.
+
+### TC-IMP-011 — `batch_key` references unknown batch rejected
+
+- **Given** a comment whose `batch_key` does not match any
+  `batches[].batch_key` in the payload,
+- **When** the payload is validated,
+- **Then** the validator reports `comments[N].batch_key`.
+
+Exercised by `TestValidate_TCIMP011_batch_key_unknown_rejected`.
+
+### TC-IMP-012 — `FormatErrors` renders violations alphabetically by path
+
+- **Given** a `[]ValidationError` containing entries with paths in any
+  order,
+- **When** `payload.FormatErrors` renders the slice,
+- **Then** the output lists violations in lexicographic order by
+  `Path`, so identical payloads always produce identical error bodies.
+
+Exercised by `TestFormatErrors_TCIMP012_renders_alphabetical`.
+
+### TC-IMP-013 — engine decoder rejects malformed JSON
+
+- **Given** stdin bytes that are not valid JSON,
+- **When** `payload.DecodeBytes` runs,
+- **Then** the decoder returns a non-nil error (the CLI maps this to
+  `IMPORT_INVALID_JSON`; see TC-IMP-030 for the CLI-boundary half).
+
+Exercised by `TestDecode_TCIMP013_malformed_JSON`.
+
+### TC-IMP-020 — `tai import -` reads stdin and persists
+
+- **Given** a valid payload piped to stdin,
+- **When** `tai import -` runs,
+- **Then** the CLI exits `0`, prints the success summary on stdout, and
+  the row appears in the SQLite database.
+
+Exercised by `TestImport_TCIMP020_stdin_payload_persists`.
+
+### TC-IMP-021 — `tai import` with no positional fails
+
+- **Given** the user invokes `tai import` with no positional argument,
+- **When** the CLI runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND` and the stderr
+  footer is `[exit 1: UNKNOWN_SUBCOMMAND]`.
+
+Exercised by `TestImport_TCIMP021_missing_positional_fails`.
+
+### TC-IMP-022 — `tai import 142` (wrong positional) fails
+
+- **Given** the user invokes `tai import 142`,
+- **When** the CLI runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`.
+
+Exercised by `TestImport_TCIMP022_wrong_positional_fails`.
+
+### TC-IMP-023 — `tai import` rejects `--repo`
+
+- **Given** the user invokes `tai --repo acme/other import -`,
+- **When** the CLI runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND` (the repo flag is
+  not accepted by import; the JSON's `repo` field is authoritative).
+
+Exercised by `TestImport_TCIMP023_rejects_repo_flag`.
+
+### TC-IMP-024 — `tai import` succeeds outside a git repository
+
+- **Given** the working directory is not inside any git repository,
+- **And** a valid payload is piped to stdin,
+- **When** `tai import -` runs,
+- **Then** the CLI exits `0`,
+- **And** stderr does NOT mention `REPO_NOT_FOUND` (repo identity is
+  read from the payload, no git resolution happens).
+
+Exercised by `TestImport_TCIMP024_outside_git_repo`.
+
+### TC-IMP-030 — `IMPORT_INVALID_JSON` standard footer
+
+- **Given** stdin contains malformed JSON,
+- **When** `tai import -` runs,
+- **Then** the CLI exits `1` with `IMPORT_INVALID_JSON` and the stderr
+  footer is `[exit 1: IMPORT_INVALID_JSON]`.
+
+Exercised by `TestImport_TCIMP030_invalid_json_footer`.
+
+### TC-IMP-031 — `IMPORT_SCHEMA_INVALID` standard footer
+
+- **Given** a payload that decodes but fails one or more schema rules,
+- **When** `tai import -` runs,
+- **Then** the CLI exits `3` with `IMPORT_SCHEMA_INVALID` and the error
+  body lists every violation.
+
+Exercised by `TestImport_TCIMP031_schema_invalid_footer`.
+
+### TC-IMP-032 — `IMPORT_AMBIGUOUS_REFS` standard footer
+
+- **Given** a payload whose `external_refs` resolve to two distinct
+  existing `comments.id` rows,
+- **When** `tai import -` runs,
+- **Then** the CLI exits `3` with `IMPORT_AMBIGUOUS_REFS`,
+- **And** the rendered stderr contains both conflicting comment IDs.
+
+Exercised by `TestImport_TCIMP032_ambiguous_refs_footer` (which checks
+the footer and asserts both IDs appear in stderr).
+
+### TC-IMP-040 — first import creates repo and PR rows
+
+- **Given** an empty database,
+- **When** a valid PR payload is imported,
+- **Then** rows are created in `repos` (with the payload's `owner_name`)
+  and `prs` (with the payload's `number`, `title`, `url`, `head_branch`).
+
+Exercised by `internal/import/import_test.go` →
+`TestImport_TCIMP040_creates_repo_and_pr`.
+
+### TC-IMP-041 — re-import preserves `repos.created_at`
+
+- **Given** a `repos` row created at time `T1`,
+- **When** a re-import for the same repo runs at time `T2 > T1`,
+- **Then** `repos.created_at` remains `T1`.
+
+Exercised by `TestImport_TCIMP041_reimport_preserves_repo_created_at`.
+
+### TC-IMP-042 — PR title not overwritten on re-import
+
+- **Given** an existing `prs` row with `title='old'`,
+- **When** the payload's PR has `title='new'`,
+- **Then** the row's `title` remains `'old'`.
+
+Exercised by `TestImport_TCIMP042_pr_title_not_overwritten`.
+
+### TC-IMP-043 — branch row created on first branch-scope import
+
+- **Given** an empty database,
+- **When** a branch-scope payload is imported,
+- **Then** a `branches` row is created.
+
+Exercised by `TestImport_TCIMP043_branch_row_created`.
+
+### TC-IMP-050 — new batch inserted
+
+- **Given** a payload whose `batches[]` contains a `batch_key` not
+  present in the database,
+- **When** the import runs,
+- **Then** a new `batches` row is inserted with `status='pending'`.
+
+Exercised by `TestImport_TCIMP050_new_batch_inserted`.
+
+### TC-IMP-051 — existing batch title updated; status preserved
+
+- **Given** an existing batch `(pr_id, batch_key)` with `title='old'`
+  and `status='accepted'`,
+- **When** the payload contains the same batch key with `title='new'`,
+- **Then** the row's `title` becomes `'new'`,
+- **And** the row's `status` remains `'accepted'`.
+
+Exercised by `TestImport_TCIMP051_existing_batch_title_updated`.
+
+### TC-IMP-060 — new comment inserted
+
+- **Given** a comment whose `external_refs` do not match any existing
+  row,
+- **When** the import runs,
+- **Then** a new `comments` row is inserted with `status='pending'`,
+- **And** every `external_refs` entry is inserted.
+
+Exercised by `TestImport_TCIMP060_new_comment_inserted`.
+
+### TC-IMP-061 — pending comment refreshed on re-import
+
+- **Given** a comment whose `external_refs` match an existing row with
+  `status='pending'`,
+- **When** the payload contains a different `description`,
+- **Then** the row's `description` is updated to match the payload,
+- **And** the row's `status` remains `pending`.
+
+Exercised by `TestImport_TCIMP061_pending_refresh`.
+
+### TC-IMP-062 — accepted comment is frozen
+
+- **Given** a comment whose `external_refs` match an existing row with
+  `status='accepted'`,
+- **When** the payload contains a different `description`,
+- **Then** the row's `description` is NOT updated,
+- **And** the "Frozen" counter increments.
+
+Exercised by `TestImport_TCIMP062_accepted_frozen`.
+
+### TC-IMP-063 — dismissed comment is frozen
+
+Same as TC-IMP-062 with `status='dismissed'`. Exercised by
+`TestImport_TCIMP063_dismissed_frozen`.
+
+### TC-IMP-064 — completed comment is frozen
+
+Same as TC-IMP-062 with `status='completed'`. Exercised by
+`TestImport_TCIMP064_completed_frozen`.
+
+### TC-IMP-065 — ambiguous refs rejected
+
+- **Given** two distinct existing `comments.id` rows, each with a
+  different `external_ref`,
+- **When** a payload arrives whose comment carries both of those refs,
+- **Then** the importer returns `*AmbiguousRefsError` naming the
+  conflicting IDs; the CLI surfaces `IMPORT_AMBIGUOUS_REFS`.
+
+Exercised by `TestImport_TCIMP065_ambiguous_refs_rejected` (engine) and
+`TestImport_TCIMP032_ambiguous_refs_footer` (CLI surface).
+
+### TC-IMP-066 — refs added increments the counter
+
+- **Given** an existing pending comment with one ref,
+- **When** a re-import contains the same comment plus an additional
+  `external_ref`,
+- **Then** the new ref is attached and the "Refs added" counter
+  reflects the addition.
+
+Exercised by `TestImport_TCIMP066_refs_added`.
+
+### TC-IMP-070 — transaction rolls back on failure
+
+- **Given** a multi-comment payload where the third comment violates a
+  storage constraint,
+- **When** the import runs,
+- **Then** the importer returns a `*errcode.Error{Code:
+  DB_CONSTRAINT_VIOLATION}` (which the CLI surfaces as exit `3` with
+  the standard `[exit 3: DB_CONSTRAINT_VIOLATION]` footer),
+- **And** no rows from this payload persist.
+
+Exercised at the engine layer by `TestImport_TCIMP070_transaction_rolls_back`.
+The CLI-boundary wiring from a returned `*errcode.Error` through
+`cliout.WriteError` to the footer is exercised generically by
+TC-IMP-030..032 (each running through the same return-path) — the
+payload-validator guards make it infeasible to drive a constraint
+violation through the CLI from a schema-clean payload, so the engine
+test is the authoritative coverage for this scenario.
+
+### TC-IMP-080 — PR header format
+
+- **Given** a payload with `kind=pr, number=142, repo=acme/app`,
+- **When** the import succeeds,
+- **Then** the summary's first line is `Imported acme/app PR #142 (…)`.
+
+Exercised by `TestImport_TCIMP080_pr_header_format`.
+
+### TC-IMP-081 — branch header format
+
+- **Given** a payload with `kind=branch, name=feat/x, repo=acme/app`,
+- **When** the import succeeds,
+- **Then** the summary's first line is `Imported acme/app branch feat/x (…)`.
+
+Exercised by `TestImport_TCIMP081_branch_header_format`.
+
+### TC-IMP-082 — empty payload summary
+
+- **Given** a valid payload with `comments=[]` and `batches=[]`,
+- **When** the import runs,
+- **Then** the summary's header reads `Imported … (0 comments, 0 batches)`,
+- **And** the per-counter lines are suppressed.
+
+Exercised by `TestImport_TCIMP082_empty_payload`.
+
+### TC-IMP-083 — empty payload upserts repo and target rows (engine)
+
+- **Given** a valid payload with `comments=[]` and `batches=[]`,
+- **When** `importer.Import` runs against an empty database,
+- **Then** rows are created in `repos` and the appropriate target
+  table (`prs` or `branches`),
+- **And** the returned `Summary` reports zero comments and zero batches.
+
+Exercised by `internal/import/import_test.go` →
+`TestImport_TCIMP083_empty_payload_succeeds`. (The CLI-boundary half
+is TC-IMP-082.)
 
 ---
 
