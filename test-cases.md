@@ -31,8 +31,11 @@ short, stable codes; numbers increment within each category starting at
 | [`IMP`](#imp--import) | `tai import -`, JSON validation, upsert semantics |
 | [`TRG`](#trg--triage-state) | list / show / accept / dismiss / complete / status / forget |
 
-(`/tai:triage` and `/tai:verify` slash commands are exercised manually —
-they have no TC-IDs because they aren't unit-testable from Go.)
+(`/tai:import`, `/tai:triage`, and `/tai:verify` slash commands are
+exercised manually — they have no TC-IDs because their conversational
+prompt-flow contracts aren't unit-testable from Go. Their bundled
+markdowns ARE covered at the install boundary by TC-INST-043 and
+TC-INST-044.)
 
 ---
 
@@ -842,6 +845,7 @@ Exercised by `internal/cmd/uninstall_test.go` →
 ### TC-INST-043 — bundled `import.md` flows through `tai install` and classifies up-to-date
 
 - **Given** the production bundle (real `internal/cmdframework/commands/import.md` + its ledger),
+- **And** an empty target directory (`installer.Classify(<dir>/import.md, ledger)` returns `missing`),
 - **When** `tai install --commands-dir <fresh-dir>` runs,
 - **Then** the run exits `0` and the summary mentions `import`,
 - **And** immediately afterwards `installer.Classify(<dir>/import.md, ledger)` returns `up-to-date`.
@@ -850,7 +854,25 @@ This is the production-bundle counterpart to the fake-bundle install
 tests (TC-INST-020..029) — it pins the round-trip from the embedded
 `commands/import.md` body through the install writer back to the
 classifier. Exercised by `internal/cmd/install_import_smoke_test.go` →
-`TestInstall_TCINST043_import_command_bundled`.
+`TestInstall_TCINST043_import_command_bundled` (which delegates the
+`missing → install → up-to-date` chain to `runBundledInstallSmoke`,
+the helper shared with TC-INST-044).
+
+### TC-INST-044 — bundled `triage.md` flows through `tai install` and tracks classifier transitions
+
+- **Given** the production bundle (real `internal/cmdframework/commands/triage.md` + its ledger),
+- **And** an empty target directory (`installer.Classify(<dir>/triage.md, ledger)` returns `missing`),
+- **When** `tai install --commands-dir <fresh-dir>` runs,
+- **Then** the run exits `0` and the summary mentions `triage`,
+- **And** `installer.Classify(<dir>/triage.md, ledger)` is `up-to-date`,
+- **And** appending one byte to the installed file flips the classifier to `user-modified`.
+
+The triage counterpart to TC-INST-043 — pins the same `missing →
+up-to-date` round-trip for the second bundled verb via the shared
+`runBundledInstallSmoke` helper, and additionally exercises the
+`up-to-date → user-modified` transition that drives the on-rerun
+prompt. Exercised by `internal/cmd/install_triage_smoke_test.go` →
+`TestInstall_TCINST044_triage_command_bundled`.
 
 <!-- Coverage notes:
 

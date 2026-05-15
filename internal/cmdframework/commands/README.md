@@ -19,6 +19,17 @@ build-time helper `cmd/tai-ledger` keeps the ledger in sync — run
 `make ledger-update` after editing any `<verb>.md` body, before
 committing.
 
+## Currently bundled
+
+For human reference only; `cmdframework.Verbs()` is the authoritative
+runtime enumeration (it discovers verbs by walking this directory's
+embedded view).
+
+- `import` — `/tai:import`, capture review comments into tai's DB.
+  Authored by `add-import-command`.
+- `triage` — `/tai:triage`, walk pending comments interactively.
+  Authored by `add-triage-command`.
+
 ## Format invariants
 
 - The ledger MUST be a JSON array.
