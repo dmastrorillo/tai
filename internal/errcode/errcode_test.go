@@ -37,6 +37,11 @@ func TestCode_ExitCode_taxonomy(t *testing.T) {
 		{errcode.ImportInvalidJSON, exitcode.Usage},
 		{errcode.ImportSchemaInvalid, exitcode.Data},
 		{errcode.ImportAmbiguousRefs, exitcode.Data},
+		{errcode.TriageNoScope, exitcode.Precondition},
+		{errcode.TriageAmbiguousScope, exitcode.Precondition},
+		{errcode.TriageNotFound, exitcode.Precondition},
+		{errcode.TriageInvalidFlags, exitcode.Usage},
+		{errcode.TriageConfirmationRequired, exitcode.Usage},
 		{errcode.Code("UNKNOWN_FUTURE_CODE"), exitcode.Internal},
 	}
 	for _, tc := range cases {

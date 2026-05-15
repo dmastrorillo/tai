@@ -176,6 +176,11 @@ The taxonomy is:
 | `IMPORT_INVALID_JSON` | 1 | The stdin payload is not valid JSON. |
 | `IMPORT_SCHEMA_INVALID` | 3 | The stdin JSON parses but fails one or more schema rules. |
 | `IMPORT_AMBIGUOUS_REFS` | 3 | A comment's `external_refs` resolve to more than one existing comment row. |
+| `TRIAGE_NO_SCOPE` | 2 | The current branch matches no PR and no branch row, and no `--pr`/`--branch` was provided. |
+| `TRIAGE_AMBIGUOUS_SCOPE` | 2 | The current branch matches both a `prs.head_branch` and a `branches.name` row. |
+| `TRIAGE_NOT_FOUND` | 2 | The referenced PR, branch, comment, or batch does not exist in the resolved scope. |
+| `TRIAGE_INVALID_FLAGS` | 1 | Conflicting or missing flags on a triage verb (e.g. `--pr` + `--branch`, missing `--reason`, `--id` + `--batch`). |
+| `TRIAGE_CONFIRMATION_REQUIRED` | 1 | `tai forget` was invoked non-interactively without `--yes` or a truthy `TAI_ACCEPT_DESTRUCTIVE`. |
 
 Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its exit code and its meaning in the spec that introduces it.
 
@@ -201,6 +206,12 @@ Subsequent proposals MAY extend this taxonomy. Each new code MUST specify its ex
 - **WHEN** a command exits with `IMPORT_SCHEMA_INVALID`
 - **THEN** stderr's footer line matches `^\[exit 3: IMPORT_SCHEMA_INVALID\]$`
 - **AND** the error follows the human-readable error contract (Error line, "What to do" block, footer)
+
+#### Scenario: Triage codes inherit foundation contract
+
+- **WHEN** a command exits with `TRIAGE_NO_SCOPE`
+- **THEN** stderr's footer line matches `^\[exit 2: TRIAGE_NO_SCOPE\]$`
+- **AND** the error follows the human-readable error contract
 
 ### Requirement: Exit-code conventions
 

@@ -75,8 +75,7 @@ const (
 )
 
 // Import-layer codes (introduced by add-import-command). Append-only;
-// see openspec/changes/add-import-command/specs/import/spec.md for
-// their normative meanings.
+// see openspec/specs/import/spec.md for their normative meanings.
 const (
 	// ImportInvalidJSON: the stdin payload is not valid JSON.
 	ImportInvalidJSON Code = "IMPORT_INVALID_JSON"
@@ -88,6 +87,31 @@ const (
 	// ImportAmbiguousRefs: a comment's external_refs resolve to more
 	// than one existing comment row.
 	ImportAmbiguousRefs Code = "IMPORT_AMBIGUOUS_REFS"
+)
+
+// Triage-layer codes (introduced by add-triage-state). Append-only;
+// see openspec/changes/add-triage-state/specs/triage/spec.md for their
+// normative meanings.
+const (
+	// TriageNoScope: the current branch matches no PR and no branch row,
+	// and no --pr/--branch was provided.
+	TriageNoScope Code = "TRIAGE_NO_SCOPE"
+
+	// TriageAmbiguousScope: the current branch matches both a
+	// prs.head_branch and a branches.name row.
+	TriageAmbiguousScope Code = "TRIAGE_AMBIGUOUS_SCOPE"
+
+	// TriageNotFound: the referenced PR, branch, comment, or batch does
+	// not exist in the resolved scope.
+	TriageNotFound Code = "TRIAGE_NOT_FOUND"
+
+	// TriageInvalidFlags: conflicting or missing flags on a triage verb
+	// (e.g. --pr + --branch, missing --reason, --id + --batch).
+	TriageInvalidFlags Code = "TRIAGE_INVALID_FLAGS"
+
+	// TriageConfirmationRequired: tai forget was invoked non-
+	// interactively without --yes or a truthy TAI_ACCEPT_DESTRUCTIVE.
+	TriageConfirmationRequired Code = "TRIAGE_CONFIRMATION_REQUIRED"
 )
 
 // ExitCode returns the OS exit code mapped to c. Codes outside the known
@@ -115,6 +139,10 @@ func (c Code) ExitCode() int {
 		return exitcode.Usage
 	case ImportSchemaInvalid, ImportAmbiguousRefs:
 		return exitcode.Data
+	case TriageNoScope, TriageAmbiguousScope, TriageNotFound:
+		return exitcode.Precondition
+	case TriageInvalidFlags, TriageConfirmationRequired:
+		return exitcode.Usage
 	default:
 		return exitcode.Internal
 	}

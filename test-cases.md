@@ -1249,8 +1249,492 @@ is TC-IMP-082.)
 
 ## TRG — triage state
 
-<!-- Reserved for the triage-state proposal (add-triage-state). Cases will
-cover scope resolution (PR / branch / auto-detect / ambiguity), per-target
-ID translation, list / show with --status filters, accept / dismiss /
-complete state transitions and batch operations, status, forget (including
---status modifier for bulk prune), and the consent model. -->
+### TC-TRG-001 — `--pr` flag scopes the verb
+
+- **Given** a PR has been imported,
+- **When** `tai list --pr <N>` runs,
+- **Then** the resolved scope is that PR and the header reads
+  `Scope: PR #<N>`.
+
+Exercised by `internal/cmd/scope_test.go` →
+`TestScope_TCTRG001_pr_flag`.
+
+### TC-TRG-002 — `--branch` flag scopes the verb
+
+- **Given** a branch has been imported,
+- **When** `tai list --branch <name>` runs,
+- **Then** the resolved scope is that branch and the header reads
+  `Scope: branch <name>`.
+
+Exercised by `TestScope_TCTRG002_branch_flag`.
+
+### TC-TRG-003 — auto-detect resolves to PR when `head_branch` matches
+
+- **Given** a PR exists with `head_branch = feat/x`,
+- **And** the current git branch is `feat/x`,
+- **And** no `branches` row exists with `name = feat/x`,
+- **When** a triage verb runs without `--pr` / `--branch`,
+- **Then** the resolved scope is that PR.
+
+Exercised by `internal/cmd/scope_test.go` →
+`TestScope_TCTRG003_auto_detect_pr`.
+
+### TC-TRG-004 — auto-detect resolves to branch when name matches
+
+- **Given** a `branches` row exists with `name = feat/y`,
+- **And** the current git branch is `feat/y`,
+- **And** no `prs.head_branch` matches `feat/y`,
+- **When** a triage verb runs without `--pr` / `--branch`,
+- **Then** the resolved scope is that branch.
+
+Exercised by `TestScope_TCTRG004_auto_detect_branch`.
+
+### TC-TRG-005 — auto-detect with both matches fails `TRIAGE_AMBIGUOUS_SCOPE`
+
+- **Given** both a `prs.head_branch = feat/z` and a `branches.name = feat/z` row exist,
+- **And** the current git branch is `feat/z`,
+- **When** a triage verb runs without `--pr` / `--branch`,
+- **Then** the CLI exits `2` with `TRIAGE_AMBIGUOUS_SCOPE`.
+
+Exercised by `TestScope_TCTRG005_auto_detect_ambiguous`.
+
+### TC-TRG-006 — auto-detect fails with `TRIAGE_NO_SCOPE`
+
+- **Given** the working directory is not in a git repo and the
+  current branch maps to neither a `prs.head_branch` nor a
+  `branches.name` row,
+- **When** `tai list` runs with `--repo` but no `--pr`/`--branch`,
+- **Then** the CLI exits `2` with `TRIAGE_NO_SCOPE`.
+
+Exercised by `TestScope_TCTRG006_no_scope`.
+
+### TC-TRG-007 — `--pr` + `--branch` mutex
+
+- **Given** a triage verb is invoked with both `--pr` and `--branch`,
+- **When** the CLI parses flags,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestScope_TCTRG007_mutex`.
+
+### TC-TRG-010 — positions start at 1 within a target
+
+- **Given** a target has one or more comments,
+- **When** `tai list` runs,
+- **Then** the first row's ID column reads `1`.
+
+Exercised by `TestPosition_TCTRG010_starts_at_1`.
+
+### TC-TRG-012 — positions renumber after delete
+
+- **Given** a target with three comments at positions 1, 2, 3,
+- **When** `tai forget --comment 2 --yes` runs,
+- **Then** the remaining comments are displayed as 1 and 2.
+
+Exercised by `TestPosition_TCTRG012_shift_after_delete`.
+
+### TC-TRG-020 — `tai list` renders a row per comment
+
+- **Given** a scope with one or more comments,
+- **When** `tai list` runs,
+- **Then** stdout contains the `Repo:` / `Scope:` header and a row
+  for each comment.
+
+Exercised by `internal/cmd/list_test.go` → `TestList_TCTRG020_with_comments`.
+
+### TC-TRG-021 — `tai list` empty scope prints `(no comments)`
+
+- **Given** a scope with zero comments,
+- **When** `tai list` runs,
+- **Then** stdout contains the header followed by `(no comments)`.
+
+Exercised by `TestList_TCTRG021_empty_scope`.
+
+### TC-TRG-022 — severity is abbreviated
+
+- **Given** comments span the severity enum,
+- **When** `tai list` runs,
+- **Then** stdout shows `crit`, `maj`, `min`, `nit` (not the full
+  words) in the SEV column.
+
+Exercised by `TestList_TCTRG022_severity_abbreviated`.
+
+### TC-TRG-023 — multiple `--status` values combine via OR
+
+- **Given** a mix of pending, accepted, and completed comments,
+- **When** `tai list --status accepted --status completed` runs,
+- **Then** the output contains both accepted and completed rows,
+- **And** pending rows are filtered out.
+
+Exercised by `TestList_TCTRG023_multi_status_or`.
+
+### TC-TRG-025 — `--status` filter narrows the list
+
+- **Given** a mix of pending and accepted comments,
+- **When** `tai list --status accepted` runs,
+- **Then** only accepted rows appear.
+
+Exercised by `TestList_TCTRG025_single_status_filter`.
+
+### TC-TRG-026 — unknown `--status` value is rejected
+
+- **Given** `--status urgent` is passed,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestList_TCTRG026_unknown_status`.
+
+### TC-TRG-030 — pending comment has no Resolution / Dismissed sections
+
+- **Given** a pending comment with no `batch_id`,
+- **When** `tai show <id>` runs,
+- **Then** stdout omits `## Resolution`, `## Dismissed because`, and
+  the `**Batch:**` meta line.
+
+Exercised by `internal/cmd/show_test.go` → `TestShow_TCTRG030_pending_comment`.
+
+### TC-TRG-031 — accepted comment with resolution shows `## Resolution`
+
+- **Given** an accepted comment with `resolution = "use execFileSync"`,
+- **When** `tai show <id>` runs,
+- **Then** stdout contains `## Resolution\nuse execFileSync`.
+
+Exercised by `TestShow_TCTRG031_accepted_with_resolution`.
+
+### TC-TRG-032 — dismissed comment shows `## Dismissed because`
+
+- **Given** a dismissed comment,
+- **When** `tai show <id>` runs,
+- **Then** stdout contains `## Dismissed because\n<reason> (by <name>)`.
+
+Exercised by `TestShow_TCTRG032_dismissed`.
+
+### TC-TRG-033 — comment with batch shows batch meta line
+
+- **Given** a comment whose `batch_id` references batch `B1` with
+  title `Replace execSync`,
+- **When** `tai show <id>` runs,
+- **Then** the meta lines include `**Batch:** B1 — Replace execSync`.
+
+Exercised by `TestShow_TCTRG033_batch_meta_present`.
+
+### TC-TRG-034 — `tai show --all` joins blocks with `---`
+
+- **Given** a scope with two comments,
+- **When** `tai show --all` runs,
+- **Then** stdout contains both blocks separated by a line containing
+  exactly `---`.
+
+Exercised by `TestShow_TCTRG034_all_two_comments`.
+
+### TC-TRG-035 — `tai show --all` on an empty scope is zero-byte stdout
+
+- **Given** a scope with zero comments,
+- **When** `tai show --all` runs,
+- **Then** stdout is empty.
+
+Exercised by `TestShow_TCTRG035_all_empty`.
+
+### TC-TRG-036 — `tai show --all --status` filters output
+
+- **Given** a scope with one accepted and one pending comment,
+- **When** `tai show --all --status accepted` runs,
+- **Then** stdout contains the accepted comment's block,
+- **And** the pending comment's block is absent.
+
+Exercised by `TestShow_TCTRG036_all_status_filter`.
+
+### TC-TRG-038 — `--status` is rejected on single-comment `tai show`
+
+- **Given** `tai show <id> --status pending`,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestShow_TCTRG038_status_rejected_on_single`.
+
+### TC-TRG-040 — `tai accept <id>` transitions to `accepted`
+
+- **Given** a pending comment,
+- **When** `tai accept <id> --resolution "..."` runs,
+- **Then** the comment's status becomes `accepted` and the resolution
+  is persisted (verified via `tai show`).
+
+Exercised by `internal/cmd/mutate_test.go` → `TestAccept_TCTRG040_accept_pending`.
+
+### TC-TRG-041 — accept after dismiss clears the dismissal fields
+
+- **Given** a previously-dismissed comment,
+- **When** `tai accept <id>` runs,
+- **Then** `dismissed_by` and `dismiss_reason` are cleared.
+
+Exercised by `TestAccept_TCTRG041_reversal_from_dismissed`.
+
+### TC-TRG-042 — accept is idempotent
+
+- **Given** an already-accepted comment,
+- **When** `tai accept <id>` runs again with no `--resolution`,
+- **Then** the CLI exits `0` and no row changes.
+
+Exercised by `TestAccept_TCTRG042_idempotent`.
+
+### TC-TRG-043 — `tai accept --batch <key>` flips every member
+
+- **Given** a batch with two pending members,
+- **When** `tai accept --batch <key>` runs,
+- **Then** all members become `accepted`.
+
+Exercised by `TestAccept_TCTRG043_by_batch`.
+
+### TC-TRG-044 — `<id>` and `--batch` are mutually exclusive
+
+- **Given** both `<id>` and `--batch` are supplied,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestAccept_TCTRG044_mutex`.
+
+### TC-TRG-045 — accept on a non-existent position fails `TRIAGE_NOT_FOUND`
+
+- **Given** the scope has only N comments,
+- **When** `tai accept <N+1>` runs,
+- **Then** the CLI exits `2` with `TRIAGE_NOT_FOUND`.
+
+Exercised by `TestAccept_TCTRG045_not_found`.
+
+### TC-TRG-050 — `tai dismiss` requires `--reason`
+
+- **Given** `tai dismiss <id>` is invoked without `--reason`,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestDismiss_TCTRG050_missing_reason`.
+
+### TC-TRG-051 — `--by` override records the dismissed_by attribution
+
+- **Given** `tai dismiss <id> --reason "..." --by alice`,
+- **When** the verb runs,
+- **Then** the rendered "Dismissed because" line reads `<reason> (by alice)`.
+
+Exercised by `TestDismiss_TCTRG051_records_by`.
+
+### TC-TRG-052 — dismiss-after-accept clears `resolution`
+
+- **Given** a previously-accepted comment with a recorded resolution,
+- **When** `tai dismiss <id> --reason "..."` runs,
+- **Then** the comment's status becomes `dismissed`,
+- **And** the `## Resolution` section is absent from `tai show`.
+
+Exercised by `TestDismiss_TCTRG052_reversal_clears_resolution`.
+
+### TC-TRG-060 — `tai complete <id>` transitions to `completed`
+
+- **Given** a pending comment,
+- **When** `tai complete <id> --resolution "..."` runs,
+- **Then** the comment's status becomes `completed` and the
+  resolution is persisted.
+
+Exercised by `TestComplete_TCTRG060_complete_pending`.
+
+### TC-TRG-070 — uniform-terminal batch becomes that state
+
+- **Given** a batch with two pending members,
+- **When** `tai accept --batch <key>` runs (flipping both to accepted),
+- **Then** the batch's status becomes `accepted` (the uniform
+  terminal state of its members).
+
+Exercised by `TestBatch_TCTRG070_uniform_terminal`.
+
+### TC-TRG-071 — split batch becomes `mixed`
+
+- **Given** a batch whose two members transition to different
+  terminal states (`accepted` + `dismissed`),
+- **When** `tai status` runs,
+- **Then** the batch row reads `(<n> comments — mixed)`.
+
+Exercised by `TestBatch_TCTRG071_split_is_mixed`.
+
+### TC-TRG-072 — batch with pending + terminal members is `mixed`
+
+- **Given** a batch with two members, one accepted and one pending,
+- **When** `tai status` runs,
+- **Then** the batch's status reads `mixed`.
+
+Exercised by `TestBatch_TCTRG072_pending_plus_terminal_is_mixed`.
+
+### TC-TRG-080 — `tai status` summary for a PR scope with batches
+
+- **Given** a PR scope with one comment in one batch,
+- **When** `tai status` runs,
+- **Then** stdout contains `Repo:`, `Scope:`, the counts block, and a
+  `Batches:` block with one batch entry.
+
+Exercised by `internal/cmd/status_test.go` → `TestStatus_TCTRG080_pr_with_batches`.
+
+### TC-TRG-081 — `tai status` omits the Batches block when zero batches
+
+- **Given** a branch scope with comments but no batches,
+- **When** `tai status` runs,
+- **Then** the output contains the counts block and does NOT contain
+  the `Batches:` line.
+
+Exercised by `TestStatus_TCTRG081_branch_without_batches`.
+
+### TC-TRG-082 — `tai status` empty scope reads `Total: 0`
+
+- **Given** a target with zero comments,
+- **When** `tai status` runs,
+- **Then** stdout contains `Total:      0` and the per-status lines
+  are suppressed.
+
+Exercised by `TestStatus_TCTRG082_empty_scope`.
+
+### TC-TRG-090 — `tai forget` with no selector fails
+
+- **Given** `tai forget` is invoked with no `--comment`/`--batch`/
+  `--pr`/`--branch`/`--repo`,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `internal/cmd/forget_test.go` → `TestForget_TCTRG090_zero_selectors`.
+
+### TC-TRG-091 — multiple local selectors are rejected
+
+- **Given** `tai forget --pr 1 --branch feat/x --yes`,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestForget_TCTRG091_two_local_selectors`.
+
+### TC-TRG-092 — `tai forget --repo <owner/name> --yes` works outside any git repo
+
+- **Given** the working directory is not in any git repo and the
+  given repo has been imported,
+- **When** `tai --repo <owner/name> forget --yes` runs,
+- **Then** the destructive summary is printed,
+- **And** `Done.` is printed,
+- **And** the CLI exits `0`,
+- **And** a follow-up `tai list --pr 1` exits `TRIAGE_NOT_FOUND`
+  (the cascade removed the repo and every child row).
+
+Exercised by `TestForget_TCTRG092_repo_with_yes_outside_git`.
+
+### TC-TRG-093 — non-interactive without consent fails loudly
+
+- **Given** stdin is non-TTY and neither `--yes` nor a truthy
+  `TAI_ACCEPT_DESTRUCTIVE` is set,
+- **When** `tai forget --pr <N>` runs,
+- **Then** the CLI exits `1` with `TRIAGE_CONFIRMATION_REQUIRED`,
+- **And** no rows are deleted.
+
+Exercised by `TestForget_TCTRG093_non_interactive_no_consent`.
+
+### TC-TRG-094 — `TAI_ACCEPT_DESTRUCTIVE=1` grants consent
+
+- **Given** the env var is set to a truthy value,
+- **When** `tai forget --pr <N>` runs non-interactively,
+- **Then** the CLI exits `0`.
+
+Exercised by `TestForget_TCTRG094_env_skips_prompt`.
+
+### TC-TRG-095 — `--status` prunes matching comments only
+
+- **Given** a PR scope where one comment is `completed` and another
+  is `pending`,
+- **When** `tai forget --pr <N> --status completed --yes` runs,
+- **Then** the completed comment is deleted,
+- **And** the pending comment survives,
+- **And** the PR row is preserved.
+
+Exercised by `TestForget_TCTRG095_status_prune_pr`.
+
+### TC-TRG-096 — `--status` combined with `--comment` is rejected
+
+- **Given** `tai forget --comment 1 --status completed`,
+- **When** the CLI parses,
+- **Then** it exits `1` with `TRIAGE_INVALID_FLAGS`.
+
+Exercised by `TestForget_TCTRG096_status_on_comment_rejected`.
+
+### TC-TRG-097 — `tai forget --repo --status` prunes matching comments repo-wide
+
+- **Given** two PRs each with one completed comment under the same repo,
+- **When** `tai --repo <owner/name> forget --status completed --yes` runs,
+- **Then** every completed comment is deleted,
+- **And** the PR rows are preserved (`tai list --pr <N>` returns
+  `(no comments)`).
+
+Exercised by `TestForget_TCTRG097_repo_status_prune`.
+
+### TC-TRG-098 — `tai forget --batch --status` recomputes batch status
+
+- **Given** a batch with one completed and one accepted member,
+- **When** `tai forget --pr <N> --batch B1 --status completed --yes` runs,
+- **Then** the completed member is deleted,
+- **And** the batch row survives,
+- **And** the batch's status recomputes to `accepted` (the surviving
+  member's status).
+
+Exercised by `TestForget_TCTRG098_batch_status_recompute`.
+
+### TC-TRG-099 — multiple `--status` values combine via OR
+
+- **Given** a PR with one completed, one dismissed, and one pending comment,
+- **When** `tai forget --pr <N> --status completed --status dismissed --yes` runs,
+- **Then** the completed and dismissed comments are deleted,
+- **And** the pending comment survives.
+
+Exercised by `TestForget_TCTRG099_multi_value_status`.
+
+### TC-TRG-100 — `[exit 2: TRIAGE_NO_SCOPE]` footer
+
+- **Given** a verb that cannot resolve a scope (no `--pr`/`--branch`,
+  not in a git repo with imported data),
+- **When** the verb runs,
+- **Then** the rendered stderr footer is `[exit 2: TRIAGE_NO_SCOPE]`.
+
+Exercised by `internal/cmd/errcode_triage_test.go` →
+`TestErrcode_TCTRG100_no_scope_footer`.
+
+### TC-TRG-101 — `[exit 2: TRIAGE_AMBIGUOUS_SCOPE]` footer
+
+- **Given** the current branch matches both a PR's `head_branch` and a
+  `branches.name` row,
+- **When** a triage verb runs without explicit scope,
+- **Then** the rendered stderr footer is
+  `[exit 2: TRIAGE_AMBIGUOUS_SCOPE]`.
+
+Exercised by `TestErrcode_TCTRG101_ambiguous_scope_footer`.
+
+### TC-TRG-102 — `[exit 2: TRIAGE_NOT_FOUND]` footer
+
+- **Given** a comment / batch / PR / branch referenced by a verb does
+  not exist,
+- **When** the verb runs,
+- **Then** the rendered stderr footer is `[exit 2: TRIAGE_NOT_FOUND]`.
+
+Exercised by `TestErrcode_TCTRG102_not_found_footer`.
+
+### TC-TRG-103 — `[exit 1: TRIAGE_INVALID_FLAGS]` footer
+
+- **Given** a triage verb is invoked with conflicting flags,
+- **When** the CLI parses,
+- **Then** the rendered stderr footer is `[exit 1: TRIAGE_INVALID_FLAGS]`.
+
+Exercised by `TestErrcode_TCTRG103_invalid_flags_footer`.
+
+### TC-TRG-104 — `[exit 1: TRIAGE_CONFIRMATION_REQUIRED]` footer
+
+- **Given** `tai forget` is invoked non-interactively without `--yes`
+  or `TAI_ACCEPT_DESTRUCTIVE`,
+- **When** the verb runs,
+- **Then** the rendered stderr footer is
+  `[exit 1: TRIAGE_CONFIRMATION_REQUIRED]`.
+
+Exercised by `TestErrcode_TCTRG104_confirmation_required_footer`.
+
+<!-- Coverage note: the interactive `[y/N]` consent path in
+`consentGranted` (forget.go) is not E2E-testable via `cmdtest.Run`
+because the harness wires a `strings.Reader` for stdin (always
+non-TTY). The non-interactive path is covered by TC-TRG-093 / TC-TRG-104;
+the env-var and --yes paths are covered by TC-TRG-094 / TC-TRG-092. The
+interactive `y`/`Y` branch is exercised only manually. -->
+

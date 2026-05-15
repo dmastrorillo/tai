@@ -94,6 +94,13 @@ func NewRoot(opts ...RootOption) *cli.Command {
 			newInstallCommand(cfg.bundle),
 			newUninstallCommand(cfg.bundle),
 			newImportCommand(),
+			newListCommand(),
+			newShowCommand(),
+			newAcceptCommand(),
+			newDismissCommand(),
+			newCompleteCommand(),
+			newStatusCommand(),
+			newForgetCommand(),
 		},
 
 		Action: func(_ context.Context, c *cli.Command) error {
