@@ -29,6 +29,8 @@ embedded view).
   Authored by `add-import-command`.
 - `triage` — `/tai:triage`, walk pending comments interactively.
   Authored by `add-triage-command`.
+- `verify` — `/tai:verify`, confirm accepted comments are fixed and
+  mark them completed. Authored by `add-verify-command`.
 
 ## Format invariants
 

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# verify-command Specification
+
+## Purpose
+
+The `verify-command` capability defines the bundled `/tai:verify` Claude slash command: its invocation forms, the three-phase loop (scope resolution, evidence gathering, confirmation), the evidence-gathering heuristics that differ by scope (`gh pr diff` for PR-target scopes, working tree + `git log` for branch-target scopes), the three-tier confidence model (HIGH/MEDIUM/NONE) with its conservative-bias rule, the recap that closes the loop and points the user at scope-qualified `tai forget`, the frontmatter / ledger requirements that make it installable by `tai install`, and the rule that the only state change it ever causes routes through `tai complete`. After `/tai:triage`, the user fixes the accepted comments; `/tai:verify` is the surface that walks every accepted comment in a scope, looks for concrete evidence the fix is in place, and asks the user to confirm before marking each one `completed`. False positives (marking a comment fixed when it isn't) are worse than false negatives — so when evidence is weak or ambiguous, the slash command leaves the comment as `accepted`. The "verify" identity lives entirely in the slash command; there is no `tai verify` CLI verb because verification requires AI reasoning the CLI is not in the business of doing.
+
+## Requirements
 
 ### Requirement: Bundled slash command exists and obeys the command-framework
 
@@ -102,7 +108,7 @@ The slash command MUST NOT invoke `gh pr diff` for branch-target scopes (there's
 
 For each accepted comment, the slash command SHALL classify evidence into one of three confidence levels:
 
-- **High**: original code is absent at the comment's lines AND the suggested-fix pattern is present, OR the file referenced by the comment is gone entirely. For PR-target scopes, requires corroboration in the PR diff (or `gh` unavailable and the user has been warned about the cap).
+- **High**: qualifies under EITHER (a) the file referenced by the comment is gone entirely, OR (b) the original code is absent at the comment's lines AND the suggested-fix pattern is present in the working tree, with one extra condition for PR-target scopes: when `gh pr diff` succeeded, the PR diff MUST also corroborate the change; when `gh pr diff` failed (the gh-failure fallback), HIGH is downgraded to MEDIUM regardless of how conclusive the working-tree match looks. For branch-target scopes, working-tree signals alone suffice.
 - **Medium**: exactly one of (original code absent, suggested-fix pattern present), OR a relevant git log subject containing keywords from the comment's `title`.
 - **None**: neither check matches and no relevant git history.
 
@@ -172,8 +178,8 @@ When every accepted comment has been processed, the slash command SHALL emit a r
 2. Counts:
    - `Marked completed: <N>`
    - `Left accepted:    <M>` (the residual queue size after this run)
-3. The still-accepted work queue: every comment still in `accepted` status, sorted by severity then file, each row showing `[<sev-abbr>] <id-or-batch-key>: <title> (<file>:<lines>)`.
-4. A closing line suggesting the prune command: `Ready to prune the completed comments? Run \`tai forget --status completed --yes\`.`
+3. The still-accepted work queue: every comment still in `accepted` status, sorted by severity then file, each row showing `[<sev-abbr>] <id>: <title> (<file>:<lines>)` where `<id>` is the integer position number `tai list` prints in its `ID` column.
+4. A closing line suggesting the prune command, scope-qualified so the CLI accepts it: `Ready to prune the completed comments? Run \`tai forget <scope-flag> --status completed --yes\`.` where `<scope-flag>` is `--pr <N>` for PR-scope runs and `--branch <name>` for branch-scope runs. `tai forget` rejects invocations without a primary selector; `--status` alone is a filter, not a selector.
 
 The recap MUST be emitted exactly once per loop completion.
 
@@ -184,10 +190,11 @@ For `stack` mode, the recap is per-PR with a final stack-level aggregate after t
 - **WHEN** verification completes with 3 marked completed and 5 left accepted
 - **THEN** the recap lists each of the 5 still-accepted comments in severity order
 
-#### Scenario: Recap suggests the prune command
+#### Scenario: Recap suggests the scope-qualified prune command
 
 - **WHEN** verification completes with at least one comment marked completed
-- **THEN** the recap's final line contains the literal `tai forget --status completed --yes`
+- **THEN** the recap's final line contains a scope-qualified prune command — `tai forget --pr <N> --status completed --yes` for PR-scope runs, or `tai forget --branch <name> --status completed --yes` for branch-scope runs
+- **AND** the command MUST NOT omit the `--pr` / `--branch` selector (`tai forget` exits `TRIAGE_INVALID_FLAGS` without one)
 
 #### Scenario: Stack mode recaps per PR and at the end
 

@@ -34,8 +34,8 @@ short, stable codes; numbers increment within each category starting at
 (`/tai:import`, `/tai:triage`, and `/tai:verify` slash commands are
 exercised manually — they have no TC-IDs because their conversational
 prompt-flow contracts aren't unit-testable from Go. Their bundled
-markdowns ARE covered at the install boundary by TC-INST-043 and
-TC-INST-044.)
+markdowns ARE covered at the install boundary by TC-INST-043,
+TC-INST-044, and TC-INST-045.)
 
 ---
 
@@ -873,6 +873,21 @@ up-to-date` round-trip for the second bundled verb via the shared
 `up-to-date → user-modified` transition that drives the on-rerun
 prompt. Exercised by `internal/cmd/install_triage_smoke_test.go` →
 `TestInstall_TCINST044_triage_command_bundled`.
+
+### TC-INST-045 — bundled `verify.md` flows through `tai install` and classifies up-to-date
+
+- **Given** the production bundle (real `internal/cmdframework/commands/verify.md` + its ledger),
+- **And** an empty target directory (`installer.Classify(<dir>/verify.md, ledger)` returns `missing`),
+- **When** `tai install --commands-dir <fresh-dir>` runs,
+- **Then** the run exits `0` and the summary mentions `verify`,
+- **And** immediately afterwards `installer.Classify(<dir>/verify.md, ledger)` returns `up-to-date`.
+
+The third bundled-verb install round-trip; uses the same shared
+`runBundledInstallSmoke` helper as TC-INST-043 and TC-INST-044. The
+post-install `user-modified` flip is already pinned by TC-INST-044
+and does not need a third copy here. Exercised by
+`internal/cmd/install_verify_smoke_test.go` →
+`TestInstall_TCINST045_verify_command_bundled`.
 
 <!-- Coverage notes:
 
