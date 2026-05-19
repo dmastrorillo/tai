@@ -3,8 +3,8 @@ name: "TAI: Triage"
 description: "Walk through pending PR review comments interactively, batches-first."
 category: "Workflow"
 tags: [tai, triage, review]
-version: 1
-content_hash: "sha256:c75accba96fdd13d13a01df0fdc37d9009b167e04290b91d796574bab003a35d"
+version: 2
+content_hash: "sha256:b2ebfd5afe77d9348e27ae7043f3a232fab157f574df73b696c4554212efb774"
 ---
 # /tai:triage — walk pending review comments to a decision
 
@@ -39,9 +39,11 @@ and stop — do not call `tai` at all in that case.
 For `--pr <number-or-url>`: accept either a bare number (`142`) or the
 full URL (`https://github.com/acme/app/pull/142`). The CLI's `--pr`
 flag only accepts a bare integer, so YOU must extract the PR number
-from a URL before invoking `tai`. For
-`https://github.com/<owner>/<name>/pull/<N>`, the integer is the
-trailing path segment. After extraction, call
+from a URL before invoking `tai`. For a URL of the form
+`https://github.com/<owner>/<name>/pull/<N>` (or `…/pull/<N>/files`,
+`…/pull/<N>/commits`, etc.), extract the integer immediately after
+`/pull/` — NOT the trailing path segment, which may be `files`,
+`commits`, or a comment anchor. After extraction, call
 `tai status --pr <N>` with only the integer.
 
 For `--branch <name>`: pass the branch name to `tai status --branch
@@ -150,8 +152,9 @@ For each item (batch or individual):
 1. **Present.** Run `tai show <id>` for an individual comment, or `tai
    show <id>` for each batch member when presenting a batch (one
    `tai show` per member; the batch is a group, but the CLI surface is
-   per-comment). Surface the markdown verbatim in conversation — do
-   NOT paraphrase.
+   per-comment). Pass the same `--pr <N>` / `--branch <name>` scope
+   flags that section 2 resolved, so the lookup hits the right scope.
+   Surface the markdown verbatim in conversation — do NOT paraphrase.
 2. **Decide.** Ask exactly this question (or a close paraphrase that
    preserves the three verbs):
 
@@ -318,9 +321,9 @@ Triage complete for <repo> <scope-label>.
   Dismissed:  <D>
 
 Accepted work queue (severity order):
-  [crit] B1.1: <title> (<file>:<lines>)
-  [crit] B1.2: <title> (<file>:<lines>)
-  [maj]  3:    <title> (<file>:<lines>)
+  [crit] 7: <title> (<file>:<lines>)
+  [crit] 8: <title> (<file>:<lines>)
+  [maj]  3: <title> (<file>:<lines>)
   …
 
 Ready to start working through these? I can read each one again with `tai show`.
@@ -330,8 +333,13 @@ Ready to start working through these? I can read each one again with `tai show`.
   branch scope.
 - The accepted work queue lists every accepted (and accepted-batched)
   comment in severity order, with abbreviation `crit | maj | min |
-  nit` matching the four severity levels. Source the rows from `tai
-  list --status accepted` (or equivalent surface).
+  nit` matching the four severity levels. Source the rows from
+  `tai list --status accepted <scope-flag>` (or equivalent surface).
+  Each row's `<id>` is the integer position number `tai list` prints
+  in its `ID` column — do NOT use `B<key>.<member>` notation, that is
+  conversational shorthand for batch overrides (section 6) and is not
+  a `tai list` output format. The `BATCH` column shows the batch key
+  on its own; the primary identifier remains the integer position.
 - Completed comments are summarised in the counts only — they are
   done; surfacing them again is noise.
 - Dismissed comments are summarised in the counts only — surfacing

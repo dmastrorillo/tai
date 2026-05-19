@@ -889,6 +889,21 @@ and does not need a third copy here. Exercised by
 `internal/cmd/install_verify_smoke_test.go` →
 `TestInstall_TCINST045_verify_command_bundled`.
 
+### TC-INST-046 — one `tai install` run lands every bundled verb as `up-to-date`
+
+- **Given** the production bundle (every verb returned by `cmdframework.Verbs()` with its ledger),
+- **And** an empty target directory,
+- **When** `tai install --commands-dir <fresh-dir>` runs ONCE,
+- **Then** for EVERY verb `cmdframework.Verbs()` reports, `installer.Classify(<dir>/<verb>.md, ledger)` returns `up-to-date` afterwards.
+
+The cross-verb companion to TC-INST-043/044/045: those three tests
+each run an install but only classify their own verb. A regression
+that wrote some verbs correctly and broke others would slip past the
+per-verb tests; this test catches that by classifying every bundled
+verb after a single install run. Exercised by
+`internal/cmd/install_all_bundled_test.go` →
+`TestInstall_TCINST046_all_bundled_verbs_up_to_date`.
+
 <!-- Coverage notes:
 
 - TC-INST-025 verifies the env-var wiring at the CLI boundary using a

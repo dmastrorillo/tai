@@ -1,7 +1,9 @@
 # command-framework Specification
 
 ## Purpose
-TBD - created by archiving change add-tai-foundation. Update Purpose after archive.
+
+The `command-framework` capability defines the contract every bundled `/tai:<verb>` Claude slash command must conform to: the verb ↔ slash-command pairing rule, the install target path (`~/.claude/commands/tai/<verb>.md`), the strict six-key YAML frontmatter schema (`name`, `description`, `category`, `tags`, `version`, `content_hash`), how `content_hash` is computed (sha256 over body bytes only, trailing newlines included), the per-command monotonic integer `version` that is independent of the CLI's semver, the cumulative `<verb>.ledger.json` hash history embedded into the binary at build time, and the rule that every slash-command body delegates persistence and state mutation to the CLI rather than writing the database directly. The current bundled set this contract governs is `/tai:import`, `/tai:triage`, and `/tai:verify`; the contract is what makes `tai install` able to detect missing / up-to-date / stale-but-untouched / user-modified target files deterministically across releases.
+
 ## Requirements
 ### Requirement: Verb-to-slash-command pairing
 
@@ -13,6 +15,12 @@ A verb MAY exist without a paired slash command (for example `tai install` is in
 
 - **WHEN** the binary ships with a bundled slash command `/tai:import`
 - **THEN** the CLI provides a `tai import` subcommand
+
+#### Scenario: Pairing applies uniformly across the bundled set
+
+- **WHEN** the binary ships with bundled slash commands `/tai:triage` and `/tai:verify`
+- **THEN** the CLI MUST provide the corresponding `tai`-level surfaces those commands invoke (`tai status`, `tai list`, `tai show`, `tai accept`, `tai dismiss`, `tai complete`, `tai forget`)
+- **AND** each bundled command's markdown is installed at `~/.claude/commands/tai/triage.md` and `~/.claude/commands/tai/verify.md` respectively
 
 #### Scenario: A verb may have no slash command
 
@@ -29,6 +37,12 @@ The exact install command behaviour (idempotency, overriding the target director
 
 - **WHEN** the bundled slash command for `tai import` is installed under default paths
 - **THEN** the file is written to `~/.claude/commands/tai/import.md`
+
+#### Scenario: Bundled verify command target path
+
+- **WHEN** the bundled slash command for `tai verify` (a.k.a. `/tai:verify`) is installed under default paths
+- **THEN** the file is written to `~/.claude/commands/tai/verify.md`
+- **AND** the same install run also writes `~/.claude/commands/tai/import.md` and `~/.claude/commands/tai/triage.md`
 
 ### Requirement: Slash-command frontmatter schema
 
