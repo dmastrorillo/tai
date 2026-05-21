@@ -77,7 +77,7 @@ The prompt format:
 
 ```
 The file at ~/.claude/commands/tai/import.md has been modified locally.
-Overwrite with the version bundled in tai 0.7.0? [y/N] 
+Overwrite with the version bundled in tai 0.7.0? [y/N]
 ```
 
 Three overrides bypass the prompt entirely and overwrite:

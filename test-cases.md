@@ -1789,4 +1789,3 @@ because the harness wires a `strings.Reader` for stdin (always
 non-TTY). The non-interactive path is covered by TC-TRG-093 / TC-TRG-104;
 the env-var and --yes paths are covered by TC-TRG-094 / TC-TRG-092. The
 interactive `y`/`Y` branch is exercised only manually. -->
-

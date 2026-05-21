@@ -136,4 +136,3 @@ The body MUST NOT duplicate logic that the CLI implements (parsing, validation, 
 
 - **WHEN** the user invokes `/tai:import 142`
 - **THEN** the slash command body instructs Claude to call `tai import -` (or related verbs) for persistence rather than writing files directly
-

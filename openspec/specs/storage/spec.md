@@ -344,4 +344,3 @@ These codes are append-only additions to the foundation taxonomy; they MUST NOT 
 - **WHEN** a write fails because a `CHECK` constraint is violated
 - **THEN** the CLI exits with code `3`
 - **AND** stderr's footer line is `[exit 3: DB_CONSTRAINT_VIOLATION]`
-

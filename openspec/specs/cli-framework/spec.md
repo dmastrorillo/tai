@@ -236,4 +236,3 @@ Every error code in the taxonomy MUST map to exactly one exit code. The CLI MUST
 
 - **WHEN** any command completes without error
 - **THEN** the CLI exits with code `0`
-
