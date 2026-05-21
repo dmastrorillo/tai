@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
-	"github.com/danielmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/installer"
 )
 
 // TestInstall_TCINST046_all_bundled_verbs_up_to_date exercises

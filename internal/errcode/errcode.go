@@ -11,7 +11,7 @@
 // constants here AND updating the foundation spec's taxonomy table.
 package errcode
 
-import "github.com/danielmastrorillo/tai/internal/exitcode"
+import "github.com/dmastrorillo/tai/internal/exitcode"
 
 // Code is a stable identifier for a class of errors.
 type Code string

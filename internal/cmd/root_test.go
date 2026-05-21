@@ -3,9 +3,9 @@ package cmd_test
 import (
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
-	"github.com/danielmastrorillo/tai/internal/version"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/version"
 )
 
 // TestVersion_TCCMD001_prints_version_string exercises TC-CMD-001 from

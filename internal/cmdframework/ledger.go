@@ -19,7 +19,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // BundleFS is the embedded view of internal/cmdframework/commands/. The

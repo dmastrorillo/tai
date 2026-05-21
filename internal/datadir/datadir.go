@@ -19,7 +19,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // Resolve returns the path tai should use for its data directory. It

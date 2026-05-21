@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
 )
 
 // TestAccept_TCTRG040_accept_pending exercises TC-TRG-040: accept

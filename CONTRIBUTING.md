@@ -31,7 +31,7 @@ Changes that do not alter observable behaviour (typo fixes, code formatting, REA
 ## Dev setup
 
 ```bash
-git clone https://github.com/danielmastrorillo/tai.git
+git clone https://github.com/dmastrorillo/tai.git
 cd tai
 go build ./...
 go test ./...
@@ -171,7 +171,7 @@ Pick the right one. Bug reports without reproduction steps and feature requests 
 
 ## Security
 
-If you find a security issue, do not open a public GitHub issue. Open a [private security advisory](https://github.com/danielmastrorillo/tai/security/advisories/new) on the repository instead. The advisory thread is the right place to coordinate a fix, embargo, and disclosure timeline.
+If you find a security issue, do not open a public GitHub issue. Open a [private security advisory](https://github.com/dmastrorillo/tai/security/advisories/new) on the repository instead. The advisory thread is the right place to coordinate a fix, embargo, and disclosure timeline.
 
 ## License
 

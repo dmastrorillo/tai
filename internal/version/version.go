@@ -3,7 +3,7 @@
 // The value is set via -ldflags at build time; it defaults to "dev" for
 // local builds so unbuilt-from-source binaries are recognisable.
 //
-//	go build -ldflags="-X github.com/danielmastrorillo/tai/internal/version.String=v0.1.0"
+//	go build -ldflags="-X github.com/dmastrorillo/tai/internal/version.String=v0.1.0"
 //
 // String is a package-level variable (not a constant) because the Go
 // linker can only inject values into vars. This is the project's sole

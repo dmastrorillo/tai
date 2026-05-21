@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
 )
 
 // TestBundle_TCINST003_current_hash_is_last_entry exercises the

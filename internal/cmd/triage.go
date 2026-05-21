@@ -8,8 +8,8 @@ package cmd
 import (
 	"context"
 
-	"github.com/danielmastrorillo/tai/internal/storage"
-	"github.com/danielmastrorillo/tai/internal/triage/scope"
+	"github.com/dmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/triage/scope"
 	"github.com/urfave/cli/v3"
 )
 

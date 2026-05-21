@@ -3,7 +3,7 @@ package installer_test
 import (
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/installer"
 )
 
 func TestIsTruthyEnv(t *testing.T) {

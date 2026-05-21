@@ -9,7 +9,7 @@ package cliexec
 import (
 	"context"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 	"github.com/urfave/cli/v3"
 )
 

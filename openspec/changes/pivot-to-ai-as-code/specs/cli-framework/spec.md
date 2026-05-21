@@ -25,7 +25,7 @@ Interactive prompts (e.g. the `tai sync` overwrite confirmation) MUST be written
 
 ### Requirement: Framework packages are publicly importable under `pkg/`
 
-The system SHALL expose its error-code taxonomy, error template writer, exit-code mapping, and plugin-author SDK as public Go packages under the repo's `pkg/` directory, importable by any external Go module via paths such as `github.com/danielmastrorillo/tai/pkg/errcode`. Anything under `pkg/` is part of TAI's stability contract:
+The system SHALL expose its error-code taxonomy, error template writer, exit-code mapping, and plugin-author SDK as public Go packages under the repo's `pkg/` directory, importable by any external Go module via paths such as `github.com/dmastrorillo/tai/pkg/errcode`. Anything under `pkg/` is part of TAI's stability contract:
 
 - Error code identifiers are append-only. Once shipped, a code MUST NOT be renamed or repurposed.
 - Exit code bindings are immutable per code.

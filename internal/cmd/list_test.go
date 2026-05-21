@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
 )
 
 // TestList_TCTRG020_with_comments exercises TC-TRG-020: `tai list`

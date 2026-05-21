@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	importer "github.com/danielmastrorillo/tai/internal/import"
-	pkgpayload "github.com/danielmastrorillo/tai/internal/import/payload"
-	"github.com/danielmastrorillo/tai/internal/storage/storagetest"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	importer "github.com/dmastrorillo/tai/internal/import"
+	pkgpayload "github.com/dmastrorillo/tai/internal/import/payload"
+	"github.com/dmastrorillo/tai/internal/storage/storagetest"
 )
 
 // basePRPayload returns a well-formed PR payload with one batch and one

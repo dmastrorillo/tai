@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/triage"
-	"github.com/danielmastrorillo/tai/internal/triage/scope"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/triage"
+	"github.com/dmastrorillo/tai/internal/triage/scope"
 	"github.com/urfave/cli/v3"
 )
 

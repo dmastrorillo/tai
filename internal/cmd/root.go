@@ -9,10 +9,10 @@ package cmd
 import (
 	"context"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/installer"
-	"github.com/danielmastrorillo/tai/internal/repoctx"
-	"github.com/danielmastrorillo/tai/internal/version"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/repoctx"
+	"github.com/dmastrorillo/tai/internal/version"
 	"github.com/urfave/cli/v3"
 )
 

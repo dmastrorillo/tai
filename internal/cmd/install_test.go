@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
-	"github.com/danielmastrorillo/tai/internal/installer/installtest"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/installer/installtest"
 )
 
 // probeSrc is the canonical bundled-command markdown used by these

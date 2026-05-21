@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
 	"github.com/urfave/cli/v3"
 )
 

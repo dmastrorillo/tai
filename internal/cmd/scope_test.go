@@ -3,8 +3,8 @@ package cmd_test
 import (
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
 )
 
 // TestScope_TCTRG001_pr_flag exercises TC-TRG-001: an explicit --pr

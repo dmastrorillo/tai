@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/version"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/version"
 )
 
 // AcceptEnv is the environment variable that, when truthy, makes both

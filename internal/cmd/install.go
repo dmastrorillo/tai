@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/installer"
 	"github.com/urfave/cli/v3"
 )
 

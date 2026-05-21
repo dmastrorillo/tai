@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/storage"
-	"github.com/danielmastrorillo/tai/internal/triage/scope"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/triage/scope"
 )
 
 // Comment is the projection of a `comments` row plus its computed

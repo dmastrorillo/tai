@@ -26,7 +26,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // WriteError writes the standard error template to w. If err is nil,

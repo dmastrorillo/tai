@@ -1,4 +1,4 @@
-module github.com/danielmastrorillo/tai
+module github.com/dmastrorillo/tai
 
 go 1.25.0
 

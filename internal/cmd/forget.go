@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/installer"
-	"github.com/danielmastrorillo/tai/internal/repoctx"
-	"github.com/danielmastrorillo/tai/internal/storage"
-	"github.com/danielmastrorillo/tai/internal/triage"
-	"github.com/danielmastrorillo/tai/internal/triage/scope"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/repoctx"
+	"github.com/dmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/triage"
+	"github.com/dmastrorillo/tai/internal/triage/scope"
 	"github.com/urfave/cli/v3"
 )
 

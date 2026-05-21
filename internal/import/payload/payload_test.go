@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	payload "github.com/danielmastrorillo/tai/internal/import/payload"
+	payload "github.com/dmastrorillo/tai/internal/import/payload"
 )
 
 // validPR is a known-good payload exercised by happy-path tests; the

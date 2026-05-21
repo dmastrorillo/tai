@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 
 	_ "modernc.org/sqlite"
 )

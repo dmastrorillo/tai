@@ -11,7 +11,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // assertCorrupt is a small helper: confirm err is a

@@ -30,7 +30,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
 )
 
 func main() {

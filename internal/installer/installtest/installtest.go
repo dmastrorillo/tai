@@ -14,8 +14,8 @@ package installtest
 import (
 	"fmt"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
-	"github.com/danielmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/installer"
 )
 
 // FakeBundle is an in-memory Bundle implementation. Tests construct one

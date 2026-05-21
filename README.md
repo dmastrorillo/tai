@@ -61,7 +61,7 @@ Full version in [`docs/NORTHSTAR.md`](docs/NORTHSTAR.md).
 
 ```bash
 # install (the way you'd install any Go CLI for now; release channels TBD)
-go install github.com/danielmastrorillo/tai/core/cmd/tai@latest
+go install github.com/dmastrorillo/tai/core/cmd/tai@latest
 
 # point at one or more target directories (where your AI tool reads from)
 tai config target add ~/.claude       # example: Claude Code
@@ -195,7 +195,7 @@ A plugin is a binary that TAI runs as a subprocess. TAI passes context via envir
 - `TAI_TARGETS`: JSON array of configured targets.
 - `TAI_DATA_DIR`: where TAI stores state. Your plugin's state goes under `<TAI_DATA_DIR>/plugins/<your-name>/`.
 
-Any language works as long as it produces an executable. Go authors get an SDK at `github.com/danielmastrorillo/tai/pkg/taiplugin` that parses the env vars and re-exports the error template helpers, so your plugin's errors look identical to TAI's own.
+Any language works as long as it produces an executable. Go authors get an SDK at `github.com/dmastrorillo/tai/pkg/taiplugin` that parses the env vars and re-exports the error template helpers, so your plugin's errors look identical to TAI's own.
 
 Asset rules:
 

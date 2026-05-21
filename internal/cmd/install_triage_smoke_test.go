@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/installer"
 )
 
 // TestInstall_TCINST044_triage_command_bundled exercises TC-INST-044:

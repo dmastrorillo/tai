@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
 )
 
 // goldenSrc is a syntactically valid bundled-command markdown. The

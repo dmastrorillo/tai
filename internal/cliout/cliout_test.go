@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cliout"
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/cliout"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 var footerRe = regexp.MustCompile(`(?m)^\[exit \d+: [A-Z][A-Z0-9_]*\]$`)

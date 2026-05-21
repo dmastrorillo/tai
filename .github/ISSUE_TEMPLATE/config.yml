@@ -4,11 +4,11 @@ contact_links:
   # by GitHub here). If this repo is ever renamed or transferred, update
   # these three URLs in the same PR.
   - name: Read the docs first
-    url: https://github.com/danielmastrorillo/tai#readme
+    url: https://github.com/dmastrorillo/tai#readme
     about: README covers the CLI surface, concepts, and quick start. Most "how do I do X?" questions are answered there.
   - name: Product alignment (the north star)
-    url: https://github.com/danielmastrorillo/tai/blob/main/docs/NORTHSTAR.md
+    url: https://github.com/dmastrorillo/tai/blob/main/docs/NORTHSTAR.md
     about: Read this before opening a feature request. Saves both of us time.
   - name: Open design proposals
-    url: https://github.com/danielmastrorillo/tai/tree/main/openspec/changes
+    url: https://github.com/dmastrorillo/tai/tree/main/openspec/changes
     about: Active and archived OpenSpec proposals. Your idea might already be in flight.

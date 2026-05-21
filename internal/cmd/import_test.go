@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
-	"github.com/danielmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/storage"
 )
 
 // validImportPR is the canonical happy-path payload used by E2E tests

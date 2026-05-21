@@ -39,8 +39,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cliexec"
-	"github.com/danielmastrorillo/tai/internal/cliout"
+	"github.com/dmastrorillo/tai/internal/cliexec"
+	"github.com/dmastrorillo/tai/internal/cliout"
 	"github.com/urfave/cli/v3"
 )
 

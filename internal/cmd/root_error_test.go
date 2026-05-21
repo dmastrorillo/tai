@@ -3,8 +3,8 @@ package cmd_test
 import (
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
 )
 
 // TestRoot_TCCMD002_unknown_flag exercises TC-CMD-002 from

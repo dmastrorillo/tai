@@ -12,11 +12,11 @@ import (
 	"context"
 	"os"
 
-	"github.com/danielmastrorillo/tai/internal/cliexec"
-	"github.com/danielmastrorillo/tai/internal/cliout"
-	"github.com/danielmastrorillo/tai/internal/cmd"
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/exitcode"
+	"github.com/dmastrorillo/tai/internal/cliexec"
+	"github.com/dmastrorillo/tai/internal/cliout"
+	"github.com/dmastrorillo/tai/internal/cmd"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/exitcode"
 )
 
 func main() {

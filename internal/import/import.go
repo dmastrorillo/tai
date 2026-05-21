@@ -29,9 +29,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	pkgpayload "github.com/danielmastrorillo/tai/internal/import/payload"
-	"github.com/danielmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	pkgpayload "github.com/dmastrorillo/tai/internal/import/payload"
+	"github.com/dmastrorillo/tai/internal/storage"
 )
 
 // Summary captures the per-counter totals emitted on stdout after a

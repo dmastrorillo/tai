@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // Identity is a normalised repo identity, always of the form

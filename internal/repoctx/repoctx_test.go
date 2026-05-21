@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdtest"
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/repoctx"
+	"github.com/dmastrorillo/tai/internal/cmdtest"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/repoctx"
 )
 
 // TestParseOriginURL_TCREPO001_ssh exercises TC-REPO-001: SSH-form

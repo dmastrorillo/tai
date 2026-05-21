@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 var hashEntryRe = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)

@@ -10,7 +10,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/storage"
 )
 
 // NewMemDB returns a fully-migrated in-memory database. The DB is

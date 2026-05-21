@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/datadir"
-	"github.com/danielmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/datadir"
+	"github.com/dmastrorillo/tai/internal/errcode"
 )
 
 // TestEnsureWritable_creates_missing_tree_when_writable verifies the

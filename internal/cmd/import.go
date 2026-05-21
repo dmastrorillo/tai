@@ -7,10 +7,10 @@ import (
 	"io"
 	"sort"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	importer "github.com/danielmastrorillo/tai/internal/import"
-	"github.com/danielmastrorillo/tai/internal/import/payload"
-	"github.com/danielmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	importer "github.com/dmastrorillo/tai/internal/import"
+	"github.com/dmastrorillo/tai/internal/import/payload"
+	"github.com/dmastrorillo/tai/internal/storage"
 	"github.com/urfave/cli/v3"
 )
 

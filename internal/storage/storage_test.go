@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/storage"
-	"github.com/danielmastrorillo/tai/internal/storage/storagetest"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/storage/storagetest"
 )
 
 // --- Connection-policy tests (TC-STG-001..003) ----------------------

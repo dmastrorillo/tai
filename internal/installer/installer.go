@@ -27,7 +27,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
 )
 
 // Classification is the four-state file label produced by Classify.

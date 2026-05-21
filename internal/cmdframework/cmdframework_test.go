@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/cmdframework"
+	"github.com/dmastrorillo/tai/internal/cmdframework"
 )
 
 // goldenSrc is the canonical bundled-command shape every TC-CMD case

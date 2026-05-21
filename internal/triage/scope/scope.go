@@ -16,9 +16,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/repoctx"
-	"github.com/danielmastrorillo/tai/internal/storage"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/repoctx"
+	"github.com/dmastrorillo/tai/internal/storage"
 )
 
 // Kind discriminates a Scope: a PR row or a branch row.

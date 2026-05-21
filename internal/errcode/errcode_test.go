@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/errcode"
-	"github.com/danielmastrorillo/tai/internal/exitcode"
+	"github.com/dmastrorillo/tai/internal/errcode"
+	"github.com/dmastrorillo/tai/internal/exitcode"
 )
 
 // TestCode_ExitCode_taxonomy locks the Code → exit-code mapping. Each

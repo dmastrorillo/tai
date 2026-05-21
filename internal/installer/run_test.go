@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danielmastrorillo/tai/internal/installer"
-	"github.com/danielmastrorillo/tai/internal/installer/installtest"
+	"github.com/dmastrorillo/tai/internal/installer"
+	"github.com/dmastrorillo/tai/internal/installer/installtest"
 )
 
 // runProbeSrc is the canonical bundled-command markdown reused by

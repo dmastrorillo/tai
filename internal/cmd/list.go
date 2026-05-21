@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/danielmastrorillo/tai/internal/triage"
-	"github.com/danielmastrorillo/tai/internal/triage/scope"
+	"github.com/dmastrorillo/tai/internal/triage"
+	"github.com/dmastrorillo/tai/internal/triage/scope"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
 )
