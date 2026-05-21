@@ -1,0 +1,89 @@
+name: Bug report
+description: Report something TAI does wrong (output, exit code, file written, file missing, etc.).
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Concrete reproduction steps are the fastest path to a fix.
+
+        Before opening, check that:
+        - The behaviour is actually a bug (the [README](../blob/main/README.md) and the proposals under [`openspec/changes/`](../tree/main/openspec/changes) describe intended behaviour).
+        - There is not already an open issue for the same thing.
+
+  - type: input
+    id: tai-version
+    attributes:
+      label: TAI version
+      description: Output of `tai --version`.
+      placeholder: "tai 0.x.y"
+    validations:
+      required: true
+
+  - type: input
+    id: os-arch
+    attributes:
+      label: OS and architecture
+      description: e.g. macOS 14.5 / arm64, Ubuntu 22.04 / amd64, Windows 11 / amd64.
+      placeholder: "macOS 14.5 / arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: ai-tool
+    attributes:
+      label: AI tool you are using TAI with
+      description: e.g. Claude Code, OpenCode, custom. "None" is also a valid answer.
+      placeholder: "Claude Code"
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Exact commands, in order. Include any config you used (`tai config show` output if relevant).
+      placeholder: |
+        1. tai config target add ~/.claude
+        2. tai config set repo-url git@github.com:foo/bar.git
+        3. tai sync
+        4. ...
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Be specific. What output, what file, what exit code did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: "Be specific. Paste stdout and stderr if relevant. Include the error code if one was emitted (the bracketed footer line, e.g. `[exit 3: REPO_FETCH_FAILED]`)."
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional context
+      description: Anything else that might help. Logs, screenshots, the contents of `~/.config/tai/config.yml`, the upstream commit you were syncing, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: My report includes the exact commands I ran (reproduction steps).
+          required: true

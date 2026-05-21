@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose new behaviour, a CLI verb, a config option, or a plugin to add to the first-party registry.
+title: "[feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please read [`docs/NORTHSTAR.md`](../blob/main/docs/NORTHSTAR.md). The most common reason a feature gets declined is drift from the north star — not lack of merit.
+
+        If your idea is large enough to alter observable behaviour across more than one command, expect that landing it will require an OpenSpec proposal in [`openspec/changes/`](../tree/main/openspec/changes). This issue can be the place to align on direction before that proposal is written.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem you are trying to solve
+      description: What is the concrete user pain? Who feels it, when, and how often? Avoid jumping straight to a solution.
+      placeholder: |
+        As a maintainer of a team source repo, every time I add a new skill I have to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach (optional)
+      description: If you have an idea for how TAI could solve it, describe it. Concrete command shapes, config keys, or behaviour changes are most useful. It is fine to leave this blank and let the maintainers propose an approach.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alignment
+    attributes:
+      label: How this aligns with the north star
+      description: Cite the part of [`docs/NORTHSTAR.md`](../blob/main/docs/NORTHSTAR.md) your idea serves. If it does not align cleanly, explain why you think it should still be in scope (this is fine to say honestly).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Workarounds with the current TAI, other tools that solve part of this, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I have read `docs/NORTHSTAR.md` and the "Explicitly NOT for" list.
+          required: true
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true

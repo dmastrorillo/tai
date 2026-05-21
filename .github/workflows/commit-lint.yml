@@ -1,0 +1,79 @@
+name: Commit lint
+
+# DISABLED FOR NOW. Disabled alongside ci.yml until Phase 0 of the
+# pivot has landed and CI gates are turned back on. Local enforcement
+# via the .pre-commit-config.yaml `commit-msg` hook still applies for
+# contributors who have installed pre-commit.
+#
+# To re-enable, replace `on: workflow_dispatch` with:
+#   on:
+#     pull_request:
+#       types: [opened, edited, reopened, synchronize]
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  pull-requests: read
+  # Needed by wagoid/commitlint-github-action@v6 to post per-commit lint
+  # results as Check Run annotations on the PR.
+  checks: write
+
+jobs:
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Lint every commit in the PR. Catches non-conventional commits even
+      # if the PR is later squash-merged with a clean title.
+      - name: Lint commits
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: .commitlintrc.yml
+
+      # Lint the PR title separately. When a PR is squash-merged, the PR
+      # title becomes the single commit subject on main. Catch typos and
+      # convention drift before they land.
+      #
+      # Types and scopes are kept in sync with .commitlintrc.yml. When
+      # editing either list, edit both — and update the table in
+      # CONTRIBUTING.md.
+      - name: Lint PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          # Scope is REQUIRED on every PR title and must be one of the
+          # enumerated values below (matches scope-enum in
+          # .commitlintrc.yml).
+          requireScope: true
+          scopes: |
+            core
+            pkg
+            triage
+            openspec
+            ci
+          # Subject must be non-empty. Tighter restrictions on the
+          # first character (must be alphanumeric, etc.) are deliberately
+          # not enforced here so leading backticks (e.g. "fix(core):
+          # `tai sync` now handles X") are accepted.
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The PR title subject (after the type/scope) must not be empty.
+            Example: "feat(core): add --prune flag"

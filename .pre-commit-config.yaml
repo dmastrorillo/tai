@@ -1,0 +1,69 @@
+# Pre-commit hooks. See https://pre-commit.com for install instructions and
+# CONTRIBUTING.md for the project's expected developer setup.
+#
+# One-time setup (after installing `pre-commit` itself via brew, pip,
+# pipx, winget, or scoop):
+#
+#   # Install golangci-lint (required by the lint hook below):
+#   brew install golangci-lint
+#   # or: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+#
+#   # Install the hooks into the local clone:
+#   pre-commit install                          # installs the pre-commit hook
+#   pre-commit install --hook-type commit-msg   # installs the commit-msg hook
+#
+# To run against all files manually:
+#
+#   pre-commit run --all-files
+
+repos:
+  # Generic file-hygiene checks.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+
+  # Go formatting, vetting, and linting. These use the developer's local
+  # Go toolchain (no isolated environment) because the rest of the repo
+  # assumes a working Go install. golangci-lint must be on PATH; install
+  # via `brew install golangci-lint` or `go install
+  # github.com/golangci/golangci-lint/cmd/golangci-lint@latest`.
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: bash -c 'unformatted="$(gofmt -l .)"; if [ -n "$unformatted" ]; then echo "Files not gofmt-clean:" >&2; echo "$unformatted" >&2; echo "Run \"gofmt -w .\" to fix." >&2; exit 1; fi'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+
+  # Conventional Commits enforcement on the commit message itself.
+  # Picks up rules from .commitlintrc.yml (including the enforced
+  # scope-enum). Pre-commit provisions a sandboxed Node environment for
+  # this hook, so contributors do not need Node globally installed.
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.20.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies:
+          - '@commitlint/config-conventional@19.5.0'

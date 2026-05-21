@@ -1,0 +1,61 @@
+# Conventional Commits configuration. Enforced by .github/workflows/commit-lint.yml
+# on every pull request. See CONTRIBUTING.md for the full convention.
+#
+# Format: <type>(<scope>): <imperative subject>
+
+extends:
+  - "@commitlint/config-conventional"
+
+rules:
+  # Required type from the standard Conventional Commits list.
+  type-enum:
+    - 2
+    - always
+    - - feat
+      - fix
+      - docs
+      - style
+      - refactor
+      - perf
+      - test
+      - build
+      - ci
+      - chore
+      - revert
+
+  # Type must be lowercase.
+  type-case: [2, always, lower-case]
+  type-empty: [2, never]
+
+  # Scope is REQUIRED on every commit and must be one of the enumerated
+  # values below. Keeps the changelog navigable as the project grows.
+  # To add a new scope, update this list AND the CONTRIBUTING.md table
+  # AND the scopes: list in .github/workflows/commit-lint.yml in the
+  # same PR.
+  scope-empty: [2, never]
+  scope-enum:
+    - 2
+    - always
+    - - core      # core/ CLI (verbs that are part of the core binary)
+      - pkg       # pkg/ public Go API (errcode, cliout, exitcode, taiplugin)
+      - triage    # the Triage plugin (or any plugin name when one is added)
+      - openspec  # proposals and specs under openspec/
+      - ci        # CI workflows, lint configuration, release pipeline
+
+  # Scope, when present, must be lowercase.
+  scope-case: [2, always, lower-case]
+
+  # Subject must be present.
+  subject-empty: [2, never]
+
+  # Subject must not end with a period.
+  subject-full-stop: [2, never, "."]
+
+  # Header (the full first line) length cap. 100 is generous and matches
+  # GitHub's default rendering width before truncation.
+  header-max-length: [2, always, 100]
+
+  # Body and footer have a blank line before them (Conventional Commits
+  # spec requirement).
+  body-leading-blank: [2, always]
+  footer-leading-blank: [2, always]

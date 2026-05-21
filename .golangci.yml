@@ -1,0 +1,52 @@
+# golangci-lint configuration. See https://golangci-lint.run/usage/configuration/
+#
+# TEMPORARY: the `linters.exclusions.paths` block below skips the legacy
+# Triage AI files that the pivot (`openspec/changes/pivot-to-ai-as-code/`)
+# will move under `core/`, `pkg/`, and `plugins/triage/`. The list is the
+# minimum set that suppresses pre-existing issues; new code introduced
+# anywhere else (including new files in the same directories) is still
+# linted normally.
+#
+# Removal protocol: each path entry comes out in the SAME PR that moves
+# the corresponding file. You do not need to wait for every entry to be
+# ready to remove before removing any one of them — remove per file as
+# it moves. When the list is empty, this whole block disappears and the
+# file collapses to just `version: "2"` and `linters.default: standard`.
+#
+# Why the exclusions exist (pre-existing issues at the time the pivot
+# proposal landed; counts shown were measured with `golangci-lint run`
+# against the unmodified tree):
+#   - internal/cliout/cliout.go              — 6× errcheck on fmt.Fprint* returns
+#   - internal/cmd/forget.go                  — 1× errcheck on db.Close + 3× staticcheck QF1012
+#   - internal/cmd/import.go                  — errcheck on unchecked returns
+#   - internal/cmd/import_test.go             — errcheck on unchecked returns
+#   - internal/cmd/list.go                    — errcheck on unchecked returns
+#   - internal/cmd/mutate.go                  — errcheck on unchecked returns
+#   - internal/cmd/show.go                    — errcheck on db.Close
+#   - internal/cmd/status.go                  — errcheck on rows.Close
+#   - internal/storage/migrations.go          — 1× errcheck on rows.Close
+#   - internal/storage/migrations_internal_test.go — 1× errcheck on db.Close
+#   - internal/storage/storage_test.go        — 2× errcheck on db.Close
+#   - internal/triage/triage.go               — 2× errcheck on rows.Close
+#
+# These get fixed as part of the pivot when the code moves and the files
+# are touched.
+
+version: "2"
+
+linters:
+  default: standard
+  exclusions:
+    paths:
+      - internal/cliout/cliout.go
+      - internal/cmd/forget.go
+      - internal/cmd/import.go
+      - internal/cmd/import_test.go
+      - internal/cmd/list.go
+      - internal/cmd/mutate.go
+      - internal/cmd/show.go
+      - internal/cmd/status.go
+      - internal/storage/migrations.go
+      - internal/storage/migrations_internal_test.go
+      - internal/storage/storage_test.go
+      - internal/triage/triage.go

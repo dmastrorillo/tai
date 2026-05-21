@@ -1,0 +1,76 @@
+name: CI
+
+# DISABLED FOR NOW. The CI gates assume the post-pivot directory layout
+# (core/, pkg/, plugins/) and would fail on the current pre-pivot tree.
+# Re-enable by restoring the push + pull_request triggers below once
+# Phase 0 of openspec/changes/pivot-to-ai-as-code/ has landed.
+#
+# To re-enable, replace `on: workflow_dispatch` with:
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    name: build, test, vet, fmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go build
+        run: go build ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-clean:" >&2
+            echo "$unformatted" >&2
+            echo "" >&2
+            echo "Run 'gofmt -w .' (or your editor's formatter) and recommit." >&2
+            exit 1
+          fi
+
+      - name: go test (with race detector)
+        run: go test -race -count=1 ./...
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Version is pinned to keep CI reproducible. Bump deliberately in
+      # its own PR; CONTRIBUTING.md and the local toolchain should be
+      # updated in lockstep.
+      - name: Golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.12.2
+          args: --timeout=5m
