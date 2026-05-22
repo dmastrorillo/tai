@@ -17,7 +17,7 @@ If you are unsure whether your idea aligns with the north star, open an issue wi
 For any change that alters observable behaviour (anything a user sees in stdout, stderr, an exit code, or on disk), the order is:
 
 1. **OpenSpec proposal.** Open or update a folder under `openspec/changes/<name>/` with the proposal, design, specs, and tasks. For small changes this can be brief; for cross-cutting changes it is the design document. Archived proposals under `openspec/changes/archive/` are good references.
-2. **BDD cases.** Translate the proposal into Given/When/Then cases in the right `test-cases.md` — `core/test-cases.md` for core, `plugins/<name>/test-cases.md` for plugin code. Each case gets a `TC-<CATEGORY>-<NUMBER>` ID.
+2. **BDD cases.** Translate the proposal into Given/When/Then cases in the right `test-cases.md` — `core/test-cases.md` for core CLI behaviour, `pkg/test-cases.md` for shared-framework (`pkg/`) behaviour, `plugins/<name>/test-cases.md` for plugin code. Each case gets a `TC-<CATEGORY>-<NUMBER>` ID, globally unique across components.
 3. **Failing test.** Write a test that references the TC-ID in its name. Run it. Confirm it fails for the right reason.
 4. **Implement.** Make the test pass. No production code without a red test pointing at it.
 5. **Archive.** Once merged, move the proposal folder into `openspec/changes/archive/` with the merge date.

@@ -1,15 +1,19 @@
 ## 1. Phase 0 — Repo restructure (no behavior change)
 
-- [ ] 1.1 Move `cmd/tai/` to `core/cmd/tai/` and update its imports
-- [ ] 1.2 Move `cmd/tai-ledger/` to `plugins/triage/cmd/ledger/` (or retire if no longer needed) and update its imports
-- [ ] 1.3 Move framework packages out of `internal/` to public `pkg/`: `internal/errcode` → `pkg/errcode`, `internal/cliout` → `pkg/cliout`, `internal/exitcode` → `pkg/exitcode`
-- [ ] 1.4 Move core-internal helpers to `core/internal/`: `internal/cliexec`, `internal/datadir`, `internal/repoctx` (the parts still useful in core; Triage-specific repoctx behavior moves with Triage)
-- [ ] 1.5 Move Triage-specific code to `plugins/triage/internal/`: `internal/triage`, `internal/import`, `internal/storage`, `internal/installer`, `internal/cmdframework`, `internal/cmd/*` (all triage-related), `internal/cmdtest`
-- [ ] 1.6 Rewrite all Go imports across the moved files to their new paths
-- [ ] 1.7 Split `test-cases.md` into `core/test-cases.md` (foundation/CLI cases) and `plugins/triage/test-cases.md` (triage cases); preserve every TC-ID verbatim. Apply this mapping for the existing TC-CMD category: `TC-CMD-001`, `TC-CMD-002`, `TC-CMD-008` → `core/test-cases.md` (foundation CLI behaviours); `TC-CMD-003` through `TC-CMD-007` → `plugins/triage/test-cases.md` (cmdframework / bundled-command infrastructure, plugin-internal after the pivot). Remove the root-level `test-cases.md` once both per-component files contain every TC-ID and the test suite passes
-- [ ] 1.8 Update `CLAUDE.md` at this phase (not Phase 7) to reflect the new layout — this is MANDATORY because subsequent phases reading CLAUDE.md would otherwise be misled. Specific edits required: rewrite the "Project Structure" section to reference `core/`, `pkg/`, `plugins/<name>/`; remove the line stating "Production code lives under `internal/`" (or rephrase to allow `pkg/`); update the line "`cmd/tai/main.go` is the only place that translates an error into an exit code" to point at `core/cmd/tai/main.go`; replace every reference to the singular root `test-cases.md` with the pair `core/test-cases.md` / `plugins/<name>/test-cases.md`; the OpenSpec proposal-archiving rules remain unchanged
-- [ ] 1.9 Update `go.mod` module path if needed; ensure `go build ./...`, `go test ./...`, `go vet ./...`, `gofmt -l .` all return green
-- [ ] 1.10 Snapshot-test: `go test ./...` passes with exactly the same set of green tests as before the move
+- [x] 1.1 Move `cmd/tai/` to `core/cmd/tai/` and update its imports
+- [x] 1.2 Move `cmd/tai-ledger/` to `plugins/triage/cmd/ledger/` (or retire if no longer needed) and update its imports
+- [x] 1.3 Move framework packages out of `internal/` to public `pkg/`: `internal/errcode` → `pkg/errcode`, `internal/cliout` → `pkg/cliout`, `internal/exitcode` → `pkg/exitcode`
+- [x] 1.4 Move core-internal helpers to `core/internal/`: `internal/cliexec`, `internal/datadir`, `internal/repoctx` (the parts still useful in core; Triage-specific repoctx behavior moves with Triage)
+  - **As-built deviation** (agreed with the user during Phase 0 implementation): Go's `internal/` rule blocks cross-tree imports, so three packages from this task landed at different paths than the literal text:
+    - `cliexec` → `pkg/cliexec/` (public). Both `core/cmd/tai/` and `plugins/triage/internal/cmdtest/` use it; placing it under either `internal/` tree would block the other.
+    - `datadir` → `plugins/triage/internal/datadir/`. All current callers are triage-side (`plugins/triage/internal/storage` only). Will need promotion to `pkg/` when Phase 1's `core/internal/config` lands and needs data-directory resolution — flagged in a `datadir.go` doc comment.
+    - `repoctx` → `plugins/triage/internal/repoctx/`. All current callers are triage-side; the package was always wholly triage-coupled (it parses git-origin URLs for the `--repo` flag flow). No Phase 1 core callers expected.
+- [x] 1.5 Move Triage-specific code to `plugins/triage/internal/`: `internal/triage`, `internal/import`, `internal/storage`, `internal/installer`, `internal/cmdframework`, `internal/cmd/*` (all triage-related), `internal/cmdtest`
+- [x] 1.6 Rewrite all Go imports across the moved files to their new paths
+- [x] 1.7 Split `test-cases.md` into `core/test-cases.md` (foundation/CLI cases) and `plugins/triage/test-cases.md` (triage cases); preserve every TC-ID verbatim. Apply this mapping for the existing TC-CMD category: `TC-CMD-001`, `TC-CMD-002`, `TC-CMD-008` → `core/test-cases.md` (foundation CLI behaviours); `TC-CMD-003` through `TC-CMD-007` → `plugins/triage/test-cases.md` (cmdframework / bundled-command infrastructure, plugin-internal after the pivot). Remove the root-level `test-cases.md` once both per-component files contain every TC-ID and the test suite passes
+- [x] 1.8 Update `CLAUDE.md` at this phase (not Phase 7) to reflect the new layout — this is MANDATORY because subsequent phases reading CLAUDE.md would otherwise be misled. Specific edits required: rewrite the "Project Structure" section to reference `core/`, `pkg/`, `plugins/<name>/`; remove the line stating "Production code lives under `internal/`" (or rephrase to allow `pkg/`); update the line "`cmd/tai/main.go` is the only place that translates an error into an exit code" to point at `core/cmd/tai/main.go`; replace every reference to the singular root `test-cases.md` with the pair `core/test-cases.md` / `plugins/<name>/test-cases.md`; the OpenSpec proposal-archiving rules remain unchanged
+- [x] 1.9 Update `go.mod` module path if needed; ensure `go build ./...`, `go test ./...`, `go vet ./...`, `gofmt -l .` all return green
+- [x] 1.10 Snapshot-test: `go test ./...` passes with exactly the same set of green tests as before the move
 
 ## 2. Phase 1 — Core foundation: config and error taxonomy
 

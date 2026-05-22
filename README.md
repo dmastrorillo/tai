@@ -218,10 +218,11 @@ The name doesn't stand for anything anymore. The CLI binary is `tai` (lowercase,
 ```
 core/                       the `tai` CLI
 plugins/<name>/             first-party plugins (currently `triage`)
-pkg/                        public Go API: errcode, cliout, exitcode, taiplugin
+pkg/                        public Go API: errcode, cliout, exitcode, cliexec
 openspec/                   proposal-driven design history
-core/test-cases.md          BDD spec for core
-plugins/<name>/test-cases.md
+core/test-cases.md          BDD spec for core CLI
+pkg/test-cases.md           BDD spec for the shared framework (pkg/)
+plugins/<name>/test-cases.md  BDD spec per plugin
 docs/NORTHSTAR.md           what this product is and is not
 CONTEXT.md                  glossary
 CLAUDE.md                   contributor pipeline (OpenSpec → BDD → TDD)

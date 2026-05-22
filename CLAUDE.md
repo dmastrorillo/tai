@@ -1,28 +1,30 @@
 # tai — Go CLI
 
-A Go-based command-line tool. This file documents how we build it. The pipeline is non-negotiable: **OpenSpec → `test-cases.md` (BDD) → tests (TDD) → production code**. Skipping a layer is a process bug, not a shortcut.
+A Go-based command-line tool. This file documents how we build it. The pipeline is non-negotiable: **OpenSpec → per-component `test-cases.md` (BDD) → tests (TDD) → production code**. Skipping a layer is a process bug, not a shortcut.
+
+The repo is a single Go module organised as a monorepo: `core/` holds the `tai` core binary, `plugins/<name>/` holds first-party plugins (today only `triage/`), `pkg/` exposes the shared framework packages (`errcode`, `cliout`, `exitcode`, `cliexec`) for plugin authors. The BDD spec is split per component: `core/test-cases.md` for core-CLI behaviours, `pkg/test-cases.md` for the framework's stability contract (error template, panic recovery, error-code taxonomy), and `plugins/<name>/test-cases.md` for each plugin.
 
 ---
 
 ## Behavioural Source of Truth (mandatory)
 
-`test-cases.md` at the repo root is the authoritative, human-readable specification of how this CLI behaves. It holds BDD-style Given/When/Then scenarios covering happy paths, edge cases, and known historical regressions. **It is the contract; the code is downstream.**
+The per-component `test-cases.md` files are the authoritative, human-readable specification of how each piece of this repo behaves: `core/test-cases.md` for the `tai` core CLI, `pkg/test-cases.md` for the shared framework's public stability contract, `plugins/<name>/test-cases.md` for each plugin. They hold BDD-style Given/When/Then scenarios covering happy paths, edge cases, and known historical regressions. **They are the contract; the code is downstream.**
 
-**The flow is: OpenSpec proposal → BDD cases → tests → production code → observed CLI behaviour.** A change is "real" only after it appears as a Given/When/Then in `test-cases.md`, is exercised by a test that names its TC-ID, and is implemented behind that test.
+**The flow is: OpenSpec proposal → BDD cases → tests → production code → observed CLI behaviour.** A change is "real" only after it appears as a Given/When/Then in the appropriate `test-cases.md`, is exercised by a test that names its TC-ID, and is implemented behind that test.
 
 ### Mandatory workflow for every change
 
 Feature request, bug fix, refactor that alters behaviour, output/format tweak with observable consequences — all follow the same loop:
 
 1. **OpenSpec proposal first.** Open `openspec/` and draft (or update) the change proposal that describes the intent, the new capability, and the user-visible contract. Behaviour decisions land here before any test or code is written. Archive completed proposals under `openspec/changes/archive/`.
-2. **Translate the proposal into BDD cases in `test-cases.md`.** Find the section(s) the change affects. New feature or newly discovered edge case → add new Given/When/Then entries with a fresh `TC-<CATEGORY>-<NUMBER>` ID. Bug fix → add a regression case under the regressions section, cross-referenced to the feature section. Behavioural change to existing functionality → update the affected cases in place; do NOT leave stale scenarios.
+2. **Translate the proposal into BDD cases in the right `test-cases.md`.** Core CLI behaviour lands in `core/test-cases.md`; shared-framework behaviour (the public surface under `pkg/`) lands in `pkg/test-cases.md`; plugin behaviour lands in `plugins/<name>/test-cases.md`. Find the section(s) the change affects. New feature or newly discovered edge case → add new Given/When/Then entries with a fresh `TC-<CATEGORY>-<NUMBER>` ID. Bug fix → add a regression case under the regressions section, cross-referenced to the feature section. Behavioural change to existing functionality → update the affected cases in place; do NOT leave stale scenarios.
 3. **Invoke the `/tdd` skill and write red/green slices.** Each BDD case becomes a failing test that names the TC-ID in its description (e.g. `t.Run("TC-CMD-001 — prints version string", ...)`). Red → green → refactor. One slice per case (or per case + edge).
 4. **Implement until the tests pass and no existing tests regress.**
-5. **Before merging**, re-read the cases you touched and confirm `test-cases.md` still describes reality. If a case is obsolete because behaviour deliberately changed, rewrite it; never silently contradict it with code.
+5. **Before merging**, re-read the cases you touched and confirm the affected `test-cases.md` still describes reality. If a case is obsolete because behaviour deliberately changed, rewrite it; never silently contradict it with code.
 
 If a test case and the code disagree, **the test case is the spec** — investigate the code. The only exception is when the current task's explicit goal is to change that behaviour, in which case the case is rewritten as part of the change.
 
-**Mid-implementation clarifications:** if a case is ambiguous or incomplete while building, update the case in `test-cases.md` as part of the same change rather than coding around the ambiguity.
+**Mid-implementation clarifications:** if a case is ambiguous or incomplete while building, update the case in its `test-cases.md` as part of the same change rather than coding around the ambiguity.
 
 ### The north star is what the user observes at the CLI
 
@@ -42,7 +44,7 @@ Engine and helper tests are valuable scaffolding, but they NEVER satisfy a TC ab
 
 ### ID scheme
 
-**`TC-<CATEGORY>-<NUMBER>`** (e.g. `TC-CMD-015`, `TC-CFG-003`). Category is a short, stable code for the section, listed in the table of contents at the top of `test-cases.md`. Numbers increment within each category, starting at `001`, zero-padded to 3 digits.
+**`TC-<CATEGORY>-<NUMBER>`** (e.g. `TC-CMD-015`, `TC-CFG-003`). Category is a short, stable code for the section, listed in the table of contents at the top of each `test-cases.md`. Numbers increment within each category, starting at `001`, zero-padded to 3 digits, and remain globally unique across components — a TC-ID lives in exactly one `test-cases.md` and is never renumbered when a section moves between core and a plugin.
 
 - When you add a case to an existing category, use the next unused number in that category.
 - When you create a new category, add its code to the ToC and start at `001`.
@@ -69,7 +71,7 @@ Engine and helper tests are valuable scaffolding, but they NEVER satisfy a TC ab
 **Rules:**
 
 1. Every behaviour change begins with an OpenSpec proposal — even a one-paragraph one. The proposal names the user-visible contract it introduces or modifies.
-2. A proposal is "done" only when (a) the matching BDD cases exist in `test-cases.md`, (b) the tests are green, (c) the production code is merged, and (d) the proposal is moved to `openspec/changes/archive/` with the merge date in its frontmatter.
+2. A proposal is "done" only when (a) the matching BDD cases exist in the relevant `test-cases.md` (core, plugin, or both), (b) the tests are green, (c) the production code is merged, and (d) the proposal is moved to `openspec/changes/archive/` with the merge date in its frontmatter.
 3. If a proposal is abandoned, archive it with a `status: abandoned` note rather than deleting it — future you will want the breadcrumb.
 
 ---
@@ -123,18 +125,38 @@ Run `go test ./... && go vet ./... && gofmt -l .` before every commit. CI runs t
 
 (Targets — directories are created as the corresponding OpenSpec proposals land.)
 
-- `cmd/tai/main.go` — entry point. Wires the root `urfave/cli` app and calls `App.Run`. Thin — no business logic.
-- `internal/cmd/` — glue per top-level verb (`root.go` for the root assembly, `version.go` only if a `tai version` subcommand exists — the `--version` flag is handled by urfave/cli automatically). Each file parses flags, calls into `internal/...`, and formats output. Tested via end-to-end command tests.
-- `internal/<domain>/` — domain logic (pure where possible). One package per coherent concept. Unit-tested.
-- `internal/output/` — output formatters (text/JSON/etc.). Keep formatting out of domain logic.
-- `internal/config/` — config loading + validation.
-- `internal/version/` — build-metadata package exposing the linker-injectable `version.String`. Kept separate from `internal/cmd/` to isolate the project's sole package-level mutable-var exception (see Conventions).
-- `internal/cmdtest/` — shared test harness for end-to-end command tests: in-process CLI runner, assertion vocabulary, filesystem / env isolation. The single seam every command test goes through.
-- `test-cases.md` — BDD spec (see above).
+Top-level layout:
+
+- `core/` — the `tai` core CLI tree. Self-contained: entry point, core-only internals, and its own `test-cases.md`.
+- `plugins/<name>/` — one tree per first-party plugin. Self-contained: entry point, plugin-only internals, bundled assets, and its own `test-cases.md`. Today the only plugin is `triage/`.
+- `pkg/` — shared framework packages with a public Go API. Plugin authors (first- and third-party) import from here. Anything published under `pkg/` is on a stability contract: append-only error codes, no renaming or repurposing exported symbols. Behavioural guarantees are pinned by [`pkg/test-cases.md`](pkg/test-cases.md).
 - `openspec/` — change proposals (see above).
 - `CLAUDE.md` — this file.
 
-Production code lives under `internal/` unless it's deliberately part of a public Go API (rare for a CLI). Anything under `internal/` cannot be imported by other modules — that's the contract.
+Inside `core/`:
+
+- `core/cmd/tai/main.go` — entry point. Wires the root `urfave/cli` command and calls `Run`. Thin — no business logic.
+- `core/internal/<domain>/` — core-only domain logic (config loader, repo sync, plugin host, etc.). Not importable from any `plugins/<name>/` tree (Go's `internal/` rule).
+- `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
+- `core/test-cases.md` — BDD spec for core-CLI behaviours.
+
+Inside each `plugins/<name>/`:
+
+- `plugins/<name>/cmd/<binary>/main.go` — entry point for the plugin's executable. Consumes the wire-level plugin contract (env vars `TAI_CLONE_DIR`, `TAI_TARGETS`, `TAI_DATA_DIR`) via `pkg/taiplugin` (once it exists) and dispatches to its own subcommands.
+- `plugins/<name>/internal/<domain>/` — plugin-only domain logic. Not importable from `core/` or sibling plugins.
+- `plugins/<name>/internal/version/` — plugin's own linker-injectable version string, independent of core.
+- `plugins/<name>/assets/` — bundled commands / skills / agents the plugin installs into configured targets at install time.
+- `plugins/<name>/test-cases.md` — BDD spec for that plugin's behaviours.
+
+Inside `pkg/`:
+
+- `pkg/errcode/` — append-only error-code taxonomy and the `*errcode.Error` value type with exit-code bindings.
+- `pkg/cliout/` — error-template writer that emits the foundation footer `[exit N: ERROR_CODE]`.
+- `pkg/exitcode/` — named exit-code constants.
+- `pkg/cliexec/` — `Run(ctx, cmd, args)` wrapper around `*cli.Command.Run` that turns panics into structured `INTERNAL_ERROR` errors. Used by every binary's `main` and by every cmdtest harness so production and tests share the same recovery path.
+- `pkg/test-cases.md` — BDD spec for the framework's stability contract.
+
+Production code lives under `core/internal/`, `plugins/<name>/internal/`, or `pkg/`. The two `internal/` trees enforce isolation between core and plugins; `pkg/` exposes the small, stable surface plugin authors are allowed to import. Anything under either `internal/` tree cannot be imported by other modules — that's the contract.
 
 `go.mod` records direct dependencies; `go.sum` tracks transitive hashes (including dependencies-of-dependencies pulled in by their own test suites). `go.sum` is not the source of truth for what tai depends on — `go.mod` is.
 
@@ -143,22 +165,22 @@ Production code lives under `internal/` unless it's deliberately part of a publi
 ## Testing layout
 
 - **Unit tests** live next to the code they test (`foo.go` + `foo_test.go`), same package.
-- **End-to-end command tests** live in `internal/cmd/*_test.go` and exercise the assembled `urfave/cli` app via `App.Run([]string{...})` with `App.Writer` / `App.ErrWriter` pointed at captured buffers. These are where most TC-IDs land — they are at the layer the user observes.
-- **Integration tests** (file-system, real config loading, etc.) live in `internal/<pkg>/*_integration_test.go` with a build tag if they're slow or environment-sensitive: `//go:build integration`.
+- **End-to-end command tests** live in `core/internal/cmd/*_test.go` (for core verbs) and `plugins/<name>/internal/cmd/*_test.go` (for plugin verbs). They exercise the assembled `*cli.Command` via `cliexec.Run(ctx, cmd, args)` with `cmd.Writer` / `cmd.ErrWriter` pointed at captured buffers. These are where most TC-IDs land — they are at the layer the user observes.
+- **Integration tests** (file-system, real config loading, etc.) live in `<tree>/internal/<pkg>/*_integration_test.go` with a build tag if they're slow or environment-sensitive: `//go:build integration`.
 
 Run the integration tier with `go test -tags=integration ./...`.
 
-Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCCMD001_prints_version_string`. The `TCID` segment is the test-case ID with hyphens stripped, preserving every character — `TC-CMD-001 → TCCMD001`, not `TCMD001`. The TC-ID in the name is the breadcrumb back to `test-cases.md`.
+Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCCMD001_prints_version_string`. The `TCID` segment is the test-case ID with hyphens stripped, preserving every character — `TC-CMD-001 → TCCMD001`, not `TCMD001`. The TC-ID in the name is the breadcrumb back to the right `test-cases.md` (`core/`, `pkg/`, or `plugins/<name>/`).
 
 ---
 
 ## Conventions
 
-- No `panic` in normal control flow. Return errors. `cmd/tai/main.go` is the only place that translates an error into an exit code.
+- No `panic` in normal control flow. Return errors. Each binary's `main` (e.g. `core/cmd/tai/main.go`, `plugins/<name>/cmd/<binary>/main.go`) is the only place in its tree that translates an error into an exit code.
 - Wrap errors with `fmt.Errorf("context: %w", err)`. Never lose the cause.
 - Use `context.Context` for anything that might be cancellable or time out (network, long file walks, prompts).
 - Logging: `log/slog` from the standard library.
-- Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow.
+- Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `core/internal/version.String`, `plugins/<name>/internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow. Each binary owns its own version package — core and each plugin ship on independent release lifecycles.
 - One exported symbol per file is a guideline, not a rule — but if a file has many, look for a missing package boundary.
 
 ---
@@ -168,7 +190,7 @@ Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVers
 If you find yourself about to write production code and you haven't:
 
 1. Opened an OpenSpec proposal,
-2. Added/updated a Given/When/Then in `test-cases.md` with a TC-ID, and
+2. Added/updated a Given/When/Then in the appropriate `test-cases.md` (core, `pkg/`, or plugin) with a TC-ID, and
 3. Written a failing test that names that TC-ID,
 
 **stop and back up.** The pipeline is the product's memory. Skipping it produces code that works today and is unexplained tomorrow.
