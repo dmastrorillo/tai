@@ -41,6 +41,52 @@ const (
 	InternalError Code = "INTERNAL_ERROR"
 )
 
+// Config codes (introduced by pivot-to-ai-as-code Phase 1). Append-only;
+// see openspec/changes/pivot-to-ai-as-code/specs/config/spec.md for their
+// normative meanings.
+const (
+	// ConfigUnwritable: the resolved config file cannot be created, or
+	// its parent directory is not writable.
+	ConfigUnwritable Code = "CONFIG_UNWRITABLE"
+
+	// ConfigInvalid: the config file parses as YAML but violates a
+	// structural rule (e.g. a target with every sub-path set falsy).
+	ConfigInvalid Code = "CONFIG_INVALID"
+
+	// ConfigInvalidRepoURL: `repo-url` is not a remote git URL. Local
+	// paths and `file://` URLs are rejected.
+	ConfigInvalidRepoURL Code = "CONFIG_INVALID_REPO_URL"
+
+	// ConfigKeyNotScriptable: `tai config set` was invoked on a nested
+	// or array key. Use a dedicated subcommand or `tai config edit`.
+	ConfigKeyNotScriptable Code = "CONFIG_KEY_NOT_SCRIPTABLE"
+
+	// ConfigDuplicateTarget: `tai config target add` was invoked for a
+	// `root` that already exists in the targets array.
+	ConfigDuplicateTarget Code = "CONFIG_DUPLICATE_TARGET"
+
+	// ConfigTargetNotFound: `tai config target remove` was invoked for a
+	// `root` that does not exist in the targets array.
+	ConfigTargetNotFound Code = "CONFIG_TARGET_NOT_FOUND"
+
+	// ConfigEditorUnset: `tai config edit` was invoked with no $EDITOR
+	// environment variable set.
+	ConfigEditorUnset Code = "CONFIG_EDITOR_UNSET"
+
+	// TaiNotConfigured: an operation requiring both `repo-url` and
+	// `targets` was run with at least one missing.
+	TaiNotConfigured Code = "TAI_NOT_CONFIGURED"
+
+	// MissingArg: a subcommand was invoked with the wrong number of
+	// positional arguments (typically too few). The user picked a real
+	// verb; the error is about arity, not unrecognised input.
+	//
+	// Distinct from UnknownSubcommand (verb not in the registry) and
+	// from CONFIG_KEY_NOT_SCRIPTABLE (key shape rejected). Exit code
+	// is Usage (1).
+	MissingArg Code = "MISSING_ARG"
+)
+
 // Storage-layer codes (introduced by add-storage-schema). Append-only;
 // see openspec/specs/storage/spec.md for their normative meanings.
 const (
@@ -127,6 +173,15 @@ func (c Code) ExitCode() int {
 		return exitcode.Data
 	case InternalError:
 		return exitcode.Internal
+	case ConfigUnwritable:
+		return exitcode.Data
+	case ConfigInvalid, ConfigInvalidRepoURL, ConfigKeyNotScriptable,
+		ConfigDuplicateTarget, ConfigTargetNotFound, ConfigEditorUnset:
+		return exitcode.Usage
+	case TaiNotConfigured:
+		return exitcode.Precondition
+	case MissingArg:
+		return exitcode.Usage
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data
 	case InstallTargetUnwritable:

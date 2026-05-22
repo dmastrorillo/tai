@@ -17,25 +17,25 @@
 
 ## 2. Phase 1 — Core foundation: config and error taxonomy
 
-- [ ] 2.1 Introduce a new `TC-CONF-*` category in `core/test-cases.md` for config-file management (file location, schema, CLI surface — the work of this phase); update the ToC entry. The existing `TC-CFG-*` category remains scoped to data-directory and config-resolution cases (its current meaning); the two are kept distinct to avoid conflating data-dir resolution with YAML config-file management. Add BDD cases for the `config` capability under `TC-CONF-001` onward
-- [ ] 2.2 Append new error codes to `pkg/errcode`: `CONFIG_UNWRITABLE`, `CONFIG_INVALID`, `CONFIG_INVALID_REPO_URL`, `CONFIG_KEY_NOT_SCRIPTABLE`, `CONFIG_DUPLICATE_TARGET`, `CONFIG_TARGET_NOT_FOUND`, `TAI_NOT_CONFIGURED` — with exit-code bindings per the spec
-- [ ] 2.3 Add a config-loader package in `core/internal/config` that resolves the file path (TAI_CONFIG → XDG_CONFIG_HOME → platform default), parses YAML, validates the schema (repo-url shape, targets array, sub-path defaults, falsy-skip behavior)
-- [ ] 2.4 Write red unit + e2e tests for each TC-CFG-* case (path resolution, lazy creation, schema validation, falsy sub-path warning)
-- [ ] 2.5 Implement `tai config show` — prints YAML; informational message on missing file; exits 0 either way
-- [ ] 2.6 Implement `tai config edit` — creates commented template on first call, opens `$EDITOR`
-- [ ] 2.7 Implement `tai config set <key> <value>` — scalar top-level keys only; rejects nested keys with `CONFIG_KEY_NOT_SCRIPTABLE`
-- [ ] 2.8 Implement `tai config target add <root> [--skills X] [--commands Y] [--agents Z]` — duplicate-root detection, default sub-paths preserved as absent in YAML
-- [ ] 2.9 Implement `tai config target list` — table on stdout; `(no targets configured)` when empty
-- [ ] 2.10 Implement `tai config target remove <root>` — exact-match removal; `CONFIG_TARGET_NOT_FOUND` otherwise
-- [ ] 2.11 Wire `tai --help`, `tai --version` to work with no config present (already works in foundation; reverify)
-- [ ] 2.12 Refactor existing error-template assertions to live in `pkg/cliout` tests; ensure footer-regex invariant test still passes
+- [x] 2.1 Introduce a new `TC-CONF-*` category in `core/test-cases.md` for config-file management (file location, schema, CLI surface — the work of this phase); update the ToC entry. The existing `TC-CFG-*` category remains scoped to data-directory and config-resolution cases (its current meaning); the two are kept distinct to avoid conflating data-dir resolution with YAML config-file management. Add BDD cases for the `config` capability under `TC-CONF-001` onward
+- [x] 2.2 Append new error codes to `pkg/errcode`: `CONFIG_UNWRITABLE`, `CONFIG_INVALID`, `CONFIG_INVALID_REPO_URL`, `CONFIG_KEY_NOT_SCRIPTABLE`, `CONFIG_DUPLICATE_TARGET`, `CONFIG_TARGET_NOT_FOUND`, `TAI_NOT_CONFIGURED` — with exit-code bindings per the spec
+- [x] 2.3 Add a config-loader package in `core/internal/config` that resolves the file path (TAI_CONFIG → XDG_CONFIG_HOME → platform default), parses YAML, validates the schema (repo-url shape, targets array, sub-path defaults, falsy-skip behavior)
+- [x] 2.4 Write red unit + e2e tests for each TC-CFG-* case (path resolution, lazy creation, schema validation, falsy sub-path warning)
+- [x] 2.5 Implement `tai config show` — prints YAML; informational message on missing file; exits 0 either way
+- [x] 2.6 Implement `tai config edit` — creates commented template on first call, opens `$EDITOR`
+- [x] 2.7 Implement `tai config set <key> <value>` — scalar top-level keys only; rejects nested keys with `CONFIG_KEY_NOT_SCRIPTABLE`
+- [x] 2.8 Implement `tai config target add <root> [--skills X] [--commands Y] [--agents Z]` — duplicate-root detection, default sub-paths preserved as absent in YAML
+- [x] 2.9 Implement `tai config target list` — table on stdout; `(no targets configured)` when empty
+- [x] 2.10 Implement `tai config target remove <root>` — exact-match removal; `CONFIG_TARGET_NOT_FOUND` otherwise
+- [x] 2.11 Wire `tai --help`, `tai --version` to work with no config present (already works in foundation; reverify)
+- [x] 2.12 Refactor existing error-template assertions to live in `pkg/cliout` tests; ensure footer-regex invariant test still passes
 
 ## 3. Phase 1 — Core foundation: stdout/stderr discipline and reserved verbs
 
-- [ ] 3.1 Add BDD cases for the stdout/stderr discipline in `core/test-cases.md` (TC-CLI-* category)
-- [ ] 3.2 Implement a TTY-detection helper in `pkg/cliout` (or `core/internal`) and ensure no ANSI/CR animations on non-TTY stdout
-- [ ] 3.3 Add a reserved-verbs registry in `core/internal` that exports the canonical top-level verb list maintained in `specs/plugin-host/spec.md` Requirement: Plugin subprocess invocation; expose it for the plugin host. The list MUST NOT be duplicated inline in this task or elsewhere — fetch it from the spec at implementation time
-- [ ] 3.4 Wire the root command to return `UNKNOWN_SUBCOMMAND` for any verb not in the registry and not resolvable as a plugin (the plugin host hook lands later)
+- [x] 3.1 Add BDD cases for the stdout/stderr discipline in `core/test-cases.md` (TC-CLI-* category)
+- [x] 3.2 Implement a TTY-detection helper in `pkg/cliout` (or `core/internal`) and ensure no ANSI/CR animations on non-TTY stdout
+- [x] 3.3 Add a reserved-verbs registry in `core/internal` that exports the canonical top-level verb list maintained in `specs/plugin-host/spec.md` Requirement: Plugin subprocess invocation; expose it for the plugin host. The list MUST NOT be duplicated inline in this task or elsewhere — fetch it from the spec at implementation time
+- [x] 3.4 Wire the root command to return `UNKNOWN_SUBCOMMAND` for any verb not in the registry and not resolvable as a plugin (the plugin host hook lands later)
 
 ## 4. Phase 2 — Repo lifecycle: sync and clone
 

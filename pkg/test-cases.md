@@ -81,6 +81,11 @@ Exercised by `pkg/cliout/cliout_test.go` →
 - **Then** the last non-empty line matches
   `^\[exit \d+: [A-Z][A-Z0-9_]*\]$`.
 
+The test implementation iterates over every `errcode.Code` in the
+taxonomy (`allCodes` slice) — adding a new code to `pkg/errcode`
+requires updating that slice in the same change, or the new code is
+not actually covered by this invariant.
+
 Exercised by `pkg/cliout/cliout_test.go` →
 `TestWriteError_TCERR004_footer_regex_invariant`.
 

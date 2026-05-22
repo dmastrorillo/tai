@@ -92,6 +92,17 @@ One `go.mod` at the repo root. Multiple binaries built from `core/cmd/tai/` and 
 
 **Rejected:** multi-module with `go.work`. Useful when plugins need independent dep versions; YAGNI now, with the migration trigger being "a first-party plugin needs a conflicting dep version." Third-party plugins live in third-party repos anyway, so they don't bear on this decision.
 
+#### D8a — YAML library: `gopkg.in/yaml.v3`
+
+Phase 1's config-loader pulls in a YAML library. We picked `gopkg.in/yaml.v3` over the other candidates:
+
+- **`gopkg.in/yaml.v3`** *(chosen)*: ubiquitous in the Go ecosystem, stable API since 2020, the `Node`-based decoder gives us round-trip control if we ever need it, supports comments via `Node.HeadComment`. Maintenance has slowed since 2022 but no critical bugs are outstanding and the package is feature-complete for tai's needs (key-value loading, `omitempty`, pointer-vs-nil semantics for sub-paths).
+- **`go-yaml/yaml/v4`** *(rejected for v1)*: API still in flux as of writing; the v3→v4 migration is non-trivial and we'd rather have a stable foundation. Revisit when v4 reaches a release marked stable.
+- **`sigs.k8s.io/yaml`** *(rejected)*: defers to `yaml.v2` under the hood and converts via JSON tags. Adds a JSON-tag burden on our structs that we don't need, and v2 lacks the round-trip capabilities we'd want for `tai config edit`'s byte-fidelity goal.
+- **`cuelang.org/go`** *(rejected)*: vastly more powerful than we need; pulls a multi-MB dependency tree.
+
+Migration trigger: when yaml.v3 stops receiving security fixes OR v4 reaches a release marked stable AND the migration cost (one config-loader rewrite) is justified by a concrete need. Until then, this choice is intentional and stable.
+
 ### D9 — Output convention: stdout = data, stderr = conversation, single mode, string error codes
 
 No `--json` / machine mode. Stdout carries data — prose headers, tabular rows, results. Stderr carries everything else — error templates, progress, prompts, the update banner. Errors flow through `cliout.WriteError` with the existing template:

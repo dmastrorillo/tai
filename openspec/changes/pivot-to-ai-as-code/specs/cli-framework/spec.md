@@ -64,6 +64,7 @@ The taxonomy spans both core and first-party plugins. Codes are organised into g
 | `CONFIG_TARGET_NOT_FOUND` | 1 | `tai config target remove` was invoked for a `root` that does not exist. |
 | `CONFIG_EDITOR_UNSET` | 1 | `tai config edit` was invoked with no `$EDITOR` env var set. |
 | `TAI_NOT_CONFIGURED` | 2 | An operation requiring both `repo-url` and `targets` was run with at least one missing. |
+| `MISSING_ARG` | 1 | A subcommand was invoked with the wrong number of positional arguments (typically too few). |
 | `REPO_FETCH_FAILED` | 3 | `git fetch` against the source repo failed for reasons other than offline (e.g. auth, 4xx). |
 | `REPO_INIT_TARGET_NOT_EMPTY` | 1 | `tai repo init <path>` invoked on a non-empty directory. |
 | `REPO_INIT_GIT_UNAVAILABLE` | 3 | `git` is not on PATH after `tai repo init` wrote the scaffold. |

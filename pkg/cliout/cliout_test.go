@@ -60,12 +60,55 @@ func TestWriteError_TCERR003_internal_error_omits_help(t *testing.T) {
 // TestWriteError_TCERR004_footer_regex_invariant exercises TC-ERR-004:
 // every error path's stderr ends with a footer matching the contract
 // regex, regardless of error type.
+//
+// The invariant MUST hold for every code in the taxonomy — listing
+// them here forces a contributor adding a new code to verify the
+// template emits a matching footer for it. The pkg/errcode taxonomy
+// test guards the Code → exit-code mapping; this guards the rendered
+// template.
 func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
+	allCodes := []errcode.Code{
+		// Foundation codes
+		errcode.RepoNotFound,
+		errcode.RepoFlagInvalid,
+		errcode.DataDirUnwritable,
+		errcode.UnknownSubcommand,
+		errcode.InternalError,
+		// Config codes (pivot-to-ai-as-code Phase 1)
+		errcode.ConfigUnwritable,
+		errcode.ConfigInvalid,
+		errcode.ConfigInvalidRepoURL,
+		errcode.ConfigKeyNotScriptable,
+		errcode.ConfigDuplicateTarget,
+		errcode.ConfigTargetNotFound,
+		errcode.ConfigEditorUnset,
+		errcode.TaiNotConfigured,
+		errcode.MissingArg,
+		// Storage / install / import / triage layers (unchanged by
+		// Phase 1 but covered here so the invariant test is the single
+		// taxonomy-wide check)
+		errcode.DBOpenFailed,
+		errcode.DBMigrationFailed,
+		errcode.DBConstraintViolation,
+		errcode.InstallTargetUnwritable,
+		errcode.InstallInvalidTarget,
+		errcode.InstallLedgerCorrupt,
+		errcode.ImportInvalidJSON,
+		errcode.ImportSchemaInvalid,
+		errcode.ImportAmbiguousRefs,
+		errcode.TriageNoScope,
+		errcode.TriageAmbiguousScope,
+		errcode.TriageNotFound,
+		errcode.TriageInvalidFlags,
+		errcode.TriageConfirmationRequired,
+	}
+
 	cases := []error{
-		errcode.New(errcode.RepoNotFound, "msg"),
-		errcode.New(errcode.RepoFlagInvalid, "bad"),
-		errcode.Newf(errcode.InternalError, "x %d", 1),
 		errors.New("a non-structured error"),
+	}
+	for _, code := range allCodes {
+		cases = append(cases, errcode.New(code, "msg"))
+		cases = append(cases, errcode.New(code, "msg").WithHelp("do the thing"))
 	}
 
 	for _, err := range cases {

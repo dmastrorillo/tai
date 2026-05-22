@@ -1,11 +1,12 @@
 // Package cmd assembles the tai core CLI's urfave/cli command tree.
 //
-// In Phase 0 of the AI-as-code pivot this is a thin scaffold: the root
-// command carries --version and --help, and the OnUsageError/Action
-// hooks route any unrecognised input through the foundation's
-// UnknownSubcommand error contract. The new top-level verbs (tai config,
-// tai sync, tai repo init, ...) graft onto this root in Phase 1 as their
-// OpenSpec proposals are applied.
+// The root command carries --version, --help, the `tai config` subtree,
+// and the OnUsageError/Action hooks that route any unrecognised input
+// through the foundation's UnknownSubcommand error contract. Subsequent
+// top-level verbs (tai sync, tai repo init, tai workflow, tai standards,
+// tai install-commands, tai plugins) graft onto this same root as their
+// OpenSpec proposals land — see openspec/changes/pivot-to-ai-as-code/
+// for the phase-by-phase plan.
 //
 // NewRoot is the single seam every test and the production binary use to
 // build the command — there is no package-level state, and the function
@@ -45,6 +46,10 @@ func NewRoot() *cli.Command {
 		Name:    "tai",
 		Usage:   "AI-as-code CLI: distribute Claude Code assets and run AI plugins",
 		Version: version.String,
+
+		Commands: []*cli.Command{
+			newConfigCommand(),
+		},
 
 		Action: func(_ context.Context, c *cli.Command) error {
 			if args := c.Args(); args.Present() {
