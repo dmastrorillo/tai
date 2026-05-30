@@ -84,6 +84,10 @@ func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
 		errcode.ConfigEditorUnset,
 		errcode.TaiNotConfigured,
 		errcode.MissingArg,
+		// Repo-sync / repo-init codes (Phase 2)
+		errcode.RepoFetchFailed,
+		errcode.RepoInitTargetNotEmpty,
+		errcode.RepoInitGitUnavailable,
 		// Storage / install / import / triage layers (unchanged by
 		// Phase 1 but covered here so the invariant test is the single
 		// taxonomy-wide check)

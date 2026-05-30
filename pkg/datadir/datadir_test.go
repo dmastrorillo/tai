@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmastrorillo/tai/pkg/datadir"
 	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/plugins/triage/internal/datadir"
 )
 
 // TestResolve_TCCFG001_default_linux_no_overrides exercises TC-CFG-001:

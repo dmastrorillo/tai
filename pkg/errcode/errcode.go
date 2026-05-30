@@ -87,6 +87,30 @@ const (
 	MissingArg Code = "MISSING_ARG"
 )
 
+// Repo-sync and repo-init codes (both introduced by
+// pivot-to-ai-as-code Phase 2). Append-only; see
+// openspec/changes/pivot-to-ai-as-code/specs/{repo-sync,repo-init}/
+// spec.md for the normative meanings.
+const (
+	// RepoFetchFailed: `git fetch` against the configured source repo
+	// failed for reasons other than network-unreachable (e.g.
+	// authentication, 4xx). Network-unreachable is handled implicitly
+	// via the cache-fallback warning and does NOT surface as an error.
+	RepoFetchFailed Code = "REPO_FETCH_FAILED"
+
+	// RepoInitTargetNotEmpty: `tai repo init <path>` was invoked
+	// against an existing directory that already contains files. The
+	// scaffold refuses to overwrite — the user must delete or move the
+	// existing contents.
+	RepoInitTargetNotEmpty Code = "REPO_INIT_TARGET_NOT_EMPTY"
+
+	// RepoInitGitUnavailable: `tai repo init` finished writing the
+	// scaffold but `git` is not on PATH, so the auto `git init` +
+	// initial commit step cannot run. Files remain on disk; the user
+	// can run `git init` themselves once git is installed.
+	RepoInitGitUnavailable Code = "REPO_INIT_GIT_UNAVAILABLE"
+)
+
 // Storage-layer codes (introduced by add-storage-schema). Append-only;
 // see openspec/specs/storage/spec.md for their normative meanings.
 const (
@@ -182,6 +206,12 @@ func (c Code) ExitCode() int {
 		return exitcode.Precondition
 	case MissingArg:
 		return exitcode.Usage
+	case RepoFetchFailed:
+		return exitcode.Data
+	case RepoInitTargetNotEmpty:
+		return exitcode.Usage
+	case RepoInitGitUnavailable:
+		return exitcode.Data
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data
 	case InstallTargetUnwritable:

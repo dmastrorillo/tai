@@ -39,26 +39,26 @@
 
 ## 4. Phase 2 — Repo lifecycle: sync and clone
 
-- [ ] 4.1 Add BDD cases to `core/test-cases.md` for the `repo-sync` capability (TC-SYNC-* category)
-- [ ] 4.1a Add BDD cases to `core/test-cases.md` for the background source-repo update-check goroutine (TC-SYNC-* category continues): cache file refreshed when stale, cache file unchanged when fresh, cache file unchanged on poll error. These are the file-observable anchors for the goroutine introduced in task 4.10
-- [ ] 4.2 Append `REPO_FETCH_FAILED` to `pkg/errcode` with its exit code
-- [ ] 4.3 Implement a clone manager in `core/internal/sync` that creates `<TAI_DATA_DIR>/source/` on first sync via `git clone`, reuses on subsequent syncs
-- [ ] 4.4 Implement eager `git fetch` with cache-fallback warning to stderr (one-liner naming last-successful-fetch timestamp)
-- [ ] 4.5 Implement M1 overwrite detection: walk the source tree, check destination existence per file, batch into `would-create` / `would-overwrite` / `up-to-date` lists, group by category
-- [ ] 4.6 Implement the per-target manifest at `<TAI_DATA_DIR>/manifests/<sha256-of-root>.json`: cumulative; append on write, remove only on prune
-- [ ] 4.7 Implement the batched single overwrite prompt on stderr; read y/N from stdin; -y bypasses prompt
-- [ ] 4.8 Implement the orphan-count summary on every `tai sync` (whether or not `--prune` was passed)
-- [ ] 4.9 Implement `tai sync --prune`: compute `manifest - source` orphans, surface them in the prompt, delete on confirm
-- [ ] 4.10 Add a background goroutine for the source-repo update check; result feeds the update-banner state file (consumed in phase 5)
-- [ ] 4.11 Write e2e tests using a local git remote fixture (a bare git repo in a temp dir) covering every TC-SYNC-* case
+- [x] 4.1 Add BDD cases to `core/test-cases.md` for the `repo-sync` capability (TC-SYNC-* category)
+- [x] 4.1a Add BDD cases to `core/test-cases.md` for the background source-repo update-check goroutine (TC-SYNC-* category continues): cache file refreshed when stale, cache file unchanged when fresh, cache file unchanged on poll error. These are the file-observable anchors for the goroutine introduced in task 4.10
+- [x] 4.2 Append `REPO_FETCH_FAILED` to `pkg/errcode` with its exit code
+- [x] 4.3 Implement a clone manager in `core/internal/sync` that creates `<TAI_DATA_DIR>/source/` on first sync via `git clone`, reuses on subsequent syncs
+- [x] 4.4 Implement eager `git fetch` with cache-fallback warning to stderr (one-liner naming last-successful-fetch timestamp)
+- [x] 4.5 Implement M1 overwrite detection: walk the source tree, check destination existence per file, batch into `would-create` / `would-overwrite` / `up-to-date` lists, group by category
+- [x] 4.6 Implement the per-target manifest at `<TAI_DATA_DIR>/manifests/<sha256-of-root>.json`: cumulative; append on write, remove only on prune
+- [x] 4.7 Implement the batched single overwrite prompt on stderr; read y/N from stdin; -y bypasses prompt
+- [x] 4.8 Implement the orphan-count summary on every `tai sync` (whether or not `--prune` was passed)
+- [x] 4.9 Implement `tai sync --prune`: compute `manifest - source` orphans, surface them in the prompt, delete on confirm
+- [x] 4.10 Add a background goroutine for the source-repo update check; result feeds the update-banner state file (consumed in phase 5)
+- [x] 4.11 Write e2e tests using a local git remote fixture (a bare git repo in a temp dir) covering every TC-SYNC-* case
 
 ## 5. Phase 2 — Repo lifecycle: `tai repo init`
 
-- [ ] 5.1 Add BDD cases for `repo-init` to `core/test-cases.md` (TC-INIT-* or new category)
-- [ ] 5.2 Append `REPO_INIT_TARGET_NOT_EMPTY` and `REPO_INIT_GIT_UNAVAILABLE` to `pkg/errcode`
-- [ ] 5.3 Embed the scaffold templates (top-level README.md, per-folder READMEs, .gitignore, plugins.yml commented stub) as Go embedded files in `core/internal/repoinit`
-- [ ] 5.4 Implement `tai repo init <path>`: directory checks, scaffold write, `git init`, initial commit, next-steps print block
-- [ ] 5.5 Test that local config is not modified after init (TC-INIT-* covers auto-wiring negative case)
+- [x] 5.1 Add BDD cases for `repo-init` to `core/test-cases.md` (TC-INIT-* or new category)
+- [x] 5.2 Append `REPO_INIT_TARGET_NOT_EMPTY` and `REPO_INIT_GIT_UNAVAILABLE` to `pkg/errcode`
+- [x] 5.3 Embed the scaffold templates (top-level README.md, per-folder READMEs, .gitignore, plugins.yml commented stub) as Go embedded files in `core/internal/repoinit`
+- [x] 5.4 Implement `tai repo init <path>`: directory checks, scaffold write, `git init`, initial commit, next-steps print block
+- [x] 5.5 Test that local config is not modified after init (TC-INIT-* covers auto-wiring negative case)
 
 ## 6. Phase 3 — Content surfaces: workflows and standards
 

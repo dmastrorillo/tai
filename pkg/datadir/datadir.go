@@ -11,13 +11,11 @@
 // Resolve MUST NOT touch the filesystem. EnsureWritable creates the
 // directory tree lazily and reports DATA_DIR_UNWRITABLE on failure.
 //
-// Phase-0 placement note: this package lives under
-// plugins/triage/internal/datadir because all current callers are
-// triage-side (plugins/triage/internal/storage). Phase 1 introduces
-// core/internal/config which needs the same precedence rules; at that
-// point promote this package to pkg/datadir (it's a stable, well-tested,
-// AI-agnostic helper) so both trees can import it without duplication.
-// Tracked under tasks 2.3 / 4.3 of openspec/changes/pivot-to-ai-as-code.
+// Stability contract: this package is part of the pkg/ public surface
+// — its exported functions and the DATA_DIR_UNWRITABLE errcode are
+// append-only. Promoted from plugins/triage/internal/datadir in
+// Phase 2 of pivot-to-ai-as-code (when core/internal/sync started
+// needing data-directory resolution).
 package datadir
 
 import (

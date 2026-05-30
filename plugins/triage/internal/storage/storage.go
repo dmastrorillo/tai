@@ -34,8 +34,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dmastrorillo/tai/pkg/datadir"
 	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/plugins/triage/internal/datadir"
 
 	// Pure-Go SQLite driver registers itself as "sqlite". No CGo, so
 	// tai stays a single static binary that cross-compiles cleanly.

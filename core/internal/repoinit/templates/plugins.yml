@@ -1,0 +1,15 @@
+# plugins.yml — list of plugins tai auto-installs on `tai sync`.
+#
+# Each entry is either a first-party plugin name (resolved through
+# tai's built-in registry) or an explicit source spec
+# (host/org/repo[/subpath]@version).
+#
+# This file is ADDITIVE: removing an entry here does NOT uninstall the
+# plugin from developer machines. To remove a plugin everywhere, the
+# developers run `tai plugins <name> remove` locally.
+#
+# Example:
+# plugins:
+#   - triage                                         # first-party
+#   - github.com/acme/tai-plugin-custom@v1.2.0       # third-party
+plugins: []

@@ -2,7 +2,7 @@
 
 A Go-based command-line tool. This file documents how we build it. The pipeline is non-negotiable: **OpenSpec → per-component `test-cases.md` (BDD) → tests (TDD) → production code**. Skipping a layer is a process bug, not a shortcut.
 
-The repo is a single Go module organised as a monorepo: `core/` holds the `tai` core binary, `plugins/<name>/` holds first-party plugins (today only `triage/`), `pkg/` exposes the shared framework packages (`errcode`, `cliout`, `exitcode`, `cliexec`) for plugin authors. The BDD spec is split per component: `core/test-cases.md` for core-CLI behaviours, `pkg/test-cases.md` for the framework's stability contract (error template, panic recovery, error-code taxonomy), and `plugins/<name>/test-cases.md` for each plugin.
+The repo is a single Go module organised as a monorepo: `core/` holds the `tai` core binary, `plugins/<name>/` holds first-party plugins (today only `triage/`), `pkg/` exposes the shared framework packages (`errcode`, `cliout`, `exitcode`, `cliexec`, `datadir`) for plugin authors. The BDD spec is split per component: `core/test-cases.md` for core-CLI behaviours, `pkg/test-cases.md` for the framework's stability contract (error template, panic recovery, error-code taxonomy, data-directory resolution), and `plugins/<name>/test-cases.md` for each plugin.
 
 ---
 
@@ -135,8 +135,12 @@ Top-level layout:
 
 Inside `core/`:
 
-- `core/cmd/tai/main.go` — entry point. Wires the root `urfave/cli` command and calls `Run`. Thin — no business logic.
-- `core/internal/<domain>/` — core-only domain logic (config loader, repo sync, plugin host, etc.). Not importable from any `plugins/<name>/` tree (Go's `internal/` rule).
+- `core/cmd/tai/main.go` — entry point. Wires the root `urfave/cli` command, calls `Run`, fires the background update-check goroutine (`sync.Schedule`) with a brief Wait on exit. Thin — no business logic.
+- `core/internal/cmd/` — command-tree assembly (`NewRoot`, plus one file per top-level verb: `config.go`, `repo.go`, `sync.go`, ...). End-to-end tests live alongside as `*_test.go`.
+- `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/changes/pivot-to-ai-as-code/specs/config/spec.md`.
+- `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
+- `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
+- `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host (Phase 4).
 - `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
 - `core/test-cases.md` — BDD spec for core-CLI behaviours.
 
@@ -151,9 +155,10 @@ Inside each `plugins/<name>/`:
 Inside `pkg/`:
 
 - `pkg/errcode/` — append-only error-code taxonomy and the `*errcode.Error` value type with exit-code bindings.
-- `pkg/cliout/` — error-template writer that emits the foundation footer `[exit N: ERROR_CODE]`.
+- `pkg/cliout/` — error-template writer that emits the foundation footer `[exit N: ERROR_CODE]`; also owns `IsTTY` for stdout/stderr discipline.
 - `pkg/exitcode/` — named exit-code constants.
 - `pkg/cliexec/` — `Run(ctx, cmd, args)` wrapper around `*cli.Command.Run` that turns panics into structured `INTERNAL_ERROR` errors. Used by every binary's `main` and by every cmdtest harness so production and tests share the same recovery path.
+- `pkg/datadir/` — resolves and (lazy-) creates TAI's per-user data directory (`$TAI_DATA_DIR` > `$XDG_DATA_HOME/tai/` > platform default). Promoted from `plugins/triage/internal/datadir` in Phase 2 of pivot-to-ai-as-code when `core/internal/sync` needed cross-tree access. Surfaces `DATA_DIR_UNWRITABLE` on failure.
 - `pkg/test-cases.md` — BDD spec for the framework's stability contract.
 
 Production code lives under `core/internal/`, `plugins/<name>/internal/`, or `pkg/`. The two `internal/` trees enforce isolation between core and plugins; `pkg/` exposes the small, stable surface plugin authors are allowed to import. Anything under either `internal/` tree cannot be imported by other modules — that's the contract.
@@ -169,6 +174,10 @@ Production code lives under `core/internal/`, `plugins/<name>/internal/`, or `pk
 - **Integration tests** (file-system, real config loading, etc.) live in `<tree>/internal/<pkg>/*_integration_test.go` with a build tag if they're slow or environment-sensitive: `//go:build integration`.
 
 Run the integration tier with `go test -tags=integration ./...`.
+
+### Test bypasses for `pkg/`-level validators
+
+Some `pkg/` validators (e.g. `core/internal/config.validateRepoURL`) reject inputs that the e2e test harness needs (`file://` URLs for hermetic bare-repo fixtures, etc.). The pattern is: each validator dispatches through a package-level `*Func` variable that defaults to the strict production implementation. The package exports a `<Name>ForTesting(t testing.TB)` helper that swaps in a permissive variant and registers a `t.Cleanup` to restore the strict default. The `testing.TB` parameter makes accidental production use a glaring code-review red flag; the t.Cleanup keeps each test self-contained. Example: `config.AllowFileURLsForTesting(t)` in `core/internal/cmd/sync_test.go`.
 
 Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCCMD001_prints_version_string`. The `TCID` segment is the test-case ID with hyphens stripped, preserving every character — `TC-CMD-001 → TCCMD001`, not `TCMD001`. The TC-ID in the name is the breadcrumb back to the right `test-cases.md` (`core/`, `pkg/`, or `plugins/<name>/`).
 

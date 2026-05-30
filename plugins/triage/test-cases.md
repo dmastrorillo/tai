@@ -25,7 +25,6 @@ short, stable codes; numbers increment within each category starting at
 | Code | Scope |
 |------|-------|
 | [`CMD`](#cmd--command-wiring--meta-verbs) | Bundled-command-framework parser used by the triage plugin |
-| [`CFG`](#cfg--data-directory--config-resolution) | Data-directory resolution, env-var precedence |
 | [`REPO`](#repo--repo-context-detection) | `origin` URL parsing, `--repo` flag, scope auto-detect |
 | [`STG`](#stg--storage-layer) | SQLite schema, migrations, constraint enforcement |
 | [`INST`](#inst--install--uninstall) | `tai triage install` / `uninstall`, hash-ledger reconciliation |
@@ -91,59 +90,10 @@ Exercised by `TestLedger_TCCMD007_unknown_verb_returns_empty`.
 
 ---
 
-## CFG — data directory & config resolution
-
-### TC-CFG-001 — default on Linux with no overrides
-
-- **Given** `$XDG_DATA_HOME` and `$TAI_DATA_DIR` are both unset and
-  `$HOME` is `/tmp/fake-home`,
-- **When** `datadir.Resolve()` runs on Linux/macOS,
-- **Then** the resolved path is `/tmp/fake-home/.local/share/tai`.
-
-On Windows, the equivalent: with `LOCALAPPDATA` set to
-`C:\Users\test\AppData\Local`, the resolved path is
-`C:\Users\test\AppData\Local\tai`.
-
-Exercised by `plugins/triage/internal/datadir/datadir_test.go` →
-`TestResolve_TCCFG001_default_linux_no_overrides`.
-
-### TC-CFG-002 — `XDG_DATA_HOME` overrides the OS default
-
-- **Given** `$XDG_DATA_HOME` is `/custom/xdg` and `$TAI_DATA_DIR` is
-  unset,
-- **When** `datadir.Resolve()` runs,
-- **Then** the resolved path is `/custom/xdg/tai` (the literal `tai`
-  suffix is appended).
-
-Exercised by `plugins/triage/internal/datadir/datadir_test.go` →
-`TestResolve_TCCFG002_xdg_overrides_default`.
-
-### TC-CFG-003 — `TAI_DATA_DIR` wins over `XDG_DATA_HOME` and is used verbatim
-
-- **Given** `$TAI_DATA_DIR` is `/explicit/tai-data` and `$XDG_DATA_HOME`
-  is `/custom/xdg`,
-- **When** `datadir.Resolve()` runs,
-- **Then** the resolved path is `/explicit/tai-data` exactly — no `tai`
-  suffix is appended.
-
-Exercised by `plugins/triage/internal/datadir/datadir_test.go` →
-`TestResolve_TCCFG003_tai_data_dir_wins`.
-
-### TC-CFG-004 — unwritable data directory surfaces `DATA_DIR_UNWRITABLE`
-
-- **Given** `$TAI_DATA_DIR` points at a path that cannot be created
-  (e.g. `/dev/null/cannot-mkdir`),
-- **When** `datadir.EnsureWritable()` runs,
-- **Then** the returned error is a `*errcode.Error` with
-  `Code = DATA_DIR_UNWRITABLE`,
-- **And** the error carries at least one remediation help bullet,
-- **And** the error message names the failing path.
-
-Exercised by `plugins/triage/internal/datadir/datadir_test.go` →
-`TestEnsureWritable_TCCFG004_unwritable_dir`.
-
-Integration coverage of the real-filesystem read-only path (chmod 555)
-lives in `datadir_integration_test.go` behind the `integration` build tag.
+<!-- TC-CFG-001..004 moved to pkg/test-cases.md in Phase 2 of
+pivot-to-ai-as-code, when the `datadir` package was promoted out of
+plugins/triage/internal/ to pkg/datadir. The TC-IDs are preserved
+verbatim per the never-renumber rule. -->
 
 ---
 

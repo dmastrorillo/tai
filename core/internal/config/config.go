@@ -6,12 +6,10 @@
 // openspec/changes/pivot-to-ai-as-code/specs/config/spec.md for the
 // normative spec.
 //
-// This package does NOT own the data directory (see
-// plugins/triage/internal/datadir for that, until it's promoted to
-// pkg/datadir in Phase 1 / 2). The two are separate concepts: config
-// describes user intent (which source repo, which targets); the data
-// directory holds tai's runtime state (cached clones, plugin binaries,
-// manifests).
+// This package does NOT own the data directory (see pkg/datadir for
+// that). The two are separate concepts: config describes user intent
+// (which source repo, which targets); the data directory holds tai's
+// runtime state (cached clones, plugin binaries, manifests).
 package config
 
 import (
@@ -22,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"testing"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -257,21 +256,54 @@ func isFalsy(s *string) bool {
 	return s != nil && *s == ""
 }
 
-// validateRepoURL rejects local paths and file:// URLs while accepting
-// the standard remote forms. Returns *errcode.Error{Code:
-// CONFIG_INVALID_REPO_URL} on rejection.
+// validateRepoURL is the package-level entry point for repo-url
+// validation. It dispatches through the validateRepoURLFunc package
+// variable so tests can swap in a permissive variant via init() in a
+// _test.go file. Production builds never touch the override — there
+// is no env var or runtime switch reachable from a shipping binary.
+func validateRepoURL(u string) error {
+	return validateRepoURLFunc(u)
+}
+
+// validateRepoURLFunc is the swappable validator. Defaults to the
+// strict production logic. A test file in this package (config_test.go
+// or a sibling _test.go) overrides it in init() to relax constraints
+// for fixture-based tests; the override is invisible to non-test
+// builds because _test.go files are only compiled during `go test`.
+var validateRepoURLFunc = strictValidateRepoURL
+
+// AllowFileURLsForTesting relaxes validateRepoURL for the lifetime of
+// t so the test harness can use a file:// bare-repo fixture without
+// reaching the production "remote URL" gate. The restore is wired via
+// t.Cleanup so each test that calls this is self-contained.
 //
-// Accepted forms:
+// This function exists solely for the sync e2e tests. The
+// `testing.TB` parameter makes it impossible to call from production
+// code — `testing` is in the standard library but a production binary
+// that imports it deliberately is the only way to reach this helper,
+// which would itself be a code-review red flag.
+func AllowFileURLsForTesting(t testing.TB) {
+	t.Helper()
+	prev := validateRepoURLFunc
+	validateRepoURLFunc = func(u string) error {
+		if strings.HasPrefix(strings.TrimSpace(u), "file://") {
+			return nil
+		}
+		return strictValidateRepoURL(u)
+	}
+	t.Cleanup(func() { validateRepoURLFunc = prev })
+}
+
+// strictValidateRepoURL is the production validator. Rejects local
+// paths and file:// URLs. Accepts:
+//
 //   - git@host:owner/repo[.git]      (SCP-style SSH)
 //   - ssh://[user@]host[:port]/path  (URL-style SSH)
 //   - https://host/path[.git]
-//   - http://host/path               (rare but legal; spec allows https
-//     and ssh — we accept http only when explicitly written, since
-//     downgrading is the user's choice)
-//
-// Anything else (relative paths, absolute paths, file:// URLs) is
-// rejected.
-func validateRepoURL(u string) error {
+//   - http://host/path               (rare but legal; spec allows
+//     https and ssh — we accept http only when explicitly written,
+//     since downgrading is the user's choice)
+func strictValidateRepoURL(u string) error {
 	u = strings.TrimSpace(u)
 	if u == "" {
 		return errcode.New(errcode.ConfigInvalidRepoURL,

@@ -30,6 +30,8 @@ components. **Never renumber existing IDs.**
 | [`CMD`](#cmd--command-wiring--meta-verbs) | Top-level command wiring, help, version, unknown subcommands |
 | [`CONF`](#conf--config-file-management) | YAML config: path resolution, lazy creation, schema, `tai config` CLI surface |
 | [`CLI`](#cli--stdoutstderr-discipline) | Stdout-vs-stderr discipline, TTY-gated decoration |
+| [`SYNC`](#sync--source-repo-sync) | `tai sync`: clone, fetch, overwrite detection, manifest, prune, background poll |
+| [`INIT`](#init--repo-scaffold) | `tai repo init <path>` scaffold, git init, next-steps block |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -364,3 +366,286 @@ Exercised by `core/internal/cmd/config_test.go` →
 `TestConfigTargetList_TCCLI003_channel_discipline`.
 
 <!-- Add new CLI cases here as their proposals land. -->
+
+---
+
+## SYNC — source-repo sync
+
+`tai sync` clones the configured `repo-url` into `<TAI_DATA_DIR>/source/`,
+fetches updates, and copies assets into configured targets with M1
+existence-based overwrite detection. Background update-polling is wired
+into every invocation. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
+
+Data-directory resolution (`<TAI_DATA_DIR>` precedence, lazy creation,
+unwritable handling) is owned by `pkg/datadir` and pinned by the
+`TC-CFG-*` cases in [`pkg/test-cases.md`](../pkg/test-cases.md);
+`DATA_DIR_UNWRITABLE` failures surface from that contract, not from
+the `TC-SYNC-*` cases below.
+
+### TC-SYNC-001 — First sync creates the clone
+
+- **Given** a configured `repo-url` pointing at a reachable remote and no clone yet at `<TAI_DATA_DIR>/source/`,
+- **When** the user runs `tai sync`,
+- **Then** `<TAI_DATA_DIR>/source/.git/` exists after the command completes.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC001_first_sync_creates_clone`.
+
+### TC-SYNC-002 — Subsequent sync reuses the clone
+
+- **Given** a clone already exists at `<TAI_DATA_DIR>/source/`,
+- **When** the user runs `tai sync` a second time,
+- **Then** the existing `.git/` directory's inode is unchanged (no re-clone),
+- **And** the workspace is fast-forwarded to the upstream tip.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC002_subsequent_sync_reuses_clone`.
+
+### TC-SYNC-003 — Fetch failure surfaces cache-fallback warning
+
+- **Given** a clone exists and the network is unreachable,
+- **When** the user runs `tai sync`,
+- **Then** stderr contains a one-line warning naming "fetch failed" and the timestamp of the last successful fetch,
+- **And** the sync proceeds against the cached clone,
+- **And** the exit code is `0` (the fetch failure does not abort the sync).
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC003_fetch_failure_warning`.
+
+### TC-SYNC-004 — Fresh sync to empty target writes every source file
+
+- **Given** the source repo has 3 skill files and the target has no existing files,
+- **When** the user runs `tai sync`,
+- **Then** all 3 skill files exist at `<target>/<skills>/<name>`,
+- **And** no overwrite prompt is shown.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC004_fresh_writes_all_files`.
+
+### TC-SYNC-005 — Sync with one overwrite emits a single prompt
+
+- **Given** the source repo has a skill `foo.md` and the target already has a file at `<target>/<skills>/foo.md`,
+- **When** the user runs `tai sync`,
+- **Then** stderr contains a prompt listing `foo.md` under skills as "will be overwritten",
+- **And** stdin is read for a `y` or `N` response.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC005_single_overwrite_prompt`.
+
+### TC-SYNC-006 — Sync batches multiple overwrites into one prompt
+
+- **Given** the source has 5 skills, 2 commands, and 1 agent that all already exist at the target,
+- **When** the user runs `tai sync`,
+- **Then** TAI emits ONE prompt grouping the 8 paths under their three categories,
+- **And** does not prompt individually per file.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC006_batched_overwrite_prompt`.
+
+### TC-SYNC-007 — `-y` bypasses the overwrite prompt
+
+- **Given** at least one overwrite is pending,
+- **When** the user runs `tai sync -y`,
+- **Then** no prompt is shown,
+- **And** the overwritten files are listed on stderr after writing for visibility,
+- **And** the destination files are overwritten with the source bytes.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC007_dash_y_bypasses_prompt`.
+
+### TC-SYNC-008 — User answering `N` cancels the sync
+
+- **Given** at least one overwrite is pending and stdin yields `N\n`,
+- **When** the user runs `tai sync` (no `-y`),
+- **Then** the exit code is `0` (cancellation is not an error),
+- **And** no files are written to the target,
+- **And** stderr contains a cancellation message.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC008_user_rejection_cancels`.
+
+### TC-SYNC-009 — First sync creates the per-target manifest
+
+- **Given** the source has 3 skills, 1 command, 0 agents and no manifest exists for the target,
+- **When** the user runs `tai sync`,
+- **Then** `<TAI_DATA_DIR>/manifests/<sha256-of-target-root>.json` exists,
+- **And** contains the 4 written relative paths.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC009_first_sync_creates_manifest`.
+
+### TC-SYNC-010 — Subsequent sync extends the manifest
+
+- **Given** a manifest with 4 paths and the source has gained 1 new skill file,
+- **When** the user runs `tai sync`,
+- **Then** the manifest now contains 5 paths (the union of the original 4 and the new one).
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC010_subsequent_sync_extends_manifest`.
+
+### TC-SYNC-011 — `--prune` deletes orphans on confirm
+
+- **Given** a manifest references a previously-synced skill that has since been removed from the source,
+- **When** the user runs `tai sync --prune -y`,
+- **Then** the orphan file no longer exists in the target,
+- **And** the manifest no longer contains the orphan's path.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC011_prune_deletes_orphans`.
+
+### TC-SYNC-012 — Sync without `--prune` surfaces an orphan-count line
+
+- **Given** one previously-synced file has been removed from source and the user runs `tai sync` (no `--prune`),
+- **When** the sync completes,
+- **Then** the file still exists at the target,
+- **And** stderr contains a line matching `1 orphan pending`.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC012_orphan_count_summary`.
+
+### TC-SYNC-013 — `tai sync` requires both `repo-url` and `targets`
+
+- **Given** the config has `repo-url` set but `targets` empty,
+- **When** the user runs `tai sync`,
+- **Then** the exit code is `2`,
+- **And** stderr's footer is `[exit 2: TAI_NOT_CONFIGURED]`,
+- **And** the "what to do" bullets name `tai config target add` as the resolution.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSYNC013_requires_both_config_fields`.
+
+### TC-SYNC-014 — Background poll refreshes cache when stale
+
+- **Given** `<TAI_DATA_DIR>/state/update-check.json` has a timestamp older than `update-check-interval` and the source repo is reachable,
+- **When** the user runs any TAI command,
+- **Then** the foreground command completes without blocking on the poll,
+- **And** within a short bounded wait after exit, the cache file's timestamp is newer than the original.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestUpdatePoll_TCSYNC014_stale_cache_refreshed`.
+
+### TC-SYNC-015 — Background poll leaves cache untouched when fresh
+
+- **Given** the cache file's timestamp is within `update-check-interval`,
+- **When** the user runs any TAI command,
+- **Then** the cache file is byte-identical before and after the command exits.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestUpdatePoll_TCSYNC015_fresh_cache_untouched`.
+
+### TC-SYNC-016 — Background poll error is silently absorbed
+
+- **Given** the cache file is stale and the source repo is unreachable,
+- **When** the user runs any TAI command,
+- **Then** the foreground command's stdout and stderr contain no warning attributable to the background poll,
+- **And** the cache file is byte-identical before and after the command exits.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestUpdatePoll_TCSYNC016_poll_error_silent`.
+
+### TC-SYNC-017 — Background poll is disabled when `update-check-interval = 0`
+
+- **Given** the config has `update-check-interval: 0`,
+- **When** the user runs any TAI command (even with a stale cache file present),
+- **Then** the cache file is byte-identical before and after the command exits.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestUpdatePoll_TCSYNC017_disabled_skips_poll`.
+
+<!-- Add new SYNC cases here as their proposals land. -->
+
+---
+
+## INIT — repo scaffold
+
+`tai repo init <path>` writes a templated source-repo scaffold,
+auto-initialises a git repo, and prints next-step commands. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
+
+### TC-INIT-001 — Fresh directory scaffold writes every required file
+
+- **Given** `<path>` does not exist yet,
+- **When** the user runs `tai repo init <path>`,
+- **Then** `<path>` is created,
+- **And** the following files exist with non-empty content: `<path>/README.md`, `<path>/skills/README.md`, `<path>/commands/README.md`, `<path>/agents/README.md`, `<path>/workflows/README.md`, `<path>/standards/README.md`, `<path>/.gitignore`,
+- **And** `<path>/plugins.yml` exists (may be empty list with a commented example).
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT001_fresh_directory`.
+
+### TC-INIT-002 — Scaffold into an existing empty directory succeeds
+
+- **Given** `<path>` exists and contains zero files,
+- **When** the user runs `tai repo init <path>`,
+- **Then** the scaffold is written into the existing directory,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT002_existing_empty_dir`.
+
+### TC-INIT-003 — Non-empty target is rejected
+
+- **Given** `<path>` contains at least one file or subdirectory,
+- **When** the user runs `tai repo init <path>`,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: REPO_INIT_TARGET_NOT_EMPTY]`,
+- **And** no files in `<path>` are created or modified.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT003_non_empty_target_rejected`.
+
+### TC-INIT-004 — Scaffolded READMEs document their conventions
+
+- **Given** a successful `tai repo init <path>`,
+- **When** the per-folder READMEs are inspected,
+- **Then** `<path>/skills/README.md` contains the substring `tai-<plugin>-` (the namespacing rule),
+- **And** `<path>/workflows/README.md` contains the substring `description:` (a YAML schema field),
+- **And** `<path>/standards/README.md` contains the substring `:` (colon-namespaced addressing),
+- **And** `<path>/plugins.yml` contains at least one line beginning with `#` (the commented example).
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT004_readme_content`.
+
+### TC-INIT-005 — Successful init creates a git repo with the standard initial commit
+
+- **Given** `git` is on PATH and the scaffold succeeds,
+- **When** the user runs `tai repo init <path>`,
+- **Then** `<path>/.git/` exists,
+- **And** `git -C <path> log -1 --format=%s` outputs `Initial TAI source-repo scaffold`.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT005_git_init_and_commit`.
+
+### TC-INIT-006 — Missing `git` surfaces REPO_INIT_GIT_UNAVAILABLE
+
+- **Given** `git` is not on PATH,
+- **When** the user runs `tai repo init <path>`,
+- **Then** the scaffold files are written to disk,
+- **And** the exit code is `3`,
+- **And** stderr's footer is `[exit 3: REPO_INIT_GIT_UNAVAILABLE]`.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT006_git_unavailable`.
+
+### TC-INIT-007 — Next-steps block on stdout
+
+- **Given** a successful `tai repo init /tmp/my-repo`,
+- **When** the command exits,
+- **Then** stdout contains the literal phrase `Next steps:`,
+- **And** stdout contains a `git remote add origin` example line,
+- **And** stdout contains a `tai config set repo-url` example line.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT007_next_steps_block`.
+
+### TC-INIT-008 — Local config is not modified by init
+
+- **Given** the user has a populated config file at the resolved path,
+- **When** the user runs `tai repo init <somewhere-else>`,
+- **Then** the config file's bytes are identical before and after the command.
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT008_local_config_untouched`.
+
+<!-- Add new INIT cases here as their proposals land. -->

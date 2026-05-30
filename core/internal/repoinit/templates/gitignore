@@ -1,0 +1,15 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor scratch files
+*.swp
+*.swo
+.vscode/
+.idea/
+*.bak
+*~
+
+# tai-local artifacts (only relevant if someone runs tai from inside
+# this repo — tai's own state lives in $TAI_DATA_DIR, not here)
+.tai/
