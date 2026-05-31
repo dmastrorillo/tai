@@ -51,6 +51,8 @@ func NewRoot() *cli.Command {
 			newConfigCommand(),
 			newRepoCommand(),
 			newSyncCommand(),
+			newWorkflowCommand(),
+			newStandardsCommand(),
 		},
 
 		Action: func(_ context.Context, c *cli.Command) error {

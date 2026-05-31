@@ -111,6 +111,29 @@ const (
 	RepoInitGitUnavailable Code = "REPO_INIT_GIT_UNAVAILABLE"
 )
 
+// Workflow and standards codes (introduced by pivot-to-ai-as-code
+// Phase 6 — content surfaces). Append-only; see
+// openspec/changes/pivot-to-ai-as-code/specs/{workflows,standards}/
+// spec.md for the normative meanings.
+const (
+	// WorkflowInvalid: a workflow YAML file under `<clone>/workflows/`
+	// violates the schema (missing required fields, unknown top-level
+	// key, `kind: agent`, reserved name `list`/`run`).
+	WorkflowInvalid Code = "WORKFLOW_INVALID"
+
+	// WorkflowNotFound: `tai workflow run <name>` was invoked for a
+	// name that does not resolve to any loaded workflow.
+	WorkflowNotFound Code = "WORKFLOW_NOT_FOUND"
+
+	// StandardInvalid: a standard file under `<clone>/standards/`
+	// uses a reserved name (`list`, `load`).
+	StandardInvalid Code = "STANDARD_INVALID"
+
+	// StandardNotFound: `tai standards load <name>` was invoked for a
+	// name that does not resolve to any loaded standard.
+	StandardNotFound Code = "STANDARD_NOT_FOUND"
+)
+
 // Storage-layer codes (introduced by add-storage-schema). Append-only;
 // see openspec/specs/storage/spec.md for their normative meanings.
 const (
@@ -212,6 +235,10 @@ func (c Code) ExitCode() int {
 		return exitcode.Usage
 	case RepoInitGitUnavailable:
 		return exitcode.Data
+	case WorkflowInvalid, StandardInvalid:
+		return exitcode.Usage
+	case WorkflowNotFound, StandardNotFound:
+		return exitcode.Precondition
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data
 	case InstallTargetUnwritable:

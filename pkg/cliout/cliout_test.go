@@ -88,6 +88,11 @@ func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
 		errcode.RepoFetchFailed,
 		errcode.RepoInitTargetNotEmpty,
 		errcode.RepoInitGitUnavailable,
+		// Workflow / standards codes (Phase 6)
+		errcode.WorkflowInvalid,
+		errcode.WorkflowNotFound,
+		errcode.StandardInvalid,
+		errcode.StandardNotFound,
 		// Storage / install / import / triage layers (unchanged by
 		// Phase 1 but covered here so the invariant test is the single
 		// taxonomy-wide check)

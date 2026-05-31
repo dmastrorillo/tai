@@ -32,6 +32,8 @@ components. **Never renumber existing IDs.**
 | [`CLI`](#cli--stdoutstderr-discipline) | Stdout-vs-stderr discipline, TTY-gated decoration |
 | [`SYNC`](#sync--source-repo-sync) | `tai sync`: clone, fetch, overwrite detection, manifest, prune, background poll |
 | [`INIT`](#init--repo-scaffold) | `tai repo init <path>` scaffold, git init, next-steps block |
+| [`WF`](#wf--workflows) | `tai workflow list/run`: YAML schema, colon-namespaced naming, markdown plan emitter |
+| [`STD`](#std--standards) | `tai standards list/load`: markdown + frontmatter, colon-namespaced addressing |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -649,3 +651,261 @@ Exercised by `core/internal/cmd/repo_init_test.go` →
 `TestRepoInit_TCINIT008_local_config_untouched`.
 
 <!-- Add new INIT cases here as their proposals land. -->
+
+---
+
+## WF — workflows
+
+`tai workflow list/run` exposes YAML workflow files under
+`<clone>/workflows/**/*.yml` to AI agents as markdown plans. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/workflows/spec.md`.
+
+### TC-WF-001 — Valid workflow loads successfully
+
+- **Given** a workflow file at `<clone>/workflows/propose.yml` with a `description` and two `steps` entries whose `kind` values are `skill` and `command`,
+- **When** the loader walks the workflows tree,
+- **Then** the workflow is accepted with name `propose` and both steps preserved in order.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF001_valid_workflow_accepted`.
+
+### TC-WF-002 — `kind: agent` is rejected
+
+- **Given** a workflow file with a step where `kind: agent`,
+- **When** the loader walks the workflows tree,
+- **Then** the call returns `*errcode.Error{Code: WORKFLOW_INVALID}`,
+- **And** the message names the offending file and the offending step.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF002_kind_agent_rejected`.
+
+### TC-WF-003 — Unknown top-level key is rejected
+
+- **Given** a workflow file containing a top-level key other than `description` or `steps` (e.g. `notes:`),
+- **When** the loader walks the workflows tree,
+- **Then** the call returns `*errcode.Error{Code: WORKFLOW_INVALID}`,
+- **And** the message names the offending key.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF003_unknown_top_level_key_rejected`.
+
+### TC-WF-004 — Missing required field is rejected
+
+- **Given** a workflow file missing `description` OR with a step missing `kind` or `name`,
+- **When** the loader walks the workflows tree,
+- **Then** the call returns `*errcode.Error{Code: WORKFLOW_INVALID}` and the message identifies what's missing.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF004_missing_required_fields_rejected`.
+
+### TC-WF-005 — Nested workflow resolves to colon-namespaced name
+
+- **Given** a workflow file at `<clone>/workflows/release/cut-rc.yml`,
+- **When** the loader walks the workflows tree,
+- **Then** the workflow is addressable as `release:cut-rc` (all segments lowercased).
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF005_nested_colon_namespaced_name`.
+
+### TC-WF-006 — Reserved name `list` is rejected
+
+- **Given** a workflow file at `<clone>/workflows/list.yml`,
+- **When** the loader walks the workflows tree,
+- **Then** the call returns `*errcode.Error{Code: WORKFLOW_INVALID}` and the message names `list` as a reserved sub-verb.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF006_reserved_name_list_rejected`.
+
+### TC-WF-007 — Reserved name `run` is rejected
+
+- **Given** a workflow file at `<clone>/workflows/run.yml`,
+- **When** the loader walks the workflows tree,
+- **Then** the call returns `*errcode.Error{Code: WORKFLOW_INVALID}` and the message names `run` as a reserved sub-verb.
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF007_reserved_name_run_rejected`.
+
+### TC-WF-008 — Case-insensitive duplicate emits a warning, alphabetically earlier file wins
+
+- **Given** workflow files `<clone>/workflows/Build.yml` and `<clone>/workflows/build.yml` both exist,
+- **When** the loader walks the workflows tree,
+- **Then** loading succeeds (a collision is a warning, not an error),
+- **And** a warning is emitted to the loader's diagnostic sink naming both files,
+- **And** the addressable workflow `build` resolves to the file whose source path is alphabetically earlier (`Build.yml`).
+
+Exercised by `core/internal/workflow/workflow_test.go` →
+`TestLoad_TCWF008_duplicate_warning_first_wins`.
+
+### TC-WF-009 — `tai workflow list` prints workflows alphabetically
+
+- **Given** the clone contains three workflows (`propose`, `release:cut-rc`, `verify`),
+- **When** the user runs `tai workflow list`,
+- **Then** stdout contains three lines (one per workflow),
+- **And** the lines appear in alphabetical order by colon-name,
+- **And** each line is of the form `<colon-name>  <description>` (or `<colon-name>  (missing description)` when none was declared),
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/workflow_test.go` →
+`TestWorkflowList_TCWF009_prints_alphabetical`.
+
+### TC-WF-010 — `tai workflow list` with no workflows prints `(no workflows)`
+
+- **Given** the clone exists but `<clone>/workflows/` is empty (or absent),
+- **When** the user runs `tai workflow list`,
+- **Then** stdout contains the literal `(no workflows)` and the exit code is `0`.
+
+Exercised at the CLI boundary by `core/internal/cmd/workflow_test.go` →
+`TestWorkflowList_TCWF010_no_workflows`, with a loader-level anchor
+at `core/internal/workflow/workflow_test.go` →
+`TestLoad_empty_workflows_dir_returns_empty`.
+
+### TC-WF-011 — `tai workflow run <name>` emits the markdown plan
+
+- **Given** a workflow `propose` exists with two steps (kind `skill`, kind `command`),
+- **When** the user runs `tai workflow run propose`,
+- **Then** stdout starts with an H1 naming the workflow,
+- **And** stdout contains the workflow's `description` as the first paragraph,
+- **And** stdout contains a "Required tools" section listing both steps as bullets of the form `<kind>:  /<name>`,
+- **And** stdout contains a "Steps" section listing the steps in declaration order, numbered,
+- **And** stdout contains a "Failure mode" section instructing the AI to abort when a required tool is unavailable,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/workflow_test.go` →
+`TestWorkflowRun_TCWF011_emits_markdown_plan`.
+
+### TC-WF-012 — `tai workflow run` on a missing name exits with `WORKFLOW_NOT_FOUND`
+
+- **Given** no workflow named `nope` exists,
+- **When** the user runs `tai workflow run nope`,
+- **Then** the exit code is `2`,
+- **And** stderr's footer is `[exit 2: WORKFLOW_NOT_FOUND]`.
+
+Exercised by `core/internal/cmd/workflow_test.go` →
+`TestWorkflowRun_TCWF012_missing_workflow`.
+
+### TC-WF-013 — `tai sync` never copies workflows into a target
+
+- **Given** the source repo contains `workflows/propose.yml`,
+- **When** the user runs `tai sync`,
+- **Then** no file appears under any target directory (`<target>/<skills>/`, `<target>/<commands>/`, `<target>/<agents>/`, or any other path) whose source was the workflows tree.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCWF013_workflows_never_copied`.
+
+<!-- Add new WF cases here as their proposals land. -->
+
+---
+
+## STD — standards
+
+`tai standards list/load` exposes markdown standards under
+`<clone>/standards/**/*.md` to AI agents on demand. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/standards/spec.md`.
+
+### TC-STD-001 — Standard with frontmatter description
+
+- **Given** a standard at `<clone>/standards/SDLC.md` whose YAML frontmatter contains `description: Software development lifecycle`,
+- **When** the loader walks the standards tree,
+- **Then** the parsed standard `sdlc` has description `Software development lifecycle`.
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD001_description_from_frontmatter`.
+
+### TC-STD-002 — Standard without frontmatter falls back to default description
+
+- **Given** a standard at `<clone>/standards/SDLC.md` with no frontmatter,
+- **When** the loader walks the standards tree,
+- **Then** the parsed standard's description is the literal string `(missing description in frontmatter)`.
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD002_missing_frontmatter_fallback`.
+
+### TC-STD-003 — Nested standard resolves to colon-namespaced lowercased name
+
+- **Given** a standard at `<clone>/standards/devOps/security/best-practices.md`,
+- **When** the loader walks the standards tree,
+- **Then** the standard is addressable as `devops:security:best-practices`.
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD003_nested_colon_namespaced_name`.
+
+### TC-STD-004 — Reserved name `list` is rejected
+
+- **Given** a standard at `<clone>/standards/list.md`,
+- **When** the loader walks the standards tree,
+- **Then** the call returns `*errcode.Error{Code: STANDARD_INVALID}` and the message names `list` as a reserved sub-verb.
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD004_reserved_name_list_rejected`.
+
+### TC-STD-005 — Reserved name `load` is rejected
+
+- **Given** a standard at `<clone>/standards/load.md`,
+- **When** the loader walks the standards tree,
+- **Then** the call returns `*errcode.Error{Code: STANDARD_INVALID}` and the message names `load` as a reserved sub-verb.
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD005_reserved_name_load_rejected`.
+
+### TC-STD-006 — Case-insensitive collision emits a warning, alphabetically earlier file wins
+
+- **Given** both `<clone>/standards/Foo.md` and `<clone>/standards/foo.md` exist,
+- **When** the loader walks the standards tree,
+- **Then** loading succeeds,
+- **And** a warning is emitted naming both files,
+- **And** the addressable standard `foo` resolves to the alphabetically-earlier source path (`Foo.md`).
+
+Exercised by `core/internal/standards/standards_test.go` →
+`TestLoad_TCSTD006_duplicate_warning_first_wins`.
+
+### TC-STD-007 — `tai standards list` prints standards alphabetically
+
+- **Given** the clone has `standards/SDLC.md` and `standards/devOps/security/best-practices.md`,
+- **When** the user runs `tai standards list`,
+- **Then** stdout contains two lines, one per standard, in alphabetical order by colon-name,
+- **And** each line is of the form `<colon-name>  <description>`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/standards_test.go` →
+`TestStandardsList_TCSTD007_prints_alphabetical`.
+
+### TC-STD-008 — `tai standards list` with no standards prints `(no standards)`
+
+- **Given** the clone exists but `<clone>/standards/` is empty (or absent),
+- **When** the user runs `tai standards list`,
+- **Then** stdout contains the literal `(no standards)` and the exit code is `0`.
+
+Exercised by `core/internal/cmd/standards_test.go` →
+`TestStandardsList_TCSTD008_no_standards`.
+
+### TC-STD-009 — `tai standards load <name>` prints body with frontmatter stripped
+
+- **Given** a standard `<clone>/standards/SDLC.md` whose frontmatter declares a description and whose body is `# SDLC\n\nReview before merging.\n`,
+- **When** the user runs `tai standards load sdlc`,
+- **Then** stdout contains the body byte-for-byte after frontmatter removal,
+- **And** stdout does NOT contain the `description:` frontmatter line,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/standards_test.go` →
+`TestStandardsLoad_TCSTD009_prints_body`.
+
+### TC-STD-010 — `tai standards load` on a missing name exits with `STANDARD_NOT_FOUND`
+
+- **Given** no standard named `nonexistent` exists,
+- **When** the user runs `tai standards load nonexistent`,
+- **Then** the exit code is `2`,
+- **And** stderr's footer is `[exit 2: STANDARD_NOT_FOUND]`.
+
+Exercised by `core/internal/cmd/standards_test.go` →
+`TestStandardsLoad_TCSTD010_missing_standard`.
+
+### TC-STD-011 — `tai sync` never copies standards into a target
+
+- **Given** the source repo contains `standards/SDLC.md`,
+- **When** the user runs `tai sync`,
+- **Then** no file appears under any target directory whose source was the standards tree.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCSTD011_standards_never_copied`.
+
+<!-- Add new STD cases here as their proposals land. -->

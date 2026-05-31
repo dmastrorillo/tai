@@ -62,14 +62,14 @@
 
 ## 6. Phase 3 — Content surfaces: workflows and standards
 
-- [ ] 6.1 Add BDD cases for `workflows` and `standards` to `core/test-cases.md` (TC-WF-*, TC-STD-* categories)
-- [ ] 6.2 Append `WORKFLOW_INVALID`, `WORKFLOW_NOT_FOUND`, `STANDARD_INVALID`, `STANDARD_NOT_FOUND` to `pkg/errcode`
-- [ ] 6.3 Implement workflow YAML parser in `core/internal/workflow`: schema validation (required fields, `kind` enum, reject unknown top-level keys), reserved-name check, case-insensitive duplicate warning
-- [ ] 6.4 Implement colon-namespaced naming resolution for nested workflow files (lowercased, joined with `:`)
-- [ ] 6.5 Implement `tai workflow list` and `tai workflow run <name>` — markdown plan emitter with Required-tools, Steps, Failure-mode sections
-- [ ] 6.6 Implement standards loader in `core/internal/standards`: frontmatter parsing, `(missing description in frontmatter)` fallback, body emission with frontmatter stripped
-- [ ] 6.7 Implement `tai standards list` and `tai standards load <name>` — colon-namespaced lowercased addressing, reserved-name validation
-- [ ] 6.8 Verify with e2e tests that neither workflows nor standards are ever written to a target during `tai sync`
+- [x] 6.1 Add BDD cases for `workflows` and `standards` to `core/test-cases.md` (TC-WF-*, TC-STD-* categories)
+- [x] 6.2 Append `WORKFLOW_INVALID`, `WORKFLOW_NOT_FOUND`, `STANDARD_INVALID`, `STANDARD_NOT_FOUND` to `pkg/errcode`
+- [x] 6.3 Implement workflow YAML parser in `core/internal/workflow`: schema validation (required fields, `kind` enum, reject unknown top-level keys), reserved-name check, case-insensitive duplicate warning
+- [x] 6.4 Implement colon-namespaced naming resolution for nested workflow files (lowercased, joined with `:`)
+- [x] 6.5 Implement `tai workflow list` and `tai workflow run <name>` — markdown plan emitter with Required-tools, Steps, Failure-mode sections
+- [x] 6.6 Implement standards loader in `core/internal/standards`: frontmatter parsing, `(missing description in frontmatter)` fallback, body emission with frontmatter stripped
+- [x] 6.7 Implement `tai standards list` and `tai standards load <name>` — colon-namespaced lowercased addressing, reserved-name validation
+- [x] 6.8 Verify with e2e tests that neither workflows nor standards are ever written to a target during `tai sync`
 
 ## 7. Phase 3 — Content surfaces: built-in slash commands
 

@@ -631,3 +631,64 @@ func TestUpdatePoll_TCSYNC017_disabled_skips_poll(t *testing.T) {
 		t.Errorf("disabled poll should leave state file untouched\nbefore:\n%s\nafter:\n%s", original, got)
 	}
 }
+
+// TestSync_TCWF013_workflows_never_copied exercises TC-WF-013:
+// `tai sync` walks `skills/`, `commands/`, `agents/` only — the
+// `workflows/` tree on the source repo MUST remain confined to the
+// clone and never appear at any configured target.
+func TestSync_TCWF013_workflows_never_copied(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md":   "ok", // makes the sync do real work
+		"workflows/p.yml": "description: x\nsteps:\n  - kind: skill\n    name: y\n",
+	})
+	_, target, _ := syncEnv(t, url)
+
+	if r := runRoot(t, "sync", "-y"); r.err != nil {
+		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+
+	// Sanity: the actual sync content landed.
+	if _, err := os.Stat(filepath.Join(target, "skills", "foo.md")); err != nil {
+		t.Fatalf("baseline sync did not land: %v", err)
+	}
+	// The forbidden side-effect:
+	if _, err := os.Stat(filepath.Join(target, "workflows")); err == nil {
+		t.Errorf("target should not contain a workflows/ tree after sync")
+	}
+	for _, sub := range []string{"skills", "commands", "agents"} {
+		bad := filepath.Join(target, sub, "p.yml")
+		if _, err := os.Stat(bad); err == nil {
+			t.Errorf("workflow file leaked into %s: %s", sub, bad)
+		}
+	}
+}
+
+// TestSync_TCSTD011_standards_never_copied exercises TC-STD-011: the
+// `standards/` tree is read-on-demand by `tai standards load` only;
+// it never touches a configured target during `tai sync`.
+func TestSync_TCSTD011_standards_never_copied(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md":  "ok",
+		"standards/s.md": "---\ndescription: x\n---\nbody\n",
+	})
+	_, target, _ := syncEnv(t, url)
+
+	if r := runRoot(t, "sync", "-y"); r.err != nil {
+		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, "skills", "foo.md")); err != nil {
+		t.Fatalf("baseline sync did not land: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "standards")); err == nil {
+		t.Errorf("target should not contain a standards/ tree after sync")
+	}
+	for _, sub := range []string{"skills", "commands", "agents"} {
+		bad := filepath.Join(target, sub, "s.md")
+		if _, err := os.Stat(bad); err == nil {
+			t.Errorf("standards file leaked into %s: %s", sub, bad)
+		}
+	}
+}
