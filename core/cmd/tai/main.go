@@ -1,10 +1,9 @@
 // Command tai is the core CLI entry point.
 //
 // The root *cli.Command (assembled by core/internal/cmd.NewRoot)
-// carries --version, --help, and the present user-facing verbs (tai
-// config, tai repo, tai sync). Subsequent phases (workflows,
-// standards, plugin host, install-commands, update banner) graft
-// onto the same root as their OpenSpec proposals land.
+// carries --version, --help, and every user-facing verb (tai config,
+// tai repo, tai sync, tai workflow, tai standards,
+// tai install-commands, tai plugins).
 //
 // On every invocation main fires off a non-blocking background
 // goroutine that polls the configured source repo for newer commits
@@ -14,9 +13,19 @@
 // killed mid-write when it's about to finish; if it overruns, the OS
 // reaps it at process exit and the next invocation retries.
 //
+// Before dispatching the foreground command, main also calls
+// sync.EmitBanner against the data directory. EmitBanner emits the
+// once-per-day update banner to stderr based on whatever the most
+// recent poll wrote to <TAI_DATA_DIR>/state/update-check.json. The
+// banner fires PRE-foreground so the user sees it even if the
+// command itself errors. The test harness in
+// core/internal/cmd/root_test.go mirrors this call so banner
+// behaviour is exercised end-to-end (see TC-UB-007).
+//
 // main is the single place that calls os.Exit. Subcommands and
 // library code under core/internal/ and plugins/<name>/internal/
-// MUST return errors; main maps them via errcode.Code.ExitCode().
+// MUST return errors; main maps them via errcode.Code.ExitCode() or
+// — for plugin subprocess exits — via cli.ExitCoder.ExitCode().
 package main
 
 import (
@@ -49,6 +58,21 @@ func main() {
 	ctx := context.Background()
 
 	waiter := schedulePoll(ctx)
+
+	// Update banner: emit once-per-day to stderr based on whatever
+	// the most recent poll wrote into the state file. Pre-foreground
+	// so the user sees the banner even if the command itself errors.
+	// EmitBanner silently absorbs any state-file issues — first-ever
+	// invocations and rotated state files just produce no banner.
+	//
+	// Stream: writes to the real os.Stderr (not the cli.Command's
+	// ErrWriter) because the banner fires BEFORE command dispatch.
+	// The test harness mirrors this in runRoot by writing to the
+	// captured stderr buffer; production tests are end-to-end via
+	// the same routing.
+	if dataDir, err := datadir.Resolve(); err == nil {
+		sync.EmitBanner(os.Stderr, dataDir, time.Now())
+	}
 
 	err := cliexec.Run(ctx, cmd.NewRoot(), os.Args)
 

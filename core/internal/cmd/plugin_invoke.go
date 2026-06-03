@@ -85,7 +85,22 @@ func dispatchPluginOrUnknown(ctx context.Context, c *cli.Command) error {
 // error spec'd for the unresolved-plugin path. The help bullets
 // point at `tai plugins list` and the install verb so the user
 // knows where to look next.
+//
+// Special-cased verb: `update`. Per the update-banner spec, TAI is
+// not self-updating — the banner names a package-manager command.
+// The same applies when the user types `tai update` directly: the
+// help bullets MUST name a package-manager command rather than the
+// generic plugin-install boilerplate (TC-UB-006).
 func unknownSubcommandWithPluginHelp(name string) error {
+	if name == "update" {
+		return errcode.New(errcode.UnknownSubcommand,
+			"tai is not self-updating").
+			WithHelp(
+				"update via your package manager: `brew upgrade tai`",
+				"or via the Go toolchain: `go install github.com/dmastrorillo/tai/core/cmd/tai@latest`",
+				"to update a plugin, run `tai plugins <name> update`",
+			)
+	}
 	return errcode.Newf(errcode.UnknownSubcommand,
 		"unknown command: %q", name).
 		WithHelp(

@@ -95,12 +95,12 @@
 
 ## 9. Phase 5 — Update banner
 
-- [ ] 9.1 Add BDD cases for `update-banner` to `core/test-cases.md` (TC-UB-* category)
-- [ ] 9.2 Implement the background check goroutine that refreshes `<TAI_DATA_DIR>/state/update-check.json` when older than `update-check-interval` (default 6h, configurable, `0` disables)
-- [ ] 9.3 Implement the once-per-day banner gated by `last-banner-date` field; aggregates pending updates across TAI itself, installed plugins, and source repo
-- [ ] 9.4 Verify banner is on stderr only, prefixed `[tai]`, at most 4 lines, names exact commands the user runs to update
-- [ ] 9.5 Verify `tai update` exits with `UNKNOWN_SUBCOMMAND` (no self-update verb)
-- [ ] 9.6 Verify no banner fires twice on the same calendar day
+- [x] 9.1 Add BDD cases for `update-banner` to `core/test-cases.md` (TC-UB-* category)
+- [x] 9.2 Implement the background check goroutine that refreshes `<TAI_DATA_DIR>/state/update-check.json` when older than `update-check-interval` (default 6h, configurable, `0` disables)
+- [x] 9.3 Implement the once-per-day banner gated by `last-banner-date` field; aggregates pending updates across TAI itself, installed plugins, and source repo
+- [x] 9.4 Verify banner is on stderr only, prefixed `[tai]`, at most 4 lines, names exact commands the user runs to update
+- [x] 9.5 Verify `tai update` exits with `UNKNOWN_SUBCOMMAND` (no self-update verb)
+- [x] 9.6 Verify no banner fires twice on the same calendar day
 
 ## 10. Phase 6 — Triage plugin migration
 

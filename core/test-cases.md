@@ -36,6 +36,7 @@ components. **Never renumber existing IDs.**
 | [`STD`](#std--standards) | `tai standards list/load`: markdown + frontmatter, colon-namespaced addressing |
 | [`IC`](#ic--install-commands) | `tai install-commands`: bundled slash-command install into `<target>/<commands>/tai/`, falsy skip, idempotent re-run, stale removal |
 | [`PLG`](#plg--plugin-host) | `tai plugins` and the subprocess invocation: registry lookup, install/update/remove/list, asset namespacing, env-var contract, `plugins.yml` auto-install on sync |
+| [`UB`](#ub--update-banner) | Background update-check refresh of TAI/plugin/source-repo versions, once-per-day stderr banner, `tai update` non-verb |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -1232,3 +1233,94 @@ Exercised by `core/internal/cmd/sync_test.go` →
 `TestSync_TCPLG016_pluginsyml_removal_is_noop`.
 
 <!-- Add new PLG cases here as their proposals land. -->
+
+---
+
+## UB — update banner
+
+The host fires a non-blocking background poll on every invocation
+(see TC-SYNC-014..017 for the cadence rule) and, once per calendar
+day, prints an aggregated `[tai]`-prefixed banner to stderr naming
+every pending update across TAI itself, installed plugins, and the
+configured source repo. TAI does not self-update; the banner names
+the package-manager command. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/update-banner/spec.md`.
+
+### TC-UB-001 — Banner fires on first command of the day when updates are pending
+
+- **Given** `<TAI_DATA_DIR>/state/update-check.json` reports TAI
+  `1.3.0` available (current `1.2.0`) and `last-banner-date` is
+  yesterday (or absent),
+- **When** the user runs any TAI command,
+- **Then** stderr contains a banner naming the upgrade,
+- **And** the cache's `last-banner-date` is updated to today's
+  date in the user's local time zone,
+- **And** the foreground command's exit code and stdout are
+  unaffected (the banner does not change either).
+
+Exercised at the engine layer by `core/internal/cmd/banner_test.go`
+→ `TestBanner_TCUB001_fires_on_first_command`, with a CLI-boundary
+wiring anchor at `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB007_fires_at_cli_boundary` (drives `tai --version`
+through `runRoot` and asserts the banner reaches `r.stderr` and not
+`r.stdout`).
+
+### TC-UB-002 — Banner is suppressed on subsequent commands the same day
+
+- **Given** the cache file's `last-banner-date` equals today's
+  date and pending updates remain,
+- **When** the user runs another TAI command,
+- **Then** stderr contains no `[tai]` banner.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB002_suppressed_same_day`.
+
+### TC-UB-003 — No banner when nothing is pending
+
+- **Given** the cache file shows `has-updates: false` for every
+  layer (TAI, plugins, source-repo),
+- **When** the user runs any TAI command,
+- **Then** stderr contains no `[tai]` banner regardless of
+  `last-banner-date`.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB003_nothing_pending_no_banner`.
+
+### TC-UB-004 — Banner is stderr-only, prefixed `[tai]`, at most 4 lines
+
+- **Given** the cache file reports updates for TAI, one plugin,
+  and the source repo,
+- **When** the banner fires,
+- **Then** stdout receives no banner text,
+- **And** stderr's banner has every line prefixed with `[tai]`,
+- **And** the banner is at most 4 lines.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB004_stderr_only_prefixed_short`.
+
+### TC-UB-005 — Banner names exact update commands per layer
+
+- **Given** the cache file reports TAI, one plugin, and the
+  source-repo all have updates,
+- **When** the banner fires,
+- **Then** stderr names a package-manager command for TAI
+  (`brew upgrade tai` or `go install …@latest`),
+- **And** stderr names `tai plugins <name> update` for the plugin,
+- **And** stderr names `tai sync` for the source-repo.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB005_names_exact_commands`.
+
+### TC-UB-006 — `tai update` exits with `UNKNOWN_SUBCOMMAND`
+
+- **Given** the user runs `tai update`,
+- **When** the command resolves,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: UNKNOWN_SUBCOMMAND]`,
+- **And** the "what to do" bullets name a package-manager command
+  as the resolution (TAI is not self-updating).
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB006_tai_update_is_unknown_subcommand`.
+
+<!-- Add new UB cases here as their proposals land. -->

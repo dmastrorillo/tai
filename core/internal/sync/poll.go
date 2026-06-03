@@ -16,20 +16,73 @@ import (
 )
 
 // PollState records the result of the most recent background
-// update-check poll against the configured source repo. The struct
-// is the JSON shape written to <TAI_DATA_DIR>/state/update-check.json
-// and consumed by the update-banner capability (Phase 5).
+// update-check poll across all three update layers: TAI itself, every
+// installed plugin, and the configured source repo. The struct is
+// the JSON shape written to <TAI_DATA_DIR>/state/update-check.json
+// and consumed by the update-banner.
 type PollState struct {
-	// LastCheck is when the poll completed. Used by both the next-
-	// run-staleness decision and the banner-frequency gate.
+	// LastCheck is when the poll completed. Drives the next-run
+	// staleness decision in IsStale.
 	LastCheck time.Time `json:"last-check"`
-	// LocalCommit is the SHA the local clone is at (or empty if no
-	// clone exists yet).
-	LocalCommit string `json:"local-commit,omitempty"`
-	// RemoteCommit is the SHA at origin/<default-branch>.
+
+	// LastBannerDate is the calendar day (local TZ, formatted
+	// YYYY-MM-DD) the banner most recently fired. The banner is
+	// suppressed when this equals today.
+	LastBannerDate string `json:"last-banner-date,omitempty"`
+
+	// Source-repo layer (Phase 2 — unchanged).
+	LocalCommit  string `json:"local-commit,omitempty"`
 	RemoteCommit string `json:"remote-commit,omitempty"`
 	// HasUpdates is true when LocalCommit and RemoteCommit differ.
+	// Preserved for backwards compatibility with the Phase 2 tests.
 	HasUpdates bool `json:"has-updates"`
+
+	// TAI-itself layer (Phase 5). Empty strings mean "not checked
+	// this poll" — either the version was "dev" (local build) or
+	// the HTTP query failed.
+	TAICurrent string `json:"tai-current,omitempty"`
+	TAILatest  string `json:"tai-latest,omitempty"`
+
+	// Installed-plugins layer (Phase 5). One entry per installed
+	// plugin whose latest tag was successfully queried.
+	Plugins []PluginUpdate `json:"plugins,omitempty"`
+}
+
+// PluginUpdate is one row in PollState.Plugins describing the
+// installed-vs-available version for a single plugin.
+type PluginUpdate struct {
+	// Name is the plugin's directory-name identity, matching the
+	// state entry in plugins.json.
+	Name string `json:"name"`
+	// Current is the version currently installed (from
+	// plugins.json's entry.Version at poll time).
+	Current string `json:"current"`
+	// Latest is the most recent release tag the poll observed. The
+	// banner fires for this plugin when Latest != Current AND both
+	// are non-empty. When the HTTP query for the plugin's source
+	// fails, the row is omitted from PollState.Plugins entirely
+	// (rather than written with Latest == Current) so the next
+	// poll retries cleanly per the spec.
+	Latest string `json:"latest"`
+}
+
+// HasPendingUpdate reports whether any layer has a pending update.
+// Used by the banner gate. Guards every layer against the empty-
+// string-corruption case (a state file with one of the fields
+// missing) so a partial cache never spuriously triggers the banner.
+func (s PollState) HasPendingUpdate() bool {
+	if s.HasUpdates {
+		return true
+	}
+	if s.TAICurrent != "" && s.TAILatest != "" && s.TAICurrent != s.TAILatest {
+		return true
+	}
+	for _, p := range s.Plugins {
+		if p.Current != "" && p.Latest != "" && p.Current != p.Latest {
+			return true
+		}
+	}
+	return false
 }
 
 // StatePath is the canonical location of the poll state file. Lives
@@ -125,8 +178,15 @@ func Poll(ctx context.Context, cfg *config.File, dataDir string) error {
 
 	remote, err := lsRemote(ctx, cfg.RepoURL)
 	if err != nil {
-		// Silent absorb per spec: do not touch the state file on
-		// poll failure.
+		// Whole-poll silent absorb (TC-SYNC-016): when the source-
+		// repo query fails, the state file is NOT updated at all.
+		// TAI-itself and plugin-version queries are skipped too —
+		// the next cadence tick retries the entire poll cleanly.
+		// Trade-off: a private or temporarily-unreachable source
+		// repo also blocks the TAI / plugin banner layers. A
+		// future spec revision could relax this to per-layer
+		// independence; today's contract is "whole poll or none"
+		// per the Phase 2 cache-invariant assertion.
 		return err
 	}
 	local := localHeadCommit(ctx, dataDir)
@@ -135,6 +195,13 @@ func Poll(ctx context.Context, cfg *config.File, dataDir string) error {
 	state.LocalCommit = local
 	state.RemoteCommit = remote
 	state.HasUpdates = remote != "" && local != "" && remote != local
+
+	// Phase 5: layer in TAI's own latest tag + per-plugin latest
+	// tags. Per-layer failures are silently absorbed (the affected
+	// layer is omitted from state) so the next poll retries cleanly
+	// without polluting the cache with fake "no update" rows.
+	extendPollWithBannerLayers(ctx, dataDir, &state)
+
 	return SaveState(dataDir, state)
 }
 
