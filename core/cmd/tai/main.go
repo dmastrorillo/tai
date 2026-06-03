@@ -24,6 +24,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/urfave/cli/v3"
+
 	"github.com/dmastrorillo/tai/core/internal/cmd"
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/sync"
@@ -61,14 +63,26 @@ func main() {
 		os.Exit(exitcode.Success)
 	}
 
-	cliout.WriteError(os.Stderr, err)
-
+	// Structured *errcode.Error: render the template and exit with
+	// the code's mapped exit.
 	if e, ok := errcode.As(err); ok {
+		cliout.WriteError(os.Stderr, err)
 		os.Exit(e.Code.ExitCode())
 	}
-	// Non-errcode errors are unexpected; cliout has surfaced them as
-	// INTERNAL_ERROR. Match the exit code so the footer and the OS
-	// exit code agree.
+
+	// Plugin subprocess exit: the child process has already written
+	// its own stderr template. The error here is a cli.ExitCoder
+	// (e.g. core/internal/cmd.pluginExitError) carrying only the
+	// child's exit code. Don't render an INTERNAL_ERROR template
+	// over the plugin's real output — just propagate the code.
+	if ec, ok := err.(cli.ExitCoder); ok {
+		os.Exit(ec.ExitCode())
+	}
+
+	// Truly unstructured error (unwrapped panic, third-party leak).
+	// Surface as INTERNAL_ERROR so the OS exit and the rendered
+	// footer agree.
+	cliout.WriteError(os.Stderr, err)
 	os.Exit(exitcode.Internal)
 }
 

@@ -35,6 +35,7 @@ components. **Never renumber existing IDs.**
 | [`WF`](#wf--workflows) | `tai workflow list/run`: YAML schema, colon-namespaced naming, markdown plan emitter |
 | [`STD`](#std--standards) | `tai standards list/load`: markdown + frontmatter, colon-namespaced addressing |
 | [`IC`](#ic--install-commands) | `tai install-commands`: bundled slash-command install into `<target>/<commands>/tai/`, falsy skip, idempotent re-run, stale removal |
+| [`PLG`](#plg--plugin-host) | `tai plugins` and the subprocess invocation: registry lookup, install/update/remove/list, asset namespacing, env-var contract, `plugins.yml` auto-install on sync |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -1012,3 +1013,222 @@ Exercised by `core/internal/cmd/install_commands_test.go` →
 `TestInstallCommands_TCIC007_outside_tai_untouched`.
 
 <!-- Add new IC cases here as their proposals land. -->
+
+---
+
+## PLG — plugin host
+
+`tai plugins <install|update|remove|list>` manages first- and
+third-party plugins, and the root command's subprocess hook routes
+unknown verbs to installed plugins. Plugins are subprocess
+executables under `<TAI_DATA_DIR>/plugins/<name>/`; their assets are
+namespaced under `tai-<name>-*` (skills/agents) and
+`<commands>/tai-<name>/` (commands). Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`.
+
+### TC-PLG-001 — Installed plugin layout on disk
+
+- **Given** the user successfully installs the first-party `triage`
+  plugin via `tai plugins triage install`,
+- **When** the install completes,
+- **Then** `<TAI_DATA_DIR>/plugins/triage/triage` (or `triage.exe` on
+  Windows) exists and is executable,
+- **And** `<TAI_DATA_DIR>/plugins/triage/assets/` exists as a
+  directory.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG001_plugin_layout_on_disk`.
+
+### TC-PLG-002 — Subprocess invocation passes through stdin/stdout/stderr/exit
+
+- **Given** a plugin `triage` is installed and resolves to an
+  executable that prints `out` to stdout, `err` to stderr, and exits
+  `7`,
+- **When** the user runs `tai triage foo`,
+- **Then** stdout contains `out`,
+- **And** stderr contains `err`,
+- **And** the exit code is `7`,
+- **And** the plugin received `foo` as its `argv[1]`.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG002_passthrough`.
+
+### TC-PLG-003 — Unknown verb exits `UNKNOWN_SUBCOMMAND` with plugin-aware help
+
+- **Given** no plugin named `nope` is installed,
+- **When** the user runs `tai nope`,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: UNKNOWN_SUBCOMMAND]`,
+- **And** the "what to do" bullets name `tai plugins list` and
+  `tai plugins <name> install` as the resolution.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG003_unknown_verb`.
+
+### TC-PLG-004 — Reserved-verb collision is rejected at install
+
+- **Given** the user attempts `tai plugins config install`,
+- **When** the install command runs (before any file is written),
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_NAME_RESERVED]`,
+- **And** no directory is created under `<TAI_DATA_DIR>/plugins/`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsInstall_TCPLG004_reserved_name_rejected`.
+
+### TC-PLG-005 — Env-var contract is set on the subprocess
+
+- **Given** a plugin `triage` is installed and the config has one
+  target `~/.claude` with default sub-paths and a configured
+  `repo-url`,
+- **When** TAI invokes the plugin,
+- **Then** the child process's `TAI_DATA_DIR` is the absolute data
+  directory,
+- **And** `TAI_CLONE_DIR` is the absolute path to
+  `<TAI_DATA_DIR>/source/`,
+- **And** `TAI_TARGETS` is a JSON array containing one object whose
+  `root` field is `~/.claude` and whose `skills`, `commands`,
+  `agents` fields are the effective defaulted paths.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG005_env_var_contract`.
+
+### TC-PLG-006 — Skill/agent asset namespace prefix enforced at install
+
+- **Given** a plugin `mytool` whose downloaded bundle includes
+  `assets/skills/foo.md` (no `tai-mytool-` prefix),
+- **When** the user runs `tai plugins mytool install --source ...`,
+- **Then** the install fails with `PLUGIN_ASSET_NAMING`,
+- **And** the error message names the offending file,
+- **And** no files are left under any configured target's namespace
+  for `mytool`.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG006_skill_namespace_enforced`.
+
+### TC-PLG-007 — Commands routed into `<commands>/tai-<plugin>/`
+
+- **Given** a plugin `triage` whose bundle includes
+  `assets/commands/import.md`,
+- **When** the install completes against a target `~/.claude`,
+- **Then** the file lands at `~/.claude/commands/tai-triage/import.md`
+  (regardless of the source filename).
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG007_commands_routed_into_namespace`.
+
+### TC-PLG-008 — Unknown plugin without `--source` fails with `PLUGIN_UNKNOWN`
+
+- **Given** no built-in registry entry for `acme-custom` exists and
+  the user invokes `tai plugins acme-custom install` (no `--source`),
+- **When** the install runs,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_UNKNOWN]`,
+- **And** the "what to do" bullets suggest passing `--source`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsInstall_TCPLG008_unknown_plugin`.
+
+### TC-PLG-009 — 401 surfaces `PLUGIN_FETCH_UNAUTHORIZED`
+
+- **Given** the install fetcher receives a 401 (or 403) from the
+  Releases host and `GITHUB_TOKEN` is unset,
+- **When** the install runs,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_FETCH_UNAUTHORIZED]`,
+- **And** the "what to do" bullets name `GITHUB_TOKEN` as the
+  resolution.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG009_401_surfaces_unauthorized`.
+
+### TC-PLG-010 — Generic fetch failure surfaces `PLUGIN_FETCH_FAILED`
+
+- **Given** the install fetcher receives a 5xx or a network error,
+- **When** the install runs,
+- **Then** the exit code is `3`,
+- **And** stderr's footer is `[exit 3: PLUGIN_FETCH_FAILED]`,
+- **And** the "what to do" bullets name retry / network checks.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG010_5xx_surfaces_failure`.
+
+### TC-PLG-011 — `tai plugins list` with no plugins prints `(no plugins installed)`
+
+- **Given** the state file has zero entries (or does not exist),
+- **When** the user runs `tai plugins list`,
+- **Then** stdout contains the literal `(no plugins installed)`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsList_TCPLG011_empty`.
+
+### TC-PLG-012 — `tai plugins list` renders the installed table
+
+- **Given** the state file records one plugin `triage` version
+  `0.5.0` installed at a known timestamp,
+- **When** the user runs `tai plugins list`,
+- **Then** stdout contains a header row with `name`, `version`, and
+  `installed-at`,
+- **And** a data row containing `triage` and `0.5.0`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsList_TCPLG012_renders_table`.
+
+### TC-PLG-013 — Update replaces the binary and re-syncs assets
+
+- **Given** `triage` version `0.4.0` is installed and the state file
+  records that source,
+- **When** the user runs `tai plugins triage update` and `0.5.0` is
+  available,
+- **Then** the binary on disk is the `0.5.0` build,
+- **And** stale namespaced assets under every configured target are
+  removed and re-written from the new bundle,
+- **And** the state file's `version` field for `triage` is `0.5.0`.
+
+Exercised by `core/internal/plugins/update_test.go` →
+`TestUpdate_TCPLG013_replaces_binary_and_assets`.
+
+### TC-PLG-014 — Remove preserves runtime state and warns
+
+- **Given** `triage` is installed and a runtime-state file exists at
+  `<TAI_DATA_DIR>/plugins/triage/state/triage.db`,
+- **When** the user runs `tai plugins triage remove`,
+- **Then** the plugin binary and `assets/` are deleted,
+- **And** every namespaced asset under each configured target is
+  removed,
+- **And** the entry in `<TAI_DATA_DIR>/state/plugins.json` is gone,
+- **And** the `state/triage.db` runtime file is still on disk,
+- **And** stderr names the retained path and tells the user how to
+  delete it manually.
+
+Exercised at the engine layer by `core/internal/plugins/remove_test.go` →
+`TestRemove_TCPLG014_preserves_runtime_state`, with a CLI-boundary
+anchor at `core/internal/cmd/plugins_test.go` →
+`TestPluginsRemove_TCPLG014_retained_state_warning_at_cli`.
+
+### TC-PLG-015 — `plugins.yml` additive auto-install on `tai sync`
+
+- **Given** the source repo's `plugins.yml` lists `triage` and
+  `triage` is not currently installed,
+- **When** the user runs `tai sync`,
+- **Then** `triage` is installed before the asset-sync phase runs,
+- **And** the state file records the new install.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG015_pluginsyml_auto_install`.
+
+### TC-PLG-016 — Removing a `plugins.yml` entry does not uninstall
+
+- **Given** the user has `triage` installed and the source repo's
+  `plugins.yml` no longer lists it,
+- **When** the user runs `tai sync`,
+- **Then** `triage` remains installed,
+- **And** no warning or stderr message is produced about the
+  missing entry.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG016_pluginsyml_removal_is_noop`.
+
+<!-- Add new PLG cases here as their proposals land. -->

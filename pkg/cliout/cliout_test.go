@@ -93,6 +93,12 @@ func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
 		errcode.WorkflowNotFound,
 		errcode.StandardInvalid,
 		errcode.StandardNotFound,
+		// Plugin-host codes (Phase 4)
+		errcode.PluginUnknown,
+		errcode.PluginNameReserved,
+		errcode.PluginAssetNaming,
+		errcode.PluginFetchUnauthorized,
+		errcode.PluginFetchFailed,
 		// Storage / install / import / triage layers (unchanged by
 		// Phase 1 but covered here so the invariant test is the single
 		// taxonomy-wide check)

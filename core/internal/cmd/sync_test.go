@@ -1,15 +1,19 @@
 package cmd_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/config"
+	"github.com/dmastrorillo/tai/core/internal/plugins"
+	syncpkg "github.com/dmastrorillo/tai/core/internal/sync"
 )
 
 // bareRemote creates a bare git repo at a temp path and returns its
@@ -690,5 +694,94 @@ func TestSync_TCSTD011_standards_never_copied(t *testing.T) {
 		if _, err := os.Stat(bad); err == nil {
 			t.Errorf("standards file leaked into %s: %s", sub, bad)
 		}
+	}
+}
+
+// TestSync_TCPLG015_pluginsyml_auto_install exercises TC-PLG-015:
+// when the source repo's `plugins.yml` lists a plugin not currently
+// installed, `tai sync` auto-installs it BEFORE the asset-sync
+// phase. We stub the installer via syncpkg.AutoInstallForTesting so
+// the test does not need a real GitHub release.
+func TestSync_TCPLG015_pluginsyml_auto_install(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml": `plugins:
+  - name: triage
+`,
+	})
+	dataDir, _, _ := syncEnv(t, url)
+
+	// Substitute the auto-installer with a stub that records the call
+	// and pretends the install succeeded by upserting state — no
+	// network and no binary on disk.
+	var calls atomic.Int32
+	syncpkg.AutoInstallForTesting(t, func(_ context.Context, name, dataDir string, _ *config.File, _ plugins.InstallOptions) (*plugins.Entry, error) {
+		calls.Add(1)
+		state, _ := plugins.LoadState(dataDir)
+		entry := plugins.Entry{
+			Name:        name,
+			Source:      plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+			Version:     "v0.0.0-test",
+			InstalledAt: time.Now().UTC(),
+		}
+		state.Upsert(entry)
+		_ = plugins.SaveState(dataDir, state)
+		return &entry, nil
+	})
+
+	if r := runRoot(t, "sync", "-y"); r.err != nil {
+		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("expected exactly one auto-install call, got %d", calls.Load())
+	}
+	st, _ := plugins.LoadState(dataDir)
+	if _, idx := st.Find("triage"); idx < 0 {
+		t.Errorf("state should record the auto-installed plugin; have: %+v", st)
+	}
+}
+
+// TestSync_TCPLG016_pluginsyml_removal_is_noop exercises TC-PLG-016:
+// the additive semantics — a previously-installed plugin remains
+// installed when the source repo's plugins.yml no longer lists it.
+// The auto-installer SHOULD NOT be called.
+func TestSync_TCPLG016_pluginsyml_removal_is_noop(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+	})
+	dataDir, _, _ := syncEnv(t, url)
+
+	// Pre-populate state with `triage` so the "already installed"
+	// branch is exercised.
+	state := &plugins.State{Plugins: []plugins.Entry{
+		{
+			Name:        "triage",
+			Source:      plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+			Version:     "v0.4.0",
+			InstalledAt: time.Now().UTC(),
+		},
+	}}
+	if err := plugins.SaveState(dataDir, state); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	var calls atomic.Int32
+	syncpkg.AutoInstallForTesting(t, func(_ context.Context, _, _ string, _ *config.File, _ plugins.InstallOptions) (*plugins.Entry, error) {
+		calls.Add(1)
+		return nil, nil
+	})
+
+	if r := runRoot(t, "sync", "-y"); r.err != nil {
+		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+	if calls.Load() != 0 {
+		t.Errorf("expected zero auto-install calls (plugin already present), got %d", calls.Load())
+	}
+	// State still records `triage`.
+	st, _ := plugins.LoadState(dataDir)
+	if e, idx := st.Find("triage"); idx < 0 || e.Version != "v0.4.0" {
+		t.Errorf("plugin should remain at v0.4.0; have: %+v", st)
 	}
 }

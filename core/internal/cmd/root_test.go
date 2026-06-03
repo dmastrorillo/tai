@@ -37,9 +37,7 @@ func runRoot(t *testing.T, argv ...string) runResult {
 
 	fullArgs := append([]string{"tai"}, argv...)
 	err := cliexec.Run(context.Background(), root, fullArgs)
-	if err != nil {
-		cliout.WriteError(&stderr, err)
-	}
+	writeStructuredError(&stderr, err)
 
 	return runResult{
 		stdout:   stdout.String(),
@@ -47,6 +45,26 @@ func runRoot(t *testing.T, argv ...string) runResult {
 		exitCode: exitCodeFor(err),
 		err:      err,
 	}
+}
+
+// writeStructuredError mirrors core/cmd/tai/main.go's error rendering
+// rule: render the foundation template ONLY when err is a structured
+// *errcode.Error or a truly unstructured error. A cli.ExitCoder that
+// is NOT an *errcode.Error (today: pluginExitError carrying a child
+// subprocess's exit code) MUST NOT have an INTERNAL_ERROR template
+// rendered over it — the plugin has already written its own stderr.
+func writeStructuredError(stderr *bytes.Buffer, err error) {
+	if err == nil {
+		return
+	}
+	if _, ok := errcode.As(err); ok {
+		cliout.WriteError(stderr, err)
+		return
+	}
+	if _, ok := err.(cli.ExitCoder); ok {
+		return
+	}
+	cliout.WriteError(stderr, err)
 }
 
 // wireStreams sets Writer/ErrWriter on the root and every descendant so

@@ -81,17 +81,17 @@
 
 ## 8. Phase 4 — Plugin host
 
-- [ ] 8.1 Add BDD cases for `plugin-host` to `core/test-cases.md` (TC-PLG-* category)
-- [ ] 8.2 Append `PLUGIN_UNKNOWN`, `PLUGIN_NAME_RESERVED`, `PLUGIN_ASSET_NAMING`, `PLUGIN_FETCH_UNAUTHORIZED`, `PLUGIN_FETCH_FAILED` to `pkg/errcode`
-- [ ] 8.3 Create `pkg/taiplugin` SDK: parse `TAI_CLONE_DIR`, `TAI_TARGETS` (JSON), `TAI_DATA_DIR` into a typed `Context`; re-export `errcode` and `cliout` for plugin author ergonomics
-- [ ] 8.4 Define the built-in first-party registry in `core/internal/plugins/registry.go` as a `map[string]Source` — start with `triage` → this repo's GitHub Releases
-- [ ] 8.5 Implement plugin install: registry/explicit-source resolution, GitHub Releases asset fetch matching `tai-plugin-<name>-<os>-<arch>`, opportunistic `GITHUB_TOKEN`, write binary + assets/ to `<TAI_DATA_DIR>/plugins/<name>/`, validate `tai-<name>-` prefix on skills/agents, sync assets into every target's namespace, record in `<TAI_DATA_DIR>/state/plugins.json`
-- [ ] 8.6 Implement plugin update: re-fetch latest from recorded source, wipe namespace in each target, re-copy, update state
-- [ ] 8.7 Implement plugin remove: wipe target namespace and `<TAI_DATA_DIR>/plugins/<name>/` (preserve `state/` subdir), warn user about retained data
-- [ ] 8.8 Implement `tai plugins list` — table output from state file
-- [ ] 8.9 Implement subprocess invocation for `tai <plugin-name> <args>`: lookup, exec, env-var contract, passthrough stdin/stdout/stderr/exit; emit `UNKNOWN_SUBCOMMAND` for unresolved names
-- [ ] 8.10 Implement `plugins.yml` additive auto-install at start of `tai sync`
-- [ ] 8.11 Document the plugin wire contract (env vars, asset namespacing, error template expectation) AND the "to add a first-party plugin: register in `core/internal/plugins/registry.go` + cut release" workflow in `CLAUDE.md`. This MUST happen in this phase (not Phase 7) — Phase 6 (Triage migration) wires the first plugin and would otherwise set precedent with no documented contract. README sections may still be deferred to Phase 7 but `CLAUDE.md` updates land here
+- [x] 8.1 Add BDD cases for `plugin-host` to `core/test-cases.md` (TC-PLG-* category)
+- [x] 8.2 Append `PLUGIN_UNKNOWN`, `PLUGIN_NAME_RESERVED`, `PLUGIN_ASSET_NAMING`, `PLUGIN_FETCH_UNAUTHORIZED`, `PLUGIN_FETCH_FAILED` to `pkg/errcode`
+- [x] 8.3 Create `pkg/taiplugin` SDK: parse `TAI_CLONE_DIR`, `TAI_TARGETS` (JSON), `TAI_DATA_DIR` into a typed `Context`; re-export `errcode` and `cliout` for plugin author ergonomics
+- [x] 8.4 Define the built-in first-party registry in `core/internal/plugins/registry.go` as a `map[string]Source` — start with `triage` → this repo's GitHub Releases
+- [x] 8.5 Implement plugin install: registry/explicit-source resolution, GitHub Releases asset fetch matching `tai-plugin-<name>-<os>-<arch>`, opportunistic `GITHUB_TOKEN`, write binary + assets/ to `<TAI_DATA_DIR>/plugins/<name>/`, validate `tai-<name>-` prefix on skills/agents, sync assets into every target's namespace, record in `<TAI_DATA_DIR>/state/plugins.json`
+- [x] 8.6 Implement plugin update: re-fetch latest from recorded source, wipe namespace in each target, re-copy, update state
+- [x] 8.7 Implement plugin remove: wipe target namespace and `<TAI_DATA_DIR>/plugins/<name>/` (preserve `state/` subdir), warn user about retained data
+- [x] 8.8 Implement `tai plugins list` — table output from state file
+- [x] 8.9 Implement subprocess invocation for `tai <plugin-name> <args>`: lookup, exec, env-var contract, passthrough stdin/stdout/stderr/exit; emit `UNKNOWN_SUBCOMMAND` for unresolved names
+- [x] 8.10 Implement `plugins.yml` additive auto-install at start of `tai sync`
+- [x] 8.11 Document the plugin wire contract (env vars, asset namespacing, error template expectation) AND the "to add a first-party plugin: register in `core/internal/plugins/registry.go` + cut release" workflow in `CLAUDE.md`. This MUST happen in this phase (not Phase 7) — Phase 6 (Triage migration) wires the first plugin and would otherwise set precedent with no documented contract. README sections may still be deferred to Phase 7 but `CLAUDE.md` updates land here
 
 ## 9. Phase 5 — Update banner
 
