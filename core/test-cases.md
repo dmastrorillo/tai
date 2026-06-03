@@ -34,6 +34,7 @@ components. **Never renumber existing IDs.**
 | [`INIT`](#init--repo-scaffold) | `tai repo init <path>` scaffold, git init, next-steps block |
 | [`WF`](#wf--workflows) | `tai workflow list/run`: YAML schema, colon-namespaced naming, markdown plan emitter |
 | [`STD`](#std--standards) | `tai standards list/load`: markdown + frontmatter, colon-namespaced addressing |
+| [`IC`](#ic--install-commands) | `tai install-commands`: bundled slash-command install into `<target>/<commands>/tai/`, falsy skip, idempotent re-run, stale removal |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -909,3 +910,105 @@ Exercised by `core/internal/cmd/sync_test.go` →
 `TestSync_TCSTD011_standards_never_copied`.
 
 <!-- Add new STD cases here as their proposals land. -->
+
+---
+
+## IC — install-commands
+
+`tai install-commands` writes TAI's own bundled slash-command assets
+into every configured target's `<commands>/tai/` subdirectory. The
+subdirectory is wholly TAI-owned: re-runs overwrite freely within it
+and remove files the running binary no longer bundles. Content
+outside `<commands>/tai/` is never touched. Spec:
+`openspec/changes/pivot-to-ai-as-code/specs/install-commands/spec.md`.
+
+### TC-IC-001 — Single-target install writes every bundled file
+
+- **Given** the config has one target with default sub-paths,
+- **When** the user runs `tai install-commands`,
+- **Then** every bundled built-in command appears as a file under
+  `<target.root>/commands/tai/<name>.md`,
+- **And** stdout contains a one-line summary of the form
+  `installed <N> command(s) into 1 target` (no `(... stale built-ins
+  removed)` parenthetical on a clean first run),
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC001_single_target_writes_bundle`.
+
+### TC-IC-002 — Multi-target install fans out to every target
+
+- **Given** the config has two targets `<rootA>` and `<rootB>`,
+- **When** the user runs `tai install-commands`,
+- **Then** every bundled built-in command appears under both
+  `<rootA>/commands/tai/` and `<rootB>/commands/tai/`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC002_multi_target_fan_out`.
+
+### TC-IC-003 — No targets configured exits `TAI_NOT_CONFIGURED`
+
+- **Given** the config has zero targets,
+- **When** the user runs `tai install-commands`,
+- **Then** the exit code is `2`,
+- **And** stderr's footer is `[exit 2: TAI_NOT_CONFIGURED]`,
+- **And** the "what to do" bullets name `tai config target add` as
+  the resolution.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC003_no_targets`.
+
+### TC-IC-004 — Falsy commands sub-path skips that target with warning
+
+- **Given** a target whose YAML config sets `commands: ""`,
+- **When** the user runs `tai install-commands`,
+- **Then** no file is written under that target's root,
+- **And** stderr contains a warning naming the skipped target,
+- **And** when every configured target was skipped this way, stdout
+  contains a one-line summary of the form
+  `all <N> target(s) skipped — nothing installed` (distinct from the
+  install summary so a zero-count read does not masquerade as a
+  successful no-op),
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC004_falsy_commands_skipped`.
+
+### TC-IC-005 — Re-run is idempotent within the `tai/` subdirectory
+
+- **Given** a successful first run has written the bundled commands,
+- **When** the user runs `tai install-commands` a second time,
+- **Then** the second-run files are byte-identical to the first-run
+  files for every still-bundled command,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC005_rerun_idempotent`.
+
+### TC-IC-006 — Stale built-ins (no longer bundled) are removed on re-run
+
+- **Given** a previous install put `<target>/commands/tai/legacy.md`
+  on disk, and the running binary no longer bundles `legacy.md`,
+- **When** the user runs `tai install-commands`,
+- **Then** `<target>/commands/tai/legacy.md` no longer exists,
+- **And** every currently-bundled command is present,
+- **And** stdout's summary line includes a
+  `(<K> stale built-in(s) removed)` parenthetical naming the removal
+  count.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC006_stale_builtin_removed`.
+
+### TC-IC-007 — Content outside `<commands>/tai/` is left untouched
+
+- **Given** the user has authored content at
+  `<target>/commands/my-own.md` (outside the `tai/` subdirectory),
+- **When** the user runs `tai install-commands`,
+- **Then** `<target>/commands/my-own.md` exists with its original
+  bytes unchanged.
+
+Exercised by `core/internal/cmd/install_commands_test.go` →
+`TestInstallCommands_TCIC007_outside_tai_untouched`.
+
+<!-- Add new IC cases here as their proposals land. -->

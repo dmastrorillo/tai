@@ -73,11 +73,11 @@
 
 ## 7. Phase 3 — Content surfaces: built-in slash commands
 
-- [ ] 7.1 Add BDD cases for `install-commands` to `core/test-cases.md` (TC-IC-* category)
-- [ ] 7.2 Embed TAI's bundled built-in slash commands (currently a starter set documenting workflow/standards invocation patterns) into the core binary
-- [ ] 7.3 Implement `tai install-commands`: iterate over configured targets, write bundled commands into `<root>/<commands>/tai/`, skip falsy-commands targets with stderr warning
-- [ ] 7.4 Implement re-run idempotency: replace existing files in `tai/` subdirectory, remove stale built-ins that the new binary no longer ships
-- [ ] 7.5 Verify content outside `<root>/<commands>/tai/` is untouched by re-run tests
+- [x] 7.1 Add BDD cases for `install-commands` to `core/test-cases.md` (TC-IC-* category)
+- [x] 7.2 Embed TAI's bundled built-in slash commands (currently a starter set documenting workflow/standards invocation patterns) into the core binary
+- [x] 7.3 Implement `tai install-commands`: iterate over configured targets, write bundled commands into `<root>/<commands>/tai/`, skip falsy-commands targets with stderr warning
+- [x] 7.4 Implement re-run idempotency: replace existing files in `tai/` subdirectory, remove stale built-ins that the new binary no longer ships
+- [x] 7.5 Verify content outside `<root>/<commands>/tai/` is untouched by re-run tests
 
 ## 8. Phase 4 — Plugin host
 

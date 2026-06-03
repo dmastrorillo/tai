@@ -8,6 +8,8 @@ If no targets are configured, the command MUST exit with `TAI_NOT_CONFIGURED` an
 
 A target whose `commands` sub-path is falsy SHALL be skipped, with a warning on stderr naming the target.
 
+On success, the system SHALL print a one-line summary to stdout of the form `installed <N> command(s) into <M> target(s)`, with a trailing `(<K> stale built-in(s) removed)` parenthetical when `K > 0`. When every configured target was skipped via a falsy `commands` sub-path, the system SHALL instead print `all <N> target(s) skipped — nothing installed` so the zero-count case is distinct from a successful no-op.
+
 #### Scenario: Install with one configured target
 
 - **WHEN** a single target `~/.claude` is configured with default sub-paths
