@@ -40,13 +40,17 @@ func (s Source) Empty() bool { return s.Host == "" && s.Repo == "" }
 // introduces the plugin, then cut a release whose assets match
 // `tai-plugin-<name>-<os>-<arch>`.
 //
-// Today this map intentionally has no entries — Phase 6 of
-// pivot-to-ai-as-code adds `triage` once the triage migration lands
-// (task 10.8). Keeping the map empty in Phase 4 lets every install
-// test stage either explicit-source plugins or stub entries via
-// `RegisterForTesting`; production builds never silently resolve a
-// half-migrated `triage` from here.
-var builtin = map[string]Source{}
+// The Triage entry was added in Phase 6 of pivot-to-ai-as-code
+// (task 10.8) once the triage binary's `plugins/triage/cmd/triage/
+// main.go` entrypoint landed. The release pipeline (Phase 7) produces
+// `tai-plugin-triage-<os>-<arch>.tar.gz` assets on this repo's
+// Releases page; the registry entry points at that source.
+var builtin = map[string]Source{
+	// triage: Version and Subpath intentionally zero — see the
+	// Source type comment for the zero-value semantics ("" = "latest"
+	// at install time; Subpath unused for single-repo plugins).
+	"triage": {Host: "github.com", Repo: "dmastrorillo/tai"},
+}
 
 // Lookup returns the registry entry for name, or (Source{}, false)
 // when no entry exists. Callers that pass an explicit `--source`

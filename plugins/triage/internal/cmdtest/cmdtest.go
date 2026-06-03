@@ -1,4 +1,4 @@
-// Package cmdtest is the test harness for the tai CLI.
+// Package cmdtest is the test harness for the triage plugin's CLI.
 //
 // It provides three layers:
 //
@@ -10,6 +10,35 @@
 //     re-running with extra logging.
 //   - Isolate — file-system + env isolation for tests that touch the data
 //     directory, slash-command target directory, or git context.
+//
+// # Phase 6 (pivot-to-ai-as-code) scope decision
+//
+// Pre-Phase-6 the harness drove the in-process triage cmd tree that
+// the `tai` binary embedded directly. Post-Phase-6 the same cmd tree
+// is the entry point for the standalone `triage` plugin binary that
+// the host invokes via subprocess.
+//
+// The harness still drives the cmd tree IN-PROCESS, not via
+// subprocess exec. Two reasons:
+//
+//  1. The host-side subprocess wiring (env-var injection, stdio
+//     passthrough, exit-code propagation) is verified by core's
+//     plugin-host tests (TC-PLG-002, TC-PLG-005). Those tests run
+//     a POSIX shell-stub plugin and assert the host fulfils the
+//     contract; the plugin-side consumption (taiplugin.Load →
+//     storage path → verb dispatch) is exercised by this harness's
+//     in-process tests. Re-testing both ends in the same suite would
+//     duplicate coverage AND add a build-binary-then-exec
+//     dependency to every TC-IMP/TRG/INST test.
+//  2. The verb-dispatch logic exercised by these tests is the same
+//     regardless of whether the cmd tree is reached in-process or
+//     via subprocess. The harness pins what only the triage cmd
+//     tree owns; the subprocess transport is the host's
+//     responsibility.
+//
+// A future revision MAY introduce an `ExecRoot` variant that builds
+// the triage binary and exec's it for end-to-end coverage of both
+// transports. Today's TC-IDs do not require it.
 //
 // Conventions:
 //
@@ -65,8 +94,9 @@ type Result struct {
 }
 
 // Run invokes cmd with the given argv (NOT including the executable name —
-// the harness prepends "tai" for you). Stdin is empty; stdout and stderr
-// are captured into the returned Result.
+// the harness prepends "triage" for you, matching the post-Phase-6
+// binary name set on NewRoot's Name field). Stdin is empty; stdout
+// and stderr are captured into the returned Result.
 //
 // The cmd's Writer / ErrWriter / Reader fields are overwritten by this
 // call; callers should pass a freshly-built command (typically
@@ -93,7 +123,7 @@ func RunWithStdin(t *testing.T, cmd *cli.Command, stdin string, argv ...string) 
 	reader := strings.NewReader(stdin)
 	wireStreams(cmd, &stdout, &stderr, reader)
 
-	fullArgs := append([]string{"tai"}, argv...)
+	fullArgs := append([]string{"triage"}, argv...)
 	err := cliexec.Run(context.Background(), cmd, fullArgs)
 	if err != nil {
 		cliout.WriteError(&stderr, err)
@@ -120,11 +150,17 @@ func wireStreams(cmd *cli.Command, out, errOut *bytes.Buffer, in *strings.Reader
 	}
 }
 
-// exitCodeFor mirrors the mapping core/cmd/tai/main.go applies to translate
-// a cli.Command.Run error into an OS exit code. Keeping the logic here lets
-// tests assert on ExitCode without spawning a subprocess.
+// exitCodeFor mirrors the mapping
+// plugins/triage/cmd/triage/main.go applies to translate a
+// cli.Command.Run error into an OS exit code. Keeping the logic
+// here lets tests assert on ExitCode without spawning a subprocess.
 //
-// Mirrors main.go exactly:
+// (Post-Phase-6 the triage plugin has its own main entry point. The
+// core/cmd/tai/main.go binary has additional pre-foreground logic —
+// the background poll waiter and the update banner — that don't
+// apply to plugins; the error-mapping ladder itself is identical.)
+//
+// Mirrors triage/main.go exactly:
 //   - nil error → Success
 //   - error implementing cli.ExitCoder (which *errcode.Error does) → its
 //     ExitCode()

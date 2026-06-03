@@ -31,6 +31,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -56,20 +57,49 @@ type DB struct {
 }
 
 // Open resolves the data directory, ensures it is writable, opens the
-// SQLite database at <data_dir>/tai.db (creating it if necessary),
-// applies the connection pragmas, and runs any unapplied migrations.
+// SQLite database at the canonical triage-plugin path (creating it
+// and its parent directory if necessary), applies the connection
+// pragmas, and runs any unapplied migrations.
+//
+// Path layout (Phase 6 of pivot-to-ai-as-code): the DB lives at
+// `<TAI_DATA_DIR>/plugins/triage/state/triage.db`. Placing the file
+// under `plugins/triage/state/` keeps it inside the namespace that
+// `tai plugins triage remove` preserves (see the plugin-host spec:
+// "the plugin's own runtime state under
+// <TAI_DATA_DIR>/plugins/<name>/state/ MUST be preserved").
+//
+// Pre-Phase-6 the file lived at `<TAI_DATA_DIR>/tai.db`. Nothing has
+// shipped to users yet, so the migration is a hard cut — there is
+// no file-move shim. **Developers running this build against a data
+// dir that still contains an old `<TAI_DATA_DIR>/tai.db` will see an
+// empty triage state on the new path; the old file is orphaned (not
+// deleted, not migrated, not warned about). They must re-import any
+// data they want preserved against the new location.**
 //
 // On any failure, returns a *errcode.Error with the appropriate code:
 //
-//   - DataDirUnwritable: the data directory cannot be created/written
-//   - DBOpenFailed: open / pragma failure
+//   - DataDirUnwritable: the data directory itself cannot be created
+//     or written (surfaced by datadir.EnsureWritable)
+//   - DBOpenFailed: the data directory is writable but the plugin-
+//     scoped state subdirectory cannot be created, OR the SQLite
+//     open / pragma step failed. Both failures originate inside the
+//     plugin namespace, so the code stays the same.
 //   - DBMigrationFailed: a migration script failed to apply
 func Open(ctx context.Context) (*DB, error) {
 	dir, err := datadir.EnsureWritable()
 	if err != nil {
 		return nil, err
 	}
-	return OpenAt(ctx, filepath.Join(dir, "tai.db"))
+	stateDir := filepath.Join(dir, "plugins", "triage", "state")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		return nil, errcode.Wrapf(errcode.DBOpenFailed, err,
+			"create plugin state directory %s", stateDir).
+			WithHelp(
+				"check that "+stateDir+" is writable",
+				"or override the data dir with $TAI_DATA_DIR",
+			)
+	}
+	return OpenAt(ctx, filepath.Join(stateDir, "triage.db"))
 }
 
 // OpenAt is like Open but takes an explicit database file path. It is

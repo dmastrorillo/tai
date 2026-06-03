@@ -104,14 +104,15 @@
 
 ## 10. Phase 6 — Triage plugin migration
 
-- [ ] 10.1 Add new TC-IDs to `plugins/triage/test-cases.md` for any new behavior introduced by the migration (most existing cases carry forward verbatim)
-- [ ] 10.2 Build `plugins/triage/cmd/triage/main.go` as a standalone binary entrypoint consuming `TAI_*` env vars via `pkg/taiplugin`
-- [ ] 10.3 Re-namespace existing Triage subcommands so they are exposed as `tai triage <verb>` via TAI's subprocess invocation (the verbs themselves — `import`, `accept`, `list`, etc. — stay the same)
-- [ ] 10.4 Move existing Triage AI bundled commands (the `cmdframework`-managed assets) into `plugins/triage/assets/commands/` and verify they install into `<target>/<commands>/tai-triage/`
-- [ ] 10.5 Re-point every Triage AI end-to-end test in `plugins/triage/internal/cmdtest` to invoke via the new `tai triage <verb>` route, exercising the subprocess wiring
-- [ ] 10.6 Verify the Triage plugin's SQLite database lives at `<TAI_DATA_DIR>/plugins/triage/state/` and is created lazily
-- [ ] 10.7 Verify Triage plugin assets named `tai-triage-*` (skills/agents) pass install-time namespace validation; rename any non-conformant assets in `plugins/triage/assets/`
-- [ ] 10.8 Add `triage` to the first-party registry entry in `core/internal/plugins/registry.go`
+- [x] 10.1 Add new TC-IDs to `plugins/triage/test-cases.md` for any new behavior introduced by the migration (most existing cases carry forward verbatim)
+- [x] 10.2 Build `plugins/triage/cmd/triage/main.go` as a standalone binary entrypoint consuming `TAI_*` env vars via `pkg/taiplugin`
+- [x] 10.3 Re-namespace existing Triage subcommands so they are exposed as `tai triage <verb>` via TAI's subprocess invocation (the verbs themselves — `import`, `accept`, `list`, etc. — stay the same)
+- [x] 10.4 Move existing Triage AI bundled commands (the `cmdframework`-managed assets) into `plugins/triage/assets/commands/` and verify they install into `<target>/<commands>/tai-triage/`
+- [x] 10.5 Re-point every Triage AI end-to-end test in `plugins/triage/internal/cmdtest` to invoke via the new `tai triage <verb>` route, exercising the subprocess wiring
+- [x] 10.6 Verify the Triage plugin's SQLite database lives at `<TAI_DATA_DIR>/plugins/triage/state/` and is created lazily
+- [x] 10.7 Verify Triage plugin assets named `tai-triage-*` (skills/agents) pass install-time namespace validation; rename any non-conformant assets in `plugins/triage/assets/`
+- [x] 10.8 Add `triage` to the first-party registry entry in `core/internal/plugins/registry.go`
+- [ ] 10.9 (Phase 7+ cleanup, parked here for traceability) Retire the in-process `tai triage install`/`uninstall` flow and remove the `plugins/triage/internal/cmdframework/commands/` duplicate of `plugins/triage/assets/commands/`. While both trees ship, `plugins/triage/assets/assets_test.go` enforces byte-identical parity
 
 ## 11. Phase 7 — Documentation and release pipeline
 
