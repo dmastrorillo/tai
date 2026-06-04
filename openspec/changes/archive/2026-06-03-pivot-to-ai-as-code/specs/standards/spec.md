@@ -16,7 +16,7 @@ The source repo SHALL accept markdown files at `standards/**/*.md` as team-wide 
 
 ### Requirement: Standards naming and addressing
 
-Standards are addressed by colon-namespaced lowercased name. A standard at `standards/<path>.md` resolves to the name formed by joining its path segments (relative to `standards/`) with `:` after stripping the `.md` suffix and lowercasing every segment. For example, `standards/devOps/security/best-practices.md` resolves to `devops:security:best-practices`.
+Standards SHALL be addressed by colon-namespaced lowercased name. A standard at `standards/<path>.md` resolves to the name formed by joining its path segments (relative to `standards/`) with `:` after stripping the `.md` suffix and lowercasing every segment. For example, `standards/devOps/security/best-practices.md` resolves to `devops:security:best-practices`.
 
 The names `list` and `load` are reserved as standard names because they collide with the `tai standards` sub-verbs. (This is distinct from the authoritative top-level reserved verb list maintained in the `plugin-host` spec.) Two files whose lowercased names collide MUST emit a stderr warning at load time; the alphabetically earlier file wins for the addressed name.
 

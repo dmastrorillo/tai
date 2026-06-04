@@ -137,11 +137,11 @@ Inside `core/`:
 
 - `core/cmd/tai/main.go` — entry point. Wires the root `urfave/cli` command, calls `Run`, fires the background update-check goroutine (`sync.Schedule`) with a brief Wait on exit. Thin — no business logic.
 - `core/internal/cmd/` — command-tree assembly (`NewRoot`, plus one file per top-level verb: `config.go`, `repo.go`, `sync.go`, ...). End-to-end tests live alongside as `*_test.go`.
-- `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/changes/pivot-to-ai-as-code/specs/config/spec.md`.
-- `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
-- `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
+- `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/specs/config/spec.md`.
+- `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/specs/repo-sync/spec.md`.
+- `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/specs/repo-init/spec.md`.
 - `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host. `verbs.IsReserved(name)` is the install-time gate that emits `PLUGIN_NAME_RESERVED`.
-- `core/internal/plugins/` — plugin host: built-in first-party registry (`registry.go`), on-disk state (`state.go`, written to `<TAI_DATA_DIR>/state/plugins.json`), the HTTP-backed `Fetcher` (`fetch.go`), the asset namespacing rules (`assets.go`), and the install/update/remove/list verb implementations. Spec: `openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`.
+- `core/internal/plugins/` — plugin host: built-in first-party registry (`registry.go`), on-disk state (`state.go`, written to `<TAI_DATA_DIR>/state/plugins.json`), the HTTP-backed `Fetcher` (`fetch.go`), the asset namespacing rules (`assets.go`), and the install/update/remove/list verb implementations. Spec: `openspec/specs/plugin-host/spec.md`.
 - `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
 - `core/test-cases.md` — BDD spec for core-CLI behaviours.
 

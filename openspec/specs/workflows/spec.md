@@ -1,5 +1,8 @@
-## ADDED Requirements
+# workflows Specification
 
+## Purpose
+TBD - created by archiving change pivot-to-ai-as-code. Update Purpose after archive.
+## Requirements
 ### Requirement: Workflow file format
 
 The source repo SHALL accept YAML workflow files at `workflows/**/*.yml`. Each file MUST have:
@@ -24,7 +27,7 @@ Additional top-level keys are not currently defined and MUST be rejected at load
 
 ### Requirement: Workflow naming and addressing
 
-Workflows are addressed by colon-namespaced lowercased name. A workflow at `workflows/<path>.yml` resolves to the name formed by joining its path segments (relative to `workflows/`) with `:` after stripping the `.yml` suffix and lowercasing every segment. For example, `workflows/release/cut-rc.yml` resolves to `release:cut-rc`.
+Workflows SHALL be addressed by colon-namespaced lowercased name. A workflow at `workflows/<path>.yml` resolves to the name formed by joining its path segments (relative to `workflows/`) with `:` after stripping the `.yml` suffix and lowercasing every segment. For example, `workflows/release/cut-rc.yml` resolves to `release:cut-rc`.
 
 The names `list` and `run` are reserved as workflow names because they collide with the `tai workflow` sub-verbs. They SHALL NOT be used as a workflow name. (This is distinct from the authoritative top-level reserved verb list maintained in the `plugin-host` spec.) Duplicate names (after lowercasing) across two distinct files MUST be flagged at load time with a warning to stderr; the first file encountered wins for the addressed name.
 

@@ -109,7 +109,7 @@ test at `plugins/triage/internal/cmd/repo_test.go` →
 ## CONF — config file management
 
 The `tai config` family manages a YAML config file resolved per
-`pivot-to-ai-as-code/specs/config/spec.md`. The data-directory-resolution
+`openspec/specs/config/spec.md`. The data-directory-resolution
 cases under `TC-CFG-*` (in `plugins/triage/test-cases.md`) cover a
 separate concept; do not conflate the two.
 
@@ -380,7 +380,7 @@ Exercised by `core/internal/cmd/config_test.go` →
 fetches updates, and copies assets into configured targets with M1
 existence-based overwrite detection. Background update-polling is wired
 into every invocation. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
+`openspec/specs/repo-sync/spec.md`.
 
 Data-directory resolution (`<TAI_DATA_DIR>` precedence, lazy creation,
 unwritable handling) is owned by `pkg/datadir` and pinned by the
@@ -566,7 +566,7 @@ Exercised by `core/internal/cmd/sync_test.go` →
 
 `tai repo init <path>` writes a templated source-repo scaffold,
 auto-initialises a git repo, and prints next-step commands. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
+`openspec/specs/repo-init/spec.md`.
 
 ### TC-INIT-001 — Fresh directory scaffold writes every required file
 
@@ -661,7 +661,7 @@ Exercised by `core/internal/cmd/repo_init_test.go` →
 
 `tai workflow list/run` exposes YAML workflow files under
 `<clone>/workflows/**/*.yml` to AI agents as markdown plans. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/workflows/spec.md`.
+`openspec/specs/workflows/spec.md`.
 
 ### TC-WF-001 — Valid workflow loads successfully
 
@@ -803,7 +803,7 @@ Exercised by `core/internal/cmd/sync_test.go` →
 
 `tai standards list/load` exposes markdown standards under
 `<clone>/standards/**/*.md` to AI agents on demand. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/standards/spec.md`.
+`openspec/specs/standards/spec.md`.
 
 ### TC-STD-001 — Standard with frontmatter description
 
@@ -922,7 +922,7 @@ into every configured target's `<commands>/tai/` subdirectory. The
 subdirectory is wholly TAI-owned: re-runs overwrite freely within it
 and remove files the running binary no longer bundles. Content
 outside `<commands>/tai/` is never touched. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/install-commands/spec.md`.
+`openspec/specs/install-commands/spec.md`.
 
 ### TC-IC-001 — Single-target install writes every bundled file
 
@@ -1025,7 +1025,7 @@ unknown verbs to installed plugins. Plugins are subprocess
 executables under `<TAI_DATA_DIR>/plugins/<name>/`; their assets are
 namespaced under `tai-<name>-*` (skills/agents) and
 `<commands>/tai-<name>/` (commands). Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`.
+`openspec/specs/plugin-host/spec.md`.
 
 ### TC-PLG-001 — Installed plugin layout on disk
 
@@ -1244,7 +1244,7 @@ day, prints an aggregated `[tai]`-prefixed banner to stderr naming
 every pending update across TAI itself, installed plugins, and the
 configured source repo. TAI does not self-update; the banner names
 the package-manager command. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/update-banner/spec.md`.
+`openspec/specs/update-banner/spec.md`.
 
 ### TC-UB-001 — Banner fires on first command of the day when updates are pending
 
@@ -1322,5 +1322,26 @@ Exercised by `core/internal/cmd/banner_test.go` →
 
 Exercised by `core/internal/cmd/banner_test.go` →
 `TestBanner_TCUB006_tai_update_is_unknown_subcommand`.
+
+### TC-UB-007 — Banner reaches the user via the CLI entry point
+
+- **Given** the cache file reports a pending TAI update with
+  `last-banner-date` set to yesterday,
+- **When** the user runs any TAI command via the CLI (e.g.
+  `tai --version`),
+- **Then** stderr contains the `[tai]` banner,
+- **And** stdout does not contain the banner,
+- **And** the foreground command's product (the version line) lands
+  on stdout unaffected.
+
+This case is the CLI-boundary integration anchor for the banner
+emitter; TC-UB-001..005 exercise `sync.EmitBanner` directly with a
+captured buffer, but a regression that fails to wire `EmitBanner`
+into the host's request path (e.g. wrong stream, wrong dataDir,
+call omitted) would be invisible to those unit tests. TC-UB-007
+catches the integration regression by driving `runRoot`.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB007_fires_at_cli_boundary`.
 
 <!-- Add new UB cases here as their proposals land. -->

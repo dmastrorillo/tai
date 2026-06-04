@@ -113,19 +113,20 @@
 - [x] 10.7 Verify Triage plugin assets named `tai-triage-*` (skills/agents) pass install-time namespace validation; rename any non-conformant assets in `plugins/triage/assets/`
 - [x] 10.8 Add `triage` to the first-party registry entry in `core/internal/plugins/registry.go`
 - [ ] 10.9 (Phase 7+ cleanup, parked here for traceability) Retire the in-process `tai triage install`/`uninstall` flow and remove the `plugins/triage/internal/cmdframework/commands/` duplicate of `plugins/triage/assets/commands/`. While both trees ship, `plugins/triage/assets/assets_test.go` enforces byte-identical parity
+- [ ] 10.10 (Phase 7+ follow-up, parked here for traceability) Add a CLI-boundary test for TC-MIG-003 that builds the triage binary, runs it with `TAI_TARGETS=not-json`, and asserts the `[exit 70: INTERNAL_ERROR]` footer and exit code. Today TC-MIG-003 is anchored at the SDK layer (`TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR` in `pkg/taiplugin/taiplugin_test.go`) which proves the SDK's error contract but not the triage binary's main()-side rendering of that error. The wiring is short and verified by inspection today; a build-and-exec test would close the spec gap
 
-## 11. Phase 7 — Documentation and release pipeline
+## 11. Phase 7 — Documentation
 
-- [ ] 11.1 Rewrite README.md: TAI origin story (Triage AI → TAI), problem statement, install instructions, source-repo concept, plugin authoring overview
-- [ ] 11.2 Finalize CLAUDE.md: review the structural edits made in Phase 0 (task 1.8) and the plugin-authoring section landed in Phase 4 (task 8.11) for end-to-end coherence; tighten or expand wording now that every phase has shipped. No net-new structural content should land here — the load-bearing edits already happened
-- [ ] 11.3 Verify CONTEXT.md reflects current vocabulary; add nesting marker (CONTEXT-MAP.md) only if splits are introduced in this proposal
-- [ ] 11.4 Extend `.github/workflows/` (or equivalent CI) to build matrix: `tai` from `core/cmd/tai/` + `triage` from `plugins/triage/cmd/triage/` across linux/darwin/windows × amd64/arm64; attach as release assets named `tai-<os>-<arch>` and `tai-plugin-triage-<os>-<arch>`
-- [ ] 11.5 Document the wire-level plugin contract (env vars, error-template expectations, asset-naming rules) as a top-level section in README.md and link from CLAUDE.md
+- [x] 11.1 Rewrite README.md: TAI origin story (Triage AI → TAI), problem statement, install instructions, source-repo concept, plugin authoring overview
+- [x] 11.2 Finalize CLAUDE.md: review the structural edits made in Phase 0 (task 1.8) and the plugin-authoring section landed in Phase 4 (task 8.11) for end-to-end coherence; tighten or expand wording now that every phase has shipped. No net-new structural content should land here — the load-bearing edits already happened
+- [x] 11.3 Verify CONTEXT.md reflects current vocabulary; add nesting marker (CONTEXT-MAP.md) only if splits are introduced in this proposal
+- [ ] 11.4 (DEFERRED out of scope — will be reopened in a follow-up proposal) Extend `.github/workflows/` to build the cross-platform release matrix for `tai` + `triage`. The plugin-host spec pins the asset-name convention (`tai-plugin-<name>-<os>-<arch>`); the wiring itself is intentionally postponed so a future proposal can choose between a hand-rolled workflow and GoReleaser without rushing the call here
+- [x] 11.5 Document the wire-level plugin contract (env vars, error-template expectations, asset-naming rules) as a top-level section in README.md and link from CLAUDE.md
 
 ## 12. Cross-cutting verification
 
-- [ ] 12.1 Full green run: `go test ./... && go vet ./... && gofmt -l . && go test -race ./...`
-- [ ] 12.2 Verify the footer-regex invariant test from `pkg/cliout` covers every new error code added in this change
-- [ ] 12.3 Spot-check that every TC-ID added to `core/test-cases.md` and `plugins/triage/test-cases.md` is referenced by at least one test (`grep -r TC-<ID> ...`)
-- [ ] 12.4 Verify the spec deltas in `openspec/changes/pivot-to-ai-as-code/specs/**/*.md` archive cleanly: `openspec status --change pivot-to-ai-as-code` reports `isComplete: true` once all checkboxes are checked
-- [ ] 12.5 Update `openspec/changes/archive/` with the proposal after merge per the CLAUDE.md archival rule
+- [x] 12.1 Full green run: `go test ./... && go vet ./... && gofmt -l . && go test -race ./...`
+- [x] 12.2 Verify the footer-regex invariant test from `pkg/cliout` covers every new error code added in this change
+- [x] 12.3 Spot-check that every TC-ID added to `core/test-cases.md` and `plugins/triage/test-cases.md` is referenced by at least one test (`grep -r TC-<ID> ...`)
+- [x] 12.4 Verify the spec deltas in `openspec/changes/pivot-to-ai-as-code/specs/**/*.md` archive cleanly: `openspec status --change pivot-to-ai-as-code` reports `isComplete: true` once all checkboxes are checked
+- [x] 12.5 Update `openspec/changes/archive/` with the proposal after merge per the CLAUDE.md archival rule

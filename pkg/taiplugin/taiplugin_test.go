@@ -39,6 +39,10 @@ func TestLoad_populates_all_fields(t *testing.T) {
 // TestLoad_empty_env_yields_zero_value verifies that absent env vars
 // produce an empty Context — plugins are expected to check the
 // fields they need.
+//
+// Not tied to a TC-ID — engine anchor for TC-PLG-005 (the user-
+// observable assertion lives at the CLI boundary in
+// core/internal/cmd/plugin_invoke_test.go).
 func TestLoad_empty_env_yields_zero_value(t *testing.T) {
 	t.Setenv("TAI_DATA_DIR", "")
 	t.Setenv("TAI_CLONE_DIR", "")
@@ -53,11 +57,17 @@ func TestLoad_empty_env_yields_zero_value(t *testing.T) {
 	}
 }
 
-// TestLoad_malformed_targets_surfaces_INTERNAL_ERROR locks the host-
-// bug contract: if tai sends malformed JSON, the plugin SDK surfaces
-// a structured error rather than panicking or returning a half-
-// populated Context.
-func TestLoad_malformed_targets_surfaces_INTERNAL_ERROR(t *testing.T) {
+// TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR locks
+// the host-bug contract referenced by TC-MIG-003 (the triage-side
+// migration spec): if tai sends malformed JSON for TAI_TARGETS, the
+// SDK surfaces a structured *errcode.Error{Code: INTERNAL_ERROR}
+// rather than panicking or returning a half-populated Context.
+//
+// The TC lives in plugins/triage/test-cases.md because Triage was the
+// first plugin to consume the wire contract; the underlying contract
+// is the SDK's (so the test lives here), and every future plugin
+// inherits it.
+func TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR(t *testing.T) {
 	t.Setenv("TAI_DATA_DIR", "")
 	t.Setenv("TAI_CLONE_DIR", "")
 	t.Setenv("TAI_TARGETS", "{not json")

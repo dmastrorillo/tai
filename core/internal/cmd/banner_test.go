@@ -207,16 +207,19 @@ func TestBanner_TCUB006_tai_update_is_unknown_subcommand(t *testing.T) {
 	}
 }
 
-// TestBanner_TCUB007_fires_at_cli_boundary is the CLI-boundary anchor
-// for the banner integration. TC-UB-001..005 stage state and call
-// sync.EmitBanner directly, which proves the banner LOGIC works but
-// can't catch a regression where the runtime forgets to wire it into
-// the request path. This test seeds state, drives a harmless verb
-// through runRoot, and confirms the banner reaches stderr and not
-// stdout.
+// TestBanner_TCUB007_fires_at_cli_boundary exercises TC-UB-007: the
+// CLI-boundary integration anchor for the banner emitter. TC-UB-001
+// through TC-UB-005 stage state and call sync.EmitBanner directly,
+// which proves the banner LOGIC works but can't catch a regression
+// where the runtime forgets to wire it into the request path. This
+// test seeds state, drives a harmless verb through runRoot, and
+// confirms the banner reaches stderr (not stdout) without disturbing
+// the foreground command's product.
 //
-// (No new TC-ID — sub-scenario of TC-UB-001 verifying the integration
-// path the spec implies by saying "on the current command".)
+// The seed sets HasUpdates: true alongside the TAI-layer mismatch so
+// the "pending update" precondition is encoded via the authoritative
+// flag — matching TC-UB-004 / TC-UB-005's conventions — and survives
+// any future tightening of PollState.HasPendingUpdate().
 func TestBanner_TCUB007_fires_at_cli_boundary(t *testing.T) {
 	dataDir := bannerEnv(t)
 	yesterday := time.Now().AddDate(0, 0, -1).Local().Format(time.DateOnly)
@@ -225,6 +228,7 @@ func TestBanner_TCUB007_fires_at_cli_boundary(t *testing.T) {
 		LastBannerDate: yesterday,
 		TAICurrent:     "v1.2.0",
 		TAILatest:      "v1.3.0",
+		HasUpdates:     true,
 	})
 
 	r := runRoot(t, "--version")

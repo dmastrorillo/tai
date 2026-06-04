@@ -1613,7 +1613,7 @@ interactive `y`/`Y` branch is exercised only manually. -->
 The Phase 6 plugin migration repackages the in-process Triage tree
 as a standalone `triage` plugin binary invoked by the tai host via
 the wire contract documented in
-`openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`.
+`openspec/specs/plugin-host/spec.md`.
 Most pre-Phase-6 TC-IDs carry forward verbatim — the verb tree
 itself didn't change, only its packaging. The cases below capture
 the migration-specific behaviour visible at the boundary.
@@ -1678,7 +1678,7 @@ input.
 
 Exercised at the SDK layer by `pkg/taiplugin/taiplugin_test.go` →
 `TestLoad_populates_all_fields` and
-`TestLoad_malformed_targets_surfaces_INTERNAL_ERROR`, with the
+`TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR`, with the
 host-side env-var injection verified at the CLI boundary by
 `core/internal/cmd/plugin_invoke_test.go` →
 `TestPluginInvoke_TCPLG005_env_var_contract`.

@@ -205,6 +205,8 @@ Asset rules:
 
 The naming scoping means plugins can overwrite freely within their namespace without prompting, and they cannot collide with the subscriber's own content. If a subscriber wants to customize a plugin asset, they copy it under a non-`tai-*` name (which removes it from the plugin's reach).
 
+The full wire contract (env-var contract, error-template expectations, asset-naming rules, the "add a first-party plugin" workflow) is documented in [`CLAUDE.md`](CLAUDE.md#plugin-host).
+
 ## The name
 
 Pronounced like the "Thai" in "Thailand". Rhymes with "tie".
