@@ -1,16 +1,11 @@
 name: CI
 
-# DISABLED FOR NOW. The CI gates assume the post-pivot directory layout
-# (core/, pkg/, plugins/) and would fail on the current pre-pivot tree.
-# Re-enable by restoring the push + pull_request triggers below once
-# Phase 0 of openspec/changes/pivot-to-ai-as-code/ has landed.
-#
-# To re-enable, replace `on: workflow_dispatch` with:
-#   on:
-#     push:
-#       branches: [main]
-#     pull_request:
-on: workflow_dispatch
+# Gates assume the post-pivot core/, pkg/, plugins/ tree established
+# by the pivot-to-ai-as-code proposal (archived 2026-06-03).
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read

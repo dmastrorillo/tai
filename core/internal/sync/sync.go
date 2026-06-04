@@ -83,6 +83,16 @@ func Sync(ctx context.Context, cfg *config.File, dataDir string, opts Options) (
 			LastFetchSuccess(cloneDir).Format(time.RFC3339))
 	}
 
+	// Phase 4 of pivot-to-ai-as-code: read <clone>/plugins.yml and
+	// install any listed plugin that isn't already present. Runs
+	// before the asset-sync phase so a plugin's namespaced assets
+	// land alongside the source-repo assets in one pass. The hook
+	// is additive — removing a YAML entry does NOT uninstall a
+	// plugin from the developer's machine (spec).
+	if err := autoInstallPluginsFromYAML(ctx, cloneDir, dataDir, cfg, opts.Stderr); err != nil {
+		return nil, err
+	}
+
 	plan, perTargetPlans, err := buildPlan(cloneDir, cfg.Targets, dataDir)
 	if err != nil {
 		return nil, err

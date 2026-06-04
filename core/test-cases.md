@@ -35,6 +35,8 @@ components. **Never renumber existing IDs.**
 | [`WF`](#wf--workflows) | `tai workflow list/run`: YAML schema, colon-namespaced naming, markdown plan emitter |
 | [`STD`](#std--standards) | `tai standards list/load`: markdown + frontmatter, colon-namespaced addressing |
 | [`IC`](#ic--install-commands) | `tai install-commands`: bundled slash-command install into `<target>/<commands>/tai/`, falsy skip, idempotent re-run, stale removal |
+| [`PLG`](#plg--plugin-host) | `tai plugins` and the subprocess invocation: registry lookup, install/update/remove/list, asset namespacing, env-var contract, `plugins.yml` auto-install on sync |
+| [`UB`](#ub--update-banner) | Background update-check refresh of TAI/plugin/source-repo versions, once-per-day stderr banner, `tai update` non-verb |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -107,7 +109,7 @@ test at `plugins/triage/internal/cmd/repo_test.go` →
 ## CONF — config file management
 
 The `tai config` family manages a YAML config file resolved per
-`pivot-to-ai-as-code/specs/config/spec.md`. The data-directory-resolution
+`openspec/specs/config/spec.md`. The data-directory-resolution
 cases under `TC-CFG-*` (in `plugins/triage/test-cases.md`) cover a
 separate concept; do not conflate the two.
 
@@ -378,7 +380,7 @@ Exercised by `core/internal/cmd/config_test.go` →
 fetches updates, and copies assets into configured targets with M1
 existence-based overwrite detection. Background update-polling is wired
 into every invocation. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
+`openspec/specs/repo-sync/spec.md`.
 
 Data-directory resolution (`<TAI_DATA_DIR>` precedence, lazy creation,
 unwritable handling) is owned by `pkg/datadir` and pinned by the
@@ -564,7 +566,7 @@ Exercised by `core/internal/cmd/sync_test.go` →
 
 `tai repo init <path>` writes a templated source-repo scaffold,
 auto-initialises a git repo, and prints next-step commands. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
+`openspec/specs/repo-init/spec.md`.
 
 ### TC-INIT-001 — Fresh directory scaffold writes every required file
 
@@ -659,7 +661,7 @@ Exercised by `core/internal/cmd/repo_init_test.go` →
 
 `tai workflow list/run` exposes YAML workflow files under
 `<clone>/workflows/**/*.yml` to AI agents as markdown plans. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/workflows/spec.md`.
+`openspec/specs/workflows/spec.md`.
 
 ### TC-WF-001 — Valid workflow loads successfully
 
@@ -801,7 +803,7 @@ Exercised by `core/internal/cmd/sync_test.go` →
 
 `tai standards list/load` exposes markdown standards under
 `<clone>/standards/**/*.md` to AI agents on demand. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/standards/spec.md`.
+`openspec/specs/standards/spec.md`.
 
 ### TC-STD-001 — Standard with frontmatter description
 
@@ -920,7 +922,7 @@ into every configured target's `<commands>/tai/` subdirectory. The
 subdirectory is wholly TAI-owned: re-runs overwrite freely within it
 and remove files the running binary no longer bundles. Content
 outside `<commands>/tai/` is never touched. Spec:
-`openspec/changes/pivot-to-ai-as-code/specs/install-commands/spec.md`.
+`openspec/specs/install-commands/spec.md`.
 
 ### TC-IC-001 — Single-target install writes every bundled file
 
@@ -1012,3 +1014,334 @@ Exercised by `core/internal/cmd/install_commands_test.go` →
 `TestInstallCommands_TCIC007_outside_tai_untouched`.
 
 <!-- Add new IC cases here as their proposals land. -->
+
+---
+
+## PLG — plugin host
+
+`tai plugins <install|update|remove|list>` manages first- and
+third-party plugins, and the root command's subprocess hook routes
+unknown verbs to installed plugins. Plugins are subprocess
+executables under `<TAI_DATA_DIR>/plugins/<name>/`; their assets are
+namespaced under `tai-<name>-*` (skills/agents) and
+`<commands>/tai-<name>/` (commands). Spec:
+`openspec/specs/plugin-host/spec.md`.
+
+### TC-PLG-001 — Installed plugin layout on disk
+
+- **Given** the user successfully installs the first-party `triage`
+  plugin via `tai plugins triage install`,
+- **When** the install completes,
+- **Then** `<TAI_DATA_DIR>/plugins/triage/triage` (or `triage.exe` on
+  Windows) exists and is executable,
+- **And** `<TAI_DATA_DIR>/plugins/triage/assets/` exists as a
+  directory.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG001_plugin_layout_on_disk`.
+
+### TC-PLG-002 — Subprocess invocation passes through stdin/stdout/stderr/exit
+
+- **Given** a plugin `triage` is installed and resolves to an
+  executable that prints `out` to stdout, `err` to stderr, and exits
+  `7`,
+- **When** the user runs `tai triage foo`,
+- **Then** stdout contains `out`,
+- **And** stderr contains `err`,
+- **And** the exit code is `7`,
+- **And** the plugin received `foo` as its `argv[1]`.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG002_passthrough`.
+
+### TC-PLG-003 — Unknown verb exits `UNKNOWN_SUBCOMMAND` with plugin-aware help
+
+- **Given** no plugin named `nope` is installed,
+- **When** the user runs `tai nope`,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: UNKNOWN_SUBCOMMAND]`,
+- **And** the "what to do" bullets name `tai plugins list` and
+  `tai plugins <name> install` as the resolution.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG003_unknown_verb`.
+
+### TC-PLG-004 — Reserved-verb collision is rejected at install
+
+- **Given** the user attempts `tai plugins config install`,
+- **When** the install command runs (before any file is written),
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_NAME_RESERVED]`,
+- **And** no directory is created under `<TAI_DATA_DIR>/plugins/`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsInstall_TCPLG004_reserved_name_rejected`.
+
+### TC-PLG-005 — Env-var contract is set on the subprocess
+
+- **Given** a plugin `triage` is installed and the config has one
+  target `~/.claude` with default sub-paths and a configured
+  `repo-url`,
+- **When** TAI invokes the plugin,
+- **Then** the child process's `TAI_DATA_DIR` is the absolute data
+  directory,
+- **And** `TAI_CLONE_DIR` is the absolute path to
+  `<TAI_DATA_DIR>/source/`,
+- **And** `TAI_TARGETS` is a JSON array containing one object whose
+  `root` field is `~/.claude` and whose `skills`, `commands`,
+  `agents` fields are the effective defaulted paths.
+
+Exercised by `core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG005_env_var_contract`.
+
+### TC-PLG-006 — Skill/agent asset namespace prefix enforced at install
+
+- **Given** a plugin `mytool` whose downloaded bundle includes
+  `assets/skills/foo.md` (no `tai-mytool-` prefix),
+- **When** the user runs `tai plugins mytool install --source ...`,
+- **Then** the install fails with `PLUGIN_ASSET_NAMING`,
+- **And** the error message names the offending file,
+- **And** no files are left under any configured target's namespace
+  for `mytool`.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG006_skill_namespace_enforced`.
+
+### TC-PLG-007 — Commands routed into `<commands>/tai-<plugin>/`
+
+- **Given** a plugin `triage` whose bundle includes
+  `assets/commands/import.md`,
+- **When** the install completes against a target `~/.claude`,
+- **Then** the file lands at `~/.claude/commands/tai-triage/import.md`
+  (regardless of the source filename).
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG007_commands_routed_into_namespace`.
+
+### TC-PLG-008 — Unknown plugin without `--source` fails with `PLUGIN_UNKNOWN`
+
+- **Given** no built-in registry entry for `acme-custom` exists and
+  the user invokes `tai plugins acme-custom install` (no `--source`),
+- **When** the install runs,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_UNKNOWN]`,
+- **And** the "what to do" bullets suggest passing `--source`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsInstall_TCPLG008_unknown_plugin`.
+
+### TC-PLG-009 — 401 surfaces `PLUGIN_FETCH_UNAUTHORIZED`
+
+- **Given** the install fetcher receives a 401 (or 403) from the
+  Releases host and `GITHUB_TOKEN` is unset,
+- **When** the install runs,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: PLUGIN_FETCH_UNAUTHORIZED]`,
+- **And** the "what to do" bullets name `GITHUB_TOKEN` as the
+  resolution.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG009_401_surfaces_unauthorized`.
+
+### TC-PLG-010 — Generic fetch failure surfaces `PLUGIN_FETCH_FAILED`
+
+- **Given** the install fetcher receives a 5xx or a network error,
+- **When** the install runs,
+- **Then** the exit code is `3`,
+- **And** stderr's footer is `[exit 3: PLUGIN_FETCH_FAILED]`,
+- **And** the "what to do" bullets name retry / network checks.
+
+Exercised by `core/internal/plugins/install_test.go` →
+`TestInstall_TCPLG010_5xx_surfaces_failure`.
+
+### TC-PLG-011 — `tai plugins list` with no plugins prints `(no plugins installed)`
+
+- **Given** the state file has zero entries (or does not exist),
+- **When** the user runs `tai plugins list`,
+- **Then** stdout contains the literal `(no plugins installed)`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsList_TCPLG011_empty`.
+
+### TC-PLG-012 — `tai plugins list` renders the installed table
+
+- **Given** the state file records one plugin `triage` version
+  `0.5.0` installed at a known timestamp,
+- **When** the user runs `tai plugins list`,
+- **Then** stdout contains a header row with `name`, `version`, and
+  `installed-at`,
+- **And** a data row containing `triage` and `0.5.0`,
+- **And** the exit code is `0`.
+
+Exercised by `core/internal/cmd/plugins_test.go` →
+`TestPluginsList_TCPLG012_renders_table`.
+
+### TC-PLG-013 — Update replaces the binary and re-syncs assets
+
+- **Given** `triage` version `0.4.0` is installed and the state file
+  records that source,
+- **When** the user runs `tai plugins triage update` and `0.5.0` is
+  available,
+- **Then** the binary on disk is the `0.5.0` build,
+- **And** stale namespaced assets under every configured target are
+  removed and re-written from the new bundle,
+- **And** the state file's `version` field for `triage` is `0.5.0`.
+
+Exercised by `core/internal/plugins/update_test.go` →
+`TestUpdate_TCPLG013_replaces_binary_and_assets`.
+
+### TC-PLG-014 — Remove preserves runtime state and warns
+
+- **Given** `triage` is installed and a runtime-state file exists at
+  `<TAI_DATA_DIR>/plugins/triage/state/triage.db`,
+- **When** the user runs `tai plugins triage remove`,
+- **Then** the plugin binary and `assets/` are deleted,
+- **And** every namespaced asset under each configured target is
+  removed,
+- **And** the entry in `<TAI_DATA_DIR>/state/plugins.json` is gone,
+- **And** the `state/triage.db` runtime file is still on disk,
+- **And** stderr names the retained path and tells the user how to
+  delete it manually.
+
+Exercised at the engine layer by `core/internal/plugins/remove_test.go` →
+`TestRemove_TCPLG014_preserves_runtime_state`, with a CLI-boundary
+anchor at `core/internal/cmd/plugins_test.go` →
+`TestPluginsRemove_TCPLG014_retained_state_warning_at_cli`.
+
+### TC-PLG-015 — `plugins.yml` additive auto-install on `tai sync`
+
+- **Given** the source repo's `plugins.yml` lists `triage` and
+  `triage` is not currently installed,
+- **When** the user runs `tai sync`,
+- **Then** `triage` is installed before the asset-sync phase runs,
+- **And** the state file records the new install.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG015_pluginsyml_auto_install`.
+
+### TC-PLG-016 — Removing a `plugins.yml` entry does not uninstall
+
+- **Given** the user has `triage` installed and the source repo's
+  `plugins.yml` no longer lists it,
+- **When** the user runs `tai sync`,
+- **Then** `triage` remains installed,
+- **And** no warning or stderr message is produced about the
+  missing entry.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG016_pluginsyml_removal_is_noop`.
+
+<!-- Add new PLG cases here as their proposals land. -->
+
+---
+
+## UB — update banner
+
+The host fires a non-blocking background poll on every invocation
+(see TC-SYNC-014..017 for the cadence rule) and, once per calendar
+day, prints an aggregated `[tai]`-prefixed banner to stderr naming
+every pending update across TAI itself, installed plugins, and the
+configured source repo. TAI does not self-update; the banner names
+the package-manager command. Spec:
+`openspec/specs/update-banner/spec.md`.
+
+### TC-UB-001 — Banner fires on first command of the day when updates are pending
+
+- **Given** `<TAI_DATA_DIR>/state/update-check.json` reports TAI
+  `1.3.0` available (current `1.2.0`) and `last-banner-date` is
+  yesterday (or absent),
+- **When** the user runs any TAI command,
+- **Then** stderr contains a banner naming the upgrade,
+- **And** the cache's `last-banner-date` is updated to today's
+  date in the user's local time zone,
+- **And** the foreground command's exit code and stdout are
+  unaffected (the banner does not change either).
+
+Exercised at the engine layer by `core/internal/cmd/banner_test.go`
+→ `TestBanner_TCUB001_fires_on_first_command`, with a CLI-boundary
+wiring anchor at `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB007_fires_at_cli_boundary` (drives `tai --version`
+through `runRoot` and asserts the banner reaches `r.stderr` and not
+`r.stdout`).
+
+### TC-UB-002 — Banner is suppressed on subsequent commands the same day
+
+- **Given** the cache file's `last-banner-date` equals today's
+  date and pending updates remain,
+- **When** the user runs another TAI command,
+- **Then** stderr contains no `[tai]` banner.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB002_suppressed_same_day`.
+
+### TC-UB-003 — No banner when nothing is pending
+
+- **Given** the cache file shows `has-updates: false` for every
+  layer (TAI, plugins, source-repo),
+- **When** the user runs any TAI command,
+- **Then** stderr contains no `[tai]` banner regardless of
+  `last-banner-date`.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB003_nothing_pending_no_banner`.
+
+### TC-UB-004 — Banner is stderr-only, prefixed `[tai]`, at most 4 lines
+
+- **Given** the cache file reports updates for TAI, one plugin,
+  and the source repo,
+- **When** the banner fires,
+- **Then** stdout receives no banner text,
+- **And** stderr's banner has every line prefixed with `[tai]`,
+- **And** the banner is at most 4 lines.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB004_stderr_only_prefixed_short`.
+
+### TC-UB-005 — Banner names exact update commands per layer
+
+- **Given** the cache file reports TAI, one plugin, and the
+  source-repo all have updates,
+- **When** the banner fires,
+- **Then** stderr names a package-manager command for TAI
+  (`brew upgrade tai` or `go install …@latest`),
+- **And** stderr names `tai plugins <name> update` for the plugin,
+- **And** stderr names `tai sync` for the source-repo.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB005_names_exact_commands`.
+
+### TC-UB-006 — `tai update` exits with `UNKNOWN_SUBCOMMAND`
+
+- **Given** the user runs `tai update`,
+- **When** the command resolves,
+- **Then** the exit code is `1`,
+- **And** stderr's footer is `[exit 1: UNKNOWN_SUBCOMMAND]`,
+- **And** the "what to do" bullets name a package-manager command
+  as the resolution (TAI is not self-updating).
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB006_tai_update_is_unknown_subcommand`.
+
+### TC-UB-007 — Banner reaches the user via the CLI entry point
+
+- **Given** the cache file reports a pending TAI update with
+  `last-banner-date` set to yesterday,
+- **When** the user runs any TAI command via the CLI (e.g.
+  `tai --version`),
+- **Then** stderr contains the `[tai]` banner,
+- **And** stdout does not contain the banner,
+- **And** the foreground command's product (the version line) lands
+  on stdout unaffected.
+
+This case is the CLI-boundary integration anchor for the banner
+emitter; TC-UB-001..005 exercise `sync.EmitBanner` directly with a
+captured buffer, but a regression that fails to wire `EmitBanner`
+into the host's request path (e.g. wrong stream, wrong dataDir,
+call omitted) would be invisible to those unit tests. TC-UB-007
+catches the integration regression by driving `runRoot`.
+
+Exercised by `core/internal/cmd/banner_test.go` →
+`TestBanner_TCUB007_fires_at_cli_boundary`.
+
+<!-- Add new UB cases here as their proposals land. -->

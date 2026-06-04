@@ -2,6 +2,7 @@ package cmd_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -219,7 +220,7 @@ func TestImport_TCIMP081_branch_header_format(t *testing.T) {
 	}
 
 	// TC-IMP-002 persistence half: the branches row must exist.
-	dbPath := filepath.Join(iso.DataDir, "tai.db")
+	dbPath := filepath.Join(iso.DataDir, "plugins", "triage", "state", "triage.db")
 	db, err := storage.OpenAt(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("OpenAt: %v", err)
@@ -255,7 +256,7 @@ func TestImport_TCIMP082_empty_payload(t *testing.T) {
 // the comments table doesn't have exactly want rows.
 func assertCommentCount(t *testing.T, dataDir string, want int) {
 	t.Helper()
-	dbPath := filepath.Join(dataDir, "tai.db")
+	dbPath := filepath.Join(dataDir, "plugins", "triage", "state", "triage.db")
 	db, err := storage.OpenAt(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("OpenAt: %v", err)
@@ -267,5 +268,49 @@ func assertCommentCount(t *testing.T, dataDir string, want int) {
 	}
 	if n != want {
 		t.Fatalf("expected %d comments, got %d", want, n)
+	}
+}
+
+// TestImport_TCMIG002_db_path_and_state_dir_mode exercises TC-MIG-002.
+//
+// Two assertions:
+//   - The DB file lands at exactly
+//     `<dataDir>/plugins/triage/state/triage.db`. The path segments
+//     are inlined as literals (NOT taken from a `filepath.Join`
+//     constant shared with production) so a path drift in
+//     storage.Open() surfaces as a test failure rather than the test
+//     silently shifting alongside the regression.
+//   - The state directory mode is `0o755`. A regression that called
+//     `os.MkdirAll(stateDir, 0o600)` would orphan the data on
+//     restricted-permission inspection but otherwise function — the
+//     mode is part of the spec's contract.
+func TestImport_TCMIG002_db_path_and_state_dir_mode(t *testing.T) {
+	iso := cmdtest.Isolate(t)
+
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), validImportPR, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	// Inline-literal path assertion: deliberately avoids any helper
+	// that shares a constant with production code.
+	wantDir := iso.DataDir + "/plugins/triage/state"
+	wantDB := wantDir + "/triage.db"
+
+	info, err := os.Stat(wantDB)
+	if err != nil {
+		t.Fatalf("expected DB at %s, got: %v", wantDB, err)
+	}
+	if info.IsDir() {
+		t.Fatalf("expected DB file at %s, got a directory", wantDB)
+	}
+
+	dirInfo, err := os.Stat(wantDir)
+	if err != nil {
+		t.Fatalf("expected state directory at %s, got: %v", wantDir, err)
+	}
+	if !dirInfo.IsDir() {
+		t.Fatalf("expected directory at %s, got a regular file", wantDir)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o755 {
+		t.Errorf("state directory mode: want 0o755, got %o", got)
 	}
 }

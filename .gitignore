@@ -1,0 +1,8 @@
+# Built binaries (produced by `go build ./...` against the cmd/ trees)
+/tai
+/triage
+/tai-ledger
+
+# Go test artefacts
+*.test
+*.out

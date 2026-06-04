@@ -137,16 +137,17 @@ Inside `core/`:
 
 - `core/cmd/tai/main.go` — entry point. Wires the root `urfave/cli` command, calls `Run`, fires the background update-check goroutine (`sync.Schedule`) with a brief Wait on exit. Thin — no business logic.
 - `core/internal/cmd/` — command-tree assembly (`NewRoot`, plus one file per top-level verb: `config.go`, `repo.go`, `sync.go`, ...). End-to-end tests live alongside as `*_test.go`.
-- `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/changes/pivot-to-ai-as-code/specs/config/spec.md`.
-- `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md`.
-- `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/changes/pivot-to-ai-as-code/specs/repo-init/spec.md`.
-- `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host (Phase 4).
+- `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/specs/config/spec.md`.
+- `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/specs/repo-sync/spec.md`.
+- `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/specs/repo-init/spec.md`.
+- `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host. `verbs.IsReserved(name)` is the install-time gate that emits `PLUGIN_NAME_RESERVED`.
+- `core/internal/plugins/` — plugin host: built-in first-party registry (`registry.go`), on-disk state (`state.go`, written to `<TAI_DATA_DIR>/state/plugins.json`), the HTTP-backed `Fetcher` (`fetch.go`), the asset namespacing rules (`assets.go`), and the install/update/remove/list verb implementations. Spec: `openspec/specs/plugin-host/spec.md`.
 - `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
 - `core/test-cases.md` — BDD spec for core-CLI behaviours.
 
 Inside each `plugins/<name>/`:
 
-- `plugins/<name>/cmd/<binary>/main.go` — entry point for the plugin's executable. Consumes the wire-level plugin contract (env vars `TAI_CLONE_DIR`, `TAI_TARGETS`, `TAI_DATA_DIR`) via `pkg/taiplugin` (once it exists) and dispatches to its own subcommands.
+- `plugins/<name>/cmd/<binary>/main.go` — entry point for the plugin's executable. Consumes the wire-level plugin contract (env vars `TAI_CLONE_DIR`, `TAI_TARGETS`, `TAI_DATA_DIR`) via `pkg/taiplugin` and dispatches to its own subcommands.
 - `plugins/<name>/internal/<domain>/` — plugin-only domain logic. Not importable from `core/` or sibling plugins.
 - `plugins/<name>/internal/version/` — plugin's own linker-injectable version string, independent of core.
 - `plugins/<name>/assets/` — bundled commands / skills / agents the plugin installs into configured targets at install time.
@@ -159,6 +160,7 @@ Inside `pkg/`:
 - `pkg/exitcode/` — named exit-code constants.
 - `pkg/cliexec/` — `Run(ctx, cmd, args)` wrapper around `*cli.Command.Run` that turns panics into structured `INTERNAL_ERROR` errors. Used by every binary's `main` and by every cmdtest harness so production and tests share the same recovery path.
 - `pkg/datadir/` — resolves and (lazy-) creates TAI's per-user data directory (`$TAI_DATA_DIR` > `$XDG_DATA_HOME/tai/` > platform default). Promoted from `plugins/triage/internal/datadir` in Phase 2 of pivot-to-ai-as-code when `core/internal/sync` needed cross-tree access. Surfaces `DATA_DIR_UNWRITABLE` on failure.
+- `pkg/taiplugin/` — Go SDK for plugin authors. `taiplugin.Load()` parses the wire-contract env vars (`TAI_DATA_DIR`, `TAI_CLONE_DIR`, `TAI_TARGETS`) into a typed `*Context`. `EnvVars(...)` is the inverse used by `tai` itself when invoking a plugin; the pair guarantees that a plugin authored against the SDK sees exactly what the host promises. The package's three env-var names and the Target struct shape are append-only.
 - `pkg/test-cases.md` — BDD spec for the framework's stability contract.
 
 Production code lives under `core/internal/`, `plugins/<name>/internal/`, or `pkg/`. The two `internal/` trees enforce isolation between core and plugins; `pkg/` exposes the small, stable surface plugin authors are allowed to import. Anything under either `internal/` tree cannot be imported by other modules — that's the contract.
@@ -191,6 +193,93 @@ Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVers
 - Logging: `log/slog` from the standard library.
 - Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `core/internal/version.String`, `plugins/<name>/internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow. Each binary owns its own version package — core and each plugin ship on independent release lifecycles.
 - One exported symbol per file is a guideline, not a rule — but if a file has many, look for a missing package boundary.
+
+---
+
+## Plugin host
+
+The plugin layer is a subprocess-exec contract, not an in-process Go-plugin abstraction. Anything a plugin needs from `tai` flows over a small, stable surface: three environment variables and the foundation error template.
+
+### Wire contract (do not change without a major version bump)
+
+When `tai` invokes a plugin subprocess (`tai <plugin> <args>`), it sets these environment variables in addition to the inherited environment:
+
+| Variable | Meaning |
+|----------|---------|
+| `TAI_DATA_DIR` | Absolute path of `tai`'s per-user data directory. Plugins place their own state under `$TAI_DATA_DIR/plugins/<name>/state/`. |
+| `TAI_CLONE_DIR` | Absolute path of the source-repo clone, or empty when no `repo-url` is configured. |
+| `TAI_TARGETS` | JSON array of `{root, skills, commands, agents}` for every configured target, with effective (defaulted) sub-paths. Empty array when no targets are configured. |
+
+Stdin, stdout, stderr, and the exit code pass through unchanged. The host translates a non-zero child exit into its own exit code; the plugin owns its own template-conforming error output via `pkg/cliout`.
+
+Go plugin authors should not parse the env vars themselves: import `pkg/taiplugin` and call `taiplugin.Load()` for a typed `*Context`. The same package re-exports the error code taxonomy (`pkg/errcode`) and the CLI output writer (`pkg/cliout`) so a plugin's footer-format is identical to `tai`'s.
+
+### Asset namespacing
+
+Every asset a plugin distributes lives inside the plugin's namespace. The rules are enforced at install time:
+
+- **Skills**: every entry in the plugin's `assets/skills/` MUST start with `tai-<plugin>-`. Install fails with `PLUGIN_ASSET_NAMING` otherwise.
+- **Agents**: same prefix rule for `assets/agents/`.
+- **Commands**: filenames in `assets/commands/` are unconstrained — `tai` routes them into `<target.commands>/tai-<plugin>/` regardless of authored name.
+
+The namespace IS the manifest. `tai plugins <name> update` wipes the plugin's namespace in every target and re-copies, with no overwrite prompts.
+
+### Local state: `plugins.json`
+
+The host's record of installed plugins lives at
+`<TAI_DATA_DIR>/state/plugins.json`. The file's shape:
+
+```json
+{
+  "plugins": [
+    {
+      "name": "triage",
+      "source": {
+        "host": "github.com",
+        "repo": "dmastrorillo/tai",
+        "subpath": "",
+        "version": "v0.5.0"
+      },
+      "version": "v0.5.0",
+      "installed-at": "2026-05-30T12:00:00Z"
+    }
+  ]
+}
+```
+
+The schema is append-only — new fields MAY be added (every existing
+plugin install must remain readable by future tai versions); fields
+MUST NOT be renamed or removed without a major version bump.
+
+### Auto-install from `plugins.yml`
+
+At the start of every `tai sync`, the host reads `<clone>/plugins.yml`
+(if present) and installs any listed plugin not already in
+`plugins.json`. The list is additive — removing a YAML entry does NOT
+uninstall the plugin from a developer's machine (removal is
+exclusively a user gesture via `tai plugins <name> remove`).
+
+A plugin-install failure during this hook (bad source, network down,
+401) aborts the entire `tai sync` with that error code. This is
+intentional: the host cannot reason about which assets in the
+source-repo sync depend on which plugin, so partial-failure modes
+risk producing a broken target state. Users can recover by removing
+the offending entry from `plugins.yml` (or installing the plugin
+manually with `tai plugins <name> install --source ...`) before
+re-running sync.
+
+### Adding a first-party plugin
+
+A first-party plugin is one whose canonical source lives in this repo's GitHub Releases and whose name is hard-coded into the registry. The two-step workflow:
+
+1. **Register the entry in `core/internal/plugins/registry.go`.** Add an entry to the `builtin` map pointing at `Source{Host: "github.com", Repo: "<this-repo>"}`. The map is the only authoritative list — there is no `plugins.yml` for first-party plugins.
+2. **Cut a release whose assets follow `tai-plugin-<name>-<os>-<arch>.tar.gz`.** The tarball ships the binary and the `assets/` directory at the top level. The CI matrix in `.github/workflows/` builds these assets across the platform matrix; the release job attaches them.
+
+Both steps land in the same OpenSpec change. A registry entry without a release leaves users staring at a `PLUGIN_FETCH_FAILED` until the release ships, so don't merge half of the pair.
+
+### Reserved verb collisions
+
+A plugin's directory name is also its top-level CLI verb. The reserved list (`config`, `sync`, `repo`, `install-commands`, `workflow`, `standards`, `plugins`, `help`, `version`) is owned by `core/internal/verbs.Reserved()`. Adding a new top-level verb to TAI MUST also append to that list in the same OpenSpec change, since the install path checks `verbs.IsReserved` to surface `PLUGIN_NAME_RESERVED`.
 
 ---
 

@@ -215,7 +215,7 @@ The pivot is a single OpenSpec change but lands as ordered phases. Each phase ke
 
 7. **Phase 6 — Triage plugin migration.** Wire `plugins/triage/cmd/triage/main.go` as a real plugin. Re-point all Triage AI tests to invoke `tai triage <verb>` (existing TC-IDs preserved). Bundled commands repackaged as plugin assets with `tai-triage-` prefix.
 
-8. **Phase 7 — docs and release pipeline.** README rewrite (origin story, problem statement, plugin authoring guide). CLAUDE.md updates including the "add a first-party plugin" workflow. CI workflow extended to build and attach `tai` + each plugin binary across the OS/arch matrix.
+8. **Phase 7 — docs.** README rewrite (origin story, problem statement, plugin authoring guide). CLAUDE.md updates including the "add a first-party plugin" workflow. The release pipeline (CI extended to build + attach `tai` + each plugin binary across the OS/arch matrix) is **deferred** to a follow-up proposal so the choice between a hand-rolled workflow and GoReleaser can be made deliberately; the spec still pins the asset-name convention so the deferred work has a stable target.
 
 Rollback strategy: since nothing has shipped to users, rollback is a `git revert` away. No deployed state to migrate back. The pre-pivot tag is preserved on `main`'s history; reverting drops back to it cleanly.
 

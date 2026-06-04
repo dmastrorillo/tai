@@ -54,13 +54,17 @@ func NewRoot() *cli.Command {
 			newWorkflowCommand(),
 			newStandardsCommand(),
 			newInstallCommandsCommand(),
+			newPluginsCommand(),
 		},
 
-		Action: func(_ context.Context, c *cli.Command) error {
-			if args := c.Args(); args.Present() {
-				return errcode.Newf(errcode.UnknownSubcommand,
-					"unknown command: %q", args.First()).
-					WithHelp("run `tai --help` to see available commands and flags")
+		Action: func(ctx context.Context, c *cli.Command) error {
+			// Positional args that didn't match a reserved verb may
+			// resolve to an installed plugin via subprocess
+			// invocation (specs/plugin-host/spec.md). The dispatcher
+			// returns UNKNOWN_SUBCOMMAND with plugin-aware help when
+			// no plugin matches.
+			if c.Args().Present() {
+				return dispatchPluginOrUnknown(ctx, c)
 			}
 			return cli.ShowAppHelp(c)
 		},

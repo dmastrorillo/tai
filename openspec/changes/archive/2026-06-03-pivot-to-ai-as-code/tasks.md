@@ -81,50 +81,52 @@
 
 ## 8. Phase 4 — Plugin host
 
-- [ ] 8.1 Add BDD cases for `plugin-host` to `core/test-cases.md` (TC-PLG-* category)
-- [ ] 8.2 Append `PLUGIN_UNKNOWN`, `PLUGIN_NAME_RESERVED`, `PLUGIN_ASSET_NAMING`, `PLUGIN_FETCH_UNAUTHORIZED`, `PLUGIN_FETCH_FAILED` to `pkg/errcode`
-- [ ] 8.3 Create `pkg/taiplugin` SDK: parse `TAI_CLONE_DIR`, `TAI_TARGETS` (JSON), `TAI_DATA_DIR` into a typed `Context`; re-export `errcode` and `cliout` for plugin author ergonomics
-- [ ] 8.4 Define the built-in first-party registry in `core/internal/plugins/registry.go` as a `map[string]Source` — start with `triage` → this repo's GitHub Releases
-- [ ] 8.5 Implement plugin install: registry/explicit-source resolution, GitHub Releases asset fetch matching `tai-plugin-<name>-<os>-<arch>`, opportunistic `GITHUB_TOKEN`, write binary + assets/ to `<TAI_DATA_DIR>/plugins/<name>/`, validate `tai-<name>-` prefix on skills/agents, sync assets into every target's namespace, record in `<TAI_DATA_DIR>/state/plugins.json`
-- [ ] 8.6 Implement plugin update: re-fetch latest from recorded source, wipe namespace in each target, re-copy, update state
-- [ ] 8.7 Implement plugin remove: wipe target namespace and `<TAI_DATA_DIR>/plugins/<name>/` (preserve `state/` subdir), warn user about retained data
-- [ ] 8.8 Implement `tai plugins list` — table output from state file
-- [ ] 8.9 Implement subprocess invocation for `tai <plugin-name> <args>`: lookup, exec, env-var contract, passthrough stdin/stdout/stderr/exit; emit `UNKNOWN_SUBCOMMAND` for unresolved names
-- [ ] 8.10 Implement `plugins.yml` additive auto-install at start of `tai sync`
-- [ ] 8.11 Document the plugin wire contract (env vars, asset namespacing, error template expectation) AND the "to add a first-party plugin: register in `core/internal/plugins/registry.go` + cut release" workflow in `CLAUDE.md`. This MUST happen in this phase (not Phase 7) — Phase 6 (Triage migration) wires the first plugin and would otherwise set precedent with no documented contract. README sections may still be deferred to Phase 7 but `CLAUDE.md` updates land here
+- [x] 8.1 Add BDD cases for `plugin-host` to `core/test-cases.md` (TC-PLG-* category)
+- [x] 8.2 Append `PLUGIN_UNKNOWN`, `PLUGIN_NAME_RESERVED`, `PLUGIN_ASSET_NAMING`, `PLUGIN_FETCH_UNAUTHORIZED`, `PLUGIN_FETCH_FAILED` to `pkg/errcode`
+- [x] 8.3 Create `pkg/taiplugin` SDK: parse `TAI_CLONE_DIR`, `TAI_TARGETS` (JSON), `TAI_DATA_DIR` into a typed `Context`; re-export `errcode` and `cliout` for plugin author ergonomics
+- [x] 8.4 Define the built-in first-party registry in `core/internal/plugins/registry.go` as a `map[string]Source` — start with `triage` → this repo's GitHub Releases
+- [x] 8.5 Implement plugin install: registry/explicit-source resolution, GitHub Releases asset fetch matching `tai-plugin-<name>-<os>-<arch>`, opportunistic `GITHUB_TOKEN`, write binary + assets/ to `<TAI_DATA_DIR>/plugins/<name>/`, validate `tai-<name>-` prefix on skills/agents, sync assets into every target's namespace, record in `<TAI_DATA_DIR>/state/plugins.json`
+- [x] 8.6 Implement plugin update: re-fetch latest from recorded source, wipe namespace in each target, re-copy, update state
+- [x] 8.7 Implement plugin remove: wipe target namespace and `<TAI_DATA_DIR>/plugins/<name>/` (preserve `state/` subdir), warn user about retained data
+- [x] 8.8 Implement `tai plugins list` — table output from state file
+- [x] 8.9 Implement subprocess invocation for `tai <plugin-name> <args>`: lookup, exec, env-var contract, passthrough stdin/stdout/stderr/exit; emit `UNKNOWN_SUBCOMMAND` for unresolved names
+- [x] 8.10 Implement `plugins.yml` additive auto-install at start of `tai sync`
+- [x] 8.11 Document the plugin wire contract (env vars, asset namespacing, error template expectation) AND the "to add a first-party plugin: register in `core/internal/plugins/registry.go` + cut release" workflow in `CLAUDE.md`. This MUST happen in this phase (not Phase 7) — Phase 6 (Triage migration) wires the first plugin and would otherwise set precedent with no documented contract. README sections may still be deferred to Phase 7 but `CLAUDE.md` updates land here
 
 ## 9. Phase 5 — Update banner
 
-- [ ] 9.1 Add BDD cases for `update-banner` to `core/test-cases.md` (TC-UB-* category)
-- [ ] 9.2 Implement the background check goroutine that refreshes `<TAI_DATA_DIR>/state/update-check.json` when older than `update-check-interval` (default 6h, configurable, `0` disables)
-- [ ] 9.3 Implement the once-per-day banner gated by `last-banner-date` field; aggregates pending updates across TAI itself, installed plugins, and source repo
-- [ ] 9.4 Verify banner is on stderr only, prefixed `[tai]`, at most 4 lines, names exact commands the user runs to update
-- [ ] 9.5 Verify `tai update` exits with `UNKNOWN_SUBCOMMAND` (no self-update verb)
-- [ ] 9.6 Verify no banner fires twice on the same calendar day
+- [x] 9.1 Add BDD cases for `update-banner` to `core/test-cases.md` (TC-UB-* category)
+- [x] 9.2 Implement the background check goroutine that refreshes `<TAI_DATA_DIR>/state/update-check.json` when older than `update-check-interval` (default 6h, configurable, `0` disables)
+- [x] 9.3 Implement the once-per-day banner gated by `last-banner-date` field; aggregates pending updates across TAI itself, installed plugins, and source repo
+- [x] 9.4 Verify banner is on stderr only, prefixed `[tai]`, at most 4 lines, names exact commands the user runs to update
+- [x] 9.5 Verify `tai update` exits with `UNKNOWN_SUBCOMMAND` (no self-update verb)
+- [x] 9.6 Verify no banner fires twice on the same calendar day
 
 ## 10. Phase 6 — Triage plugin migration
 
-- [ ] 10.1 Add new TC-IDs to `plugins/triage/test-cases.md` for any new behavior introduced by the migration (most existing cases carry forward verbatim)
-- [ ] 10.2 Build `plugins/triage/cmd/triage/main.go` as a standalone binary entrypoint consuming `TAI_*` env vars via `pkg/taiplugin`
-- [ ] 10.3 Re-namespace existing Triage subcommands so they are exposed as `tai triage <verb>` via TAI's subprocess invocation (the verbs themselves — `import`, `accept`, `list`, etc. — stay the same)
-- [ ] 10.4 Move existing Triage AI bundled commands (the `cmdframework`-managed assets) into `plugins/triage/assets/commands/` and verify they install into `<target>/<commands>/tai-triage/`
-- [ ] 10.5 Re-point every Triage AI end-to-end test in `plugins/triage/internal/cmdtest` to invoke via the new `tai triage <verb>` route, exercising the subprocess wiring
-- [ ] 10.6 Verify the Triage plugin's SQLite database lives at `<TAI_DATA_DIR>/plugins/triage/state/` and is created lazily
-- [ ] 10.7 Verify Triage plugin assets named `tai-triage-*` (skills/agents) pass install-time namespace validation; rename any non-conformant assets in `plugins/triage/assets/`
-- [ ] 10.8 Add `triage` to the first-party registry entry in `core/internal/plugins/registry.go`
+- [x] 10.1 Add new TC-IDs to `plugins/triage/test-cases.md` for any new behavior introduced by the migration (most existing cases carry forward verbatim)
+- [x] 10.2 Build `plugins/triage/cmd/triage/main.go` as a standalone binary entrypoint consuming `TAI_*` env vars via `pkg/taiplugin`
+- [x] 10.3 Re-namespace existing Triage subcommands so they are exposed as `tai triage <verb>` via TAI's subprocess invocation (the verbs themselves — `import`, `accept`, `list`, etc. — stay the same)
+- [x] 10.4 Move existing Triage AI bundled commands (the `cmdframework`-managed assets) into `plugins/triage/assets/commands/` and verify they install into `<target>/<commands>/tai-triage/`
+- [x] 10.5 Re-point every Triage AI end-to-end test in `plugins/triage/internal/cmdtest` to invoke via the new `tai triage <verb>` route, exercising the subprocess wiring
+- [x] 10.6 Verify the Triage plugin's SQLite database lives at `<TAI_DATA_DIR>/plugins/triage/state/` and is created lazily
+- [x] 10.7 Verify Triage plugin assets named `tai-triage-*` (skills/agents) pass install-time namespace validation; rename any non-conformant assets in `plugins/triage/assets/`
+- [x] 10.8 Add `triage` to the first-party registry entry in `core/internal/plugins/registry.go`
+- [ ] 10.9 (Phase 7+ cleanup, parked here for traceability) Retire the in-process `tai triage install`/`uninstall` flow and remove the `plugins/triage/internal/cmdframework/commands/` duplicate of `plugins/triage/assets/commands/`. While both trees ship, `plugins/triage/assets/assets_test.go` enforces byte-identical parity
+- [ ] 10.10 (Phase 7+ follow-up, parked here for traceability) Add a CLI-boundary test for TC-MIG-003 that builds the triage binary, runs it with `TAI_TARGETS=not-json`, and asserts the `[exit 70: INTERNAL_ERROR]` footer and exit code. Today TC-MIG-003 is anchored at the SDK layer (`TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR` in `pkg/taiplugin/taiplugin_test.go`) which proves the SDK's error contract but not the triage binary's main()-side rendering of that error. The wiring is short and verified by inspection today; a build-and-exec test would close the spec gap
 
-## 11. Phase 7 — Documentation and release pipeline
+## 11. Phase 7 — Documentation
 
-- [ ] 11.1 Rewrite README.md: TAI origin story (Triage AI → TAI), problem statement, install instructions, source-repo concept, plugin authoring overview
-- [ ] 11.2 Finalize CLAUDE.md: review the structural edits made in Phase 0 (task 1.8) and the plugin-authoring section landed in Phase 4 (task 8.11) for end-to-end coherence; tighten or expand wording now that every phase has shipped. No net-new structural content should land here — the load-bearing edits already happened
-- [ ] 11.3 Verify CONTEXT.md reflects current vocabulary; add nesting marker (CONTEXT-MAP.md) only if splits are introduced in this proposal
-- [ ] 11.4 Extend `.github/workflows/` (or equivalent CI) to build matrix: `tai` from `core/cmd/tai/` + `triage` from `plugins/triage/cmd/triage/` across linux/darwin/windows × amd64/arm64; attach as release assets named `tai-<os>-<arch>` and `tai-plugin-triage-<os>-<arch>`
-- [ ] 11.5 Document the wire-level plugin contract (env vars, error-template expectations, asset-naming rules) as a top-level section in README.md and link from CLAUDE.md
+- [x] 11.1 Rewrite README.md: TAI origin story (Triage AI → TAI), problem statement, install instructions, source-repo concept, plugin authoring overview
+- [x] 11.2 Finalize CLAUDE.md: review the structural edits made in Phase 0 (task 1.8) and the plugin-authoring section landed in Phase 4 (task 8.11) for end-to-end coherence; tighten or expand wording now that every phase has shipped. No net-new structural content should land here — the load-bearing edits already happened
+- [x] 11.3 Verify CONTEXT.md reflects current vocabulary; add nesting marker (CONTEXT-MAP.md) only if splits are introduced in this proposal
+- [ ] 11.4 (DEFERRED out of scope — will be reopened in a follow-up proposal) Extend `.github/workflows/` to build the cross-platform release matrix for `tai` + `triage`. The plugin-host spec pins the asset-name convention (`tai-plugin-<name>-<os>-<arch>`); the wiring itself is intentionally postponed so a future proposal can choose between a hand-rolled workflow and GoReleaser without rushing the call here
+- [x] 11.5 Document the wire-level plugin contract (env vars, error-template expectations, asset-naming rules) as a top-level section in README.md and link from CLAUDE.md
 
 ## 12. Cross-cutting verification
 
-- [ ] 12.1 Full green run: `go test ./... && go vet ./... && gofmt -l . && go test -race ./...`
-- [ ] 12.2 Verify the footer-regex invariant test from `pkg/cliout` covers every new error code added in this change
-- [ ] 12.3 Spot-check that every TC-ID added to `core/test-cases.md` and `plugins/triage/test-cases.md` is referenced by at least one test (`grep -r TC-<ID> ...`)
-- [ ] 12.4 Verify the spec deltas in `openspec/changes/pivot-to-ai-as-code/specs/**/*.md` archive cleanly: `openspec status --change pivot-to-ai-as-code` reports `isComplete: true` once all checkboxes are checked
-- [ ] 12.5 Update `openspec/changes/archive/` with the proposal after merge per the CLAUDE.md archival rule
+- [x] 12.1 Full green run: `go test ./... && go vet ./... && gofmt -l . && go test -race ./...`
+- [x] 12.2 Verify the footer-regex invariant test from `pkg/cliout` covers every new error code added in this change
+- [x] 12.3 Spot-check that every TC-ID added to `core/test-cases.md` and `plugins/triage/test-cases.md` is referenced by at least one test (`grep -r TC-<ID> ...`)
+- [x] 12.4 Verify the spec deltas in `openspec/changes/pivot-to-ai-as-code/specs/**/*.md` archive cleanly: `openspec status --change pivot-to-ai-as-code` reports `isComplete: true` once all checkboxes are checked
+- [x] 12.5 Update `openspec/changes/archive/` with the proposal after merge per the CLAUDE.md archival rule

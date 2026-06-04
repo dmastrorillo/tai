@@ -30,6 +30,7 @@ short, stable codes; numbers increment within each category starting at
 | [`INST`](#inst--install--uninstall) | `tai triage install` / `uninstall`, hash-ledger reconciliation |
 | [`IMP`](#imp--import) | `tai triage import -`, JSON validation, upsert semantics |
 | [`TRG`](#trg--triage-state) | list / show / accept / dismiss / complete / status / forget |
+| [`MIG`](#mig--phase-6-migration) | Phase-6 plugin-host migration: binary identity, DB path under `<TAI_DATA_DIR>/plugins/triage/state/`, wire-contract consumption |
 
 (`/tai:import`, `/tai:triage`, and `/tai:verify` slash commands are
 exercised manually — they have no TC-IDs because their conversational
@@ -1604,3 +1605,91 @@ because the harness wires a `strings.Reader` for stdin (always
 non-TTY). The non-interactive path is covered by TC-TRG-093 / TC-TRG-104;
 the env-var and --yes paths are covered by TC-TRG-094 / TC-TRG-092. The
 interactive `y`/`Y` branch is exercised only manually. -->
+
+---
+
+## MIG — Phase 6 migration
+
+The Phase 6 plugin migration repackages the in-process Triage tree
+as a standalone `triage` plugin binary invoked by the tai host via
+the wire contract documented in
+`openspec/specs/plugin-host/spec.md`.
+Most pre-Phase-6 TC-IDs carry forward verbatim — the verb tree
+itself didn't change, only its packaging. The cases below capture
+the migration-specific behaviour visible at the boundary.
+
+### TC-MIG-001 — Binary self-identifies as `triage`
+
+- **Given** the triage binary is invoked with `--version`,
+- **When** the command resolves,
+- **Then** stdout's first line starts with `triage version ` (the
+  pre-Phase-6 prefix was `tai version ` because the code shipped
+  inside the `tai` binary; post-Phase-6 the binary is a standalone
+  `triage` and the verb dispatcher names itself accordingly).
+
+Exercised by `plugins/triage/internal/cmd/root_test.go` →
+`TestVersion_TCMIG001_binary_self_identifies_as_triage`, with the
+outside-git-repo variant at `plugins/triage/internal/cmd/repo_test.go`
+→ `TestVersion_TCMIG001_outside_git_repo`. Core's sibling test
+`TestVersion_TCCMD001_prints_version_string` in
+`core/internal/cmd/root_test.go` covers the host binary's
+`tai --version` line; the two binaries' identity contracts live in
+distinct TC-IDs to preserve CLAUDE.md's global-uniqueness rule.
+
+### TC-MIG-002 — SQLite DB lives under `<TAI_DATA_DIR>/plugins/triage/state/`
+
+- **Given** the triage binary runs with `$TAI_DATA_DIR` set to a
+  data-dir path `D`,
+- **When** any verb that opens storage runs (e.g. `triage import -`),
+- **Then** the SQLite database file is at
+  `D/plugins/triage/state/triage.db`,
+- **And** the parent directory is created lazily with mode `0o755` if
+  it did not already exist.
+
+The path layout lives inside the namespace `tai plugins triage
+remove` preserves (per the plugin-host spec's "the plugin's own
+runtime state under `<TAI_DATA_DIR>/plugins/<name>/state/` MUST be
+preserved" clause), so a remove-then-reinstall cycle keeps the
+triage history intact.
+
+Exercised by `plugins/triage/internal/cmd/import_test.go` →
+`TestImport_TCMIG002_db_path_and_state_dir_mode`. The test asserts
+the path via inline-literal segments (NOT shared with production
+code), and asserts the state directory's mode is `0o755`. The
+existing `TestImport_TCIMP081_branch_header_format` and
+`assertCommentCount` helper also read from the new path, providing
+secondary confirmation.
+
+### TC-MIG-003 — Wire-contract env vars are honoured
+
+- **Given** the host sets `TAI_DATA_DIR`, `TAI_CLONE_DIR`, and
+  `TAI_TARGETS` before spawning the triage subprocess,
+- **When** the triage binary's `main()` starts,
+- **Then** `pkg/taiplugin.Load()` returns a `*Context` with the three
+  fields populated (or empty for an absent variable),
+- **And** a malformed `TAI_TARGETS` payload surfaces as
+  `INTERNAL_ERROR` per the SDK's contract (this is a host bug, not a
+  plugin bug — the test lives at `pkg/taiplugin/taiplugin_test.go`).
+
+The host-side env-var integration is exercised by core's TC-PLG-005
+(`core/internal/cmd/plugin_invoke_test.go`); this case anchors the
+plugin-side acknowledgement that the contract is the load-bearing
+input.
+
+Exercised at the SDK layer by `pkg/taiplugin/taiplugin_test.go` →
+`TestLoad_populates_all_fields` and
+`TestLoad_TCMIG003_malformed_targets_surfaces_INTERNAL_ERROR`, with the
+host-side env-var injection verified at the CLI boundary by
+`core/internal/cmd/plugin_invoke_test.go` →
+`TestPluginInvoke_TCPLG005_env_var_contract`.
+
+**Coverage gap**: the `plugins/triage/cmd/triage/main.go` wrapper
+that wires `taiplugin.Load() → cliout.WriteError → os.Exit` is not
+driven by any test (no test execs the built triage binary with a
+deliberately-malformed `TAI_TARGETS`). The wiring mirrors
+`core/cmd/tai/main.go`'s error-rendering ladder (already
+covered by core's tests) and is short enough to verify by inspection,
+but a future Phase 7+ change MAY introduce a build-and-exec test
+that closes this gap.
+
+<!-- Add new MIG cases here as their proposals land. -->

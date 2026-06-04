@@ -5,13 +5,16 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/dmastrorillo/tai/core/internal/cmd"
+	syncpkg "github.com/dmastrorillo/tai/core/internal/sync"
 	"github.com/dmastrorillo/tai/core/internal/version"
 	"github.com/dmastrorillo/tai/pkg/cliexec"
 	"github.com/dmastrorillo/tai/pkg/cliout"
+	"github.com/dmastrorillo/tai/pkg/datadir"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -35,11 +38,17 @@ func runRoot(t *testing.T, argv ...string) runResult {
 	root := cmd.NewRoot()
 	wireStreams(root, &stdout, &stderr)
 
+	// Mirror main.go's pre-foreground update-banner emission so the
+	// banner-in-CLI wiring is exercised by every runRoot-based test.
+	// Test fixtures that don't seed update-check.json see no banner —
+	// EmitBanner silently returns when there is no state.
+	if dataDir, err := datadir.Resolve(); err == nil {
+		syncpkg.EmitBanner(&stderr, dataDir, time.Now())
+	}
+
 	fullArgs := append([]string{"tai"}, argv...)
 	err := cliexec.Run(context.Background(), root, fullArgs)
-	if err != nil {
-		cliout.WriteError(&stderr, err)
-	}
+	writeStructuredError(&stderr, err)
 
 	return runResult{
 		stdout:   stdout.String(),
@@ -47,6 +56,26 @@ func runRoot(t *testing.T, argv ...string) runResult {
 		exitCode: exitCodeFor(err),
 		err:      err,
 	}
+}
+
+// writeStructuredError mirrors core/cmd/tai/main.go's error rendering
+// rule: render the foundation template ONLY when err is a structured
+// *errcode.Error or a truly unstructured error. A cli.ExitCoder that
+// is NOT an *errcode.Error (today: pluginExitError carrying a child
+// subprocess's exit code) MUST NOT have an INTERNAL_ERROR template
+// rendered over it — the plugin has already written its own stderr.
+func writeStructuredError(stderr *bytes.Buffer, err error) {
+	if err == nil {
+		return
+	}
+	if _, ok := errcode.As(err); ok {
+		cliout.WriteError(stderr, err)
+		return
+	}
+	if _, ok := err.(cli.ExitCoder); ok {
+		return
+	}
+	cliout.WriteError(stderr, err)
 }
 
 // wireStreams sets Writer/ErrWriter on the root and every descendant so

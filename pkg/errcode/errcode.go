@@ -134,6 +134,38 @@ const (
 	StandardNotFound Code = "STANDARD_NOT_FOUND"
 )
 
+// Plugin-host codes (introduced by pivot-to-ai-as-code Phase 4 —
+// plugin host). Append-only; see
+// openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md for
+// the normative meanings.
+const (
+	// PluginUnknown: `tai plugins <name> install` was invoked for a
+	// name that has no entry in the built-in first-party registry
+	// AND no `--source` flag was supplied.
+	PluginUnknown Code = "PLUGIN_UNKNOWN"
+
+	// PluginNameReserved: the user attempted to install a plugin
+	// whose name collides with a reserved top-level verb
+	// (config, sync, repo, install-commands, workflow, standards,
+	// plugins, help, version).
+	PluginNameReserved Code = "PLUGIN_NAME_RESERVED"
+
+	// PluginAssetNaming: a plugin's downloaded `assets/skills/` or
+	// `assets/agents/` contains an entry whose name does not start
+	// with the mandatory `tai-<plugin>-` prefix.
+	PluginAssetNaming Code = "PLUGIN_ASSET_NAMING"
+
+	// PluginFetchUnauthorized: the release-asset fetch returned 401
+	// or 403. Distinct from PluginFetchFailed because the
+	// remediation is specific: set $GITHUB_TOKEN (or the host's
+	// equivalent credential env var).
+	PluginFetchUnauthorized Code = "PLUGIN_FETCH_UNAUTHORIZED"
+
+	// PluginFetchFailed: the release-asset fetch failed for a reason
+	// other than auth (5xx, network unreachable, malformed asset).
+	PluginFetchFailed Code = "PLUGIN_FETCH_FAILED"
+)
+
 // Storage-layer codes (introduced by add-storage-schema). Append-only;
 // see openspec/specs/storage/spec.md for their normative meanings.
 const (
@@ -239,6 +271,11 @@ func (c Code) ExitCode() int {
 		return exitcode.Usage
 	case WorkflowNotFound, StandardNotFound:
 		return exitcode.Precondition
+	case PluginUnknown, PluginNameReserved, PluginAssetNaming,
+		PluginFetchUnauthorized:
+		return exitcode.Usage
+	case PluginFetchFailed:
+		return exitcode.Data
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data
 	case InstallTargetUnwritable:

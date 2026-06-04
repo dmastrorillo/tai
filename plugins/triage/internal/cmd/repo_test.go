@@ -72,22 +72,31 @@ func TestRequireRepo_TCREPO007_malformed_flag_fails(t *testing.T) {
 	cmdtest.AssertErrorFooter(t, r, "REPO_FLAG_INVALID", 1)
 }
 
-// TestVersion_TCCMD001_outside_git_repo locks in TC-CMD-001's
-// repo-independence clause: invoking `tai --version` from a non-git
-// directory still exits 0 with the version banner on stdout.
-func TestVersion_TCCMD001_outside_git_repo(t *testing.T) {
+// TestVersion_TCMIG001_outside_git_repo locks TC-MIG-001's repo-
+// independence clause: invoking `triage --version` from a non-git
+// directory still exits 0 with the version banner on stdout. Same
+// contract as the in-repo case above; this variant just confirms
+// the version path doesn't accidentally reach the repo resolver.
+func TestVersion_TCMIG001_outside_git_repo(t *testing.T) {
 	cmdtest.Chdir(t, t.TempDir())
 
 	r := cmdtest.Run(t, cmd.NewRoot(), "--version")
 
 	cmdtest.AssertNoError(t, r)
 	cmdtest.AssertExitCode(t, r, 0)
-	cmdtest.AssertStdoutContains(t, r, "tai version ")
+	cmdtest.AssertStdoutContains(t, r, "triage version ")
 }
 
-// TestHelp_TCCMD008_outside_git_repo exercises TC-CMD-008: `tai --help`
+// TestHelp_TCCMD008_outside_git_repo exercises TC-CMD-008's repo-
+// independence clause for the triage plugin binary: `triage --help`
 // runs without invoking the repo resolver, exits 0, and surfaces the
-// app name on stdout.
+// app name (`triage`) on stdout.
+//
+// The assertion is the exact app name (set by NewRoot's `Name`
+// field) rather than a substring like "triage" that would also match
+// the Usage line — that way a regression that reverted the rename
+// would surface as a test failure rather than passing on the Usage
+// string.
 func TestHelp_TCCMD008_outside_git_repo(t *testing.T) {
 	cmdtest.Chdir(t, t.TempDir())
 
@@ -95,5 +104,9 @@ func TestHelp_TCCMD008_outside_git_repo(t *testing.T) {
 
 	cmdtest.AssertNoError(t, r)
 	cmdtest.AssertExitCode(t, r, 0)
-	cmdtest.AssertStdoutContains(t, r, "tai")
+	// urfave/cli renders the program name on the "NAME:" or
+	// "USAGE:" line; checking for "triage " (with a trailing space)
+	// distinguishes the program-name occurrence from substrings
+	// inside the Usage description.
+	cmdtest.AssertStdoutContains(t, r, "triage ")
 }

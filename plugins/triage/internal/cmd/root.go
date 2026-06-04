@@ -80,7 +80,7 @@ func NewRoot(opts ...RootOption) *cli.Command {
 		o(cfg)
 	}
 	return &cli.Command{
-		Name:    "tai",
+		Name:    "triage",
 		Usage:   "Triage AI — store, walk, and verify code-review comments",
 		Version: version.String,
 
@@ -108,7 +108,7 @@ func NewRoot(opts ...RootOption) *cli.Command {
 			if args := c.Args(); args.Present() {
 				return errcode.Newf(errcode.UnknownSubcommand,
 					"unknown command: %q", args.First()).
-					WithHelp("run `tai --help` to see available commands and flags")
+					WithHelp("run `triage --help` to see available commands and flags")
 			}
 			// No positional and no subcommand → render help.
 			return cli.ShowAppHelp(c)
@@ -116,7 +116,7 @@ func NewRoot(opts ...RootOption) *cli.Command {
 
 		OnUsageError: func(_ context.Context, _ *cli.Command, err error, _ bool) error {
 			return errcode.Wrap(errcode.UnknownSubcommand, err, err.Error()).
-				WithHelp("run `tai --help` to see available commands and flags")
+				WithHelp("run `triage --help` to see available commands and flags")
 		},
 
 		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {
