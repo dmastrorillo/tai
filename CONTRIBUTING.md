@@ -39,7 +39,7 @@ go test ./...
 
 You need a recent stable Go (anything still in support should work). No other external tooling required to build or test.
 
-Cutting a release additionally requires [GoReleaser](https://goreleaser.com/) ≥ v1.13 (for `monorepo.tag_prefix` support). See [`RELEASE.md`](./RELEASE.md) for the full runbook covering tag conventions, the three `make release-*` targets, required env vars, and one-time tap-repo setup.
+Cutting a release additionally requires **GoReleaser v2** and the **`gh` CLI** on `$PATH`. The plugin release uses a `gh`-based shim because GoReleaser v2's `monorepo.tag_prefix` is Pro-only — see [`RELEASE.md`](./RELEASE.md) for the full runbook covering tag conventions, the three `make release-*` targets, required env vars, and one-time tap-repo setup.
 
 ### Pre-commit hooks (recommended)
 

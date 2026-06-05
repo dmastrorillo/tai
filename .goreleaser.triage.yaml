@@ -3,10 +3,15 @@
 # Spec: openspec/changes/release-cycle/specs/release-cycle/spec.md
 #   ("GoReleaser configuration layout" requirement).
 #
-# Responds ONLY to tags matching `plugins/triage/vX.Y.Z` via
-# `monorepo.tag_prefix`. Adding a future first-party plugin means
-# adding a sibling `.goreleaser.<plugin>.yaml` — never extending
-# this file or the core one.
+# Invoked explicitly by `make release-triage`. GoReleaser does NOT
+# auto-trigger from the `plugins/triage/vX.Y.Z` tag — the Make
+# target extracts the bare semver and passes it via
+# GORELEASER_CURRENT_TAG (the `monorepo.tag_prefix` field that would
+# wire this up natively is Pro-only in v2). Adding a future
+# first-party plugin means adding a sibling
+# `.goreleaser.<plugin>.yaml` — never extending this file or the
+# core one — plus a sibling Make target that does the same
+# prefix-extraction.
 #
 # The archive name `tai-plugin-triage-{os}-{arch}.tar.gz` is the
 # load-bearing contract: `core/internal/plugins.AssetFilename` returns
@@ -15,15 +20,15 @@
 # `tai plugins triage install`. A Go test pins this — see
 # core/internal/plugins/fetch_test.go.
 #
-# Minimum GoReleaser version: v1.13.
+# Requires GoReleaser v2 (OSS — no Pro license required).
 
 version: 2
 
 project_name: tai-plugin-triage
 
-monorepo:
-  tag_prefix: "plugins/triage/"
-  dir: .
+# Subdirectory so `make release-snapshot` can run BOTH configs
+# back-to-back without --clean wiping the previous run's output.
+dist: dist/triage
 
 before:
   hooks:
@@ -60,22 +65,31 @@ archives:
     # fetcher reads tarballs only). Windows is therefore NOT
     # overridden to `.zip` here.
     name_template: "tai-plugin-triage-{{ .Os }}-{{ .Arch }}"
-    format: tar.gz
+    formats: [tar.gz]
     files:
       - LICENSE
 
 checksum:
   name_template: "checksums.txt"
 
-# No `brews:` block — plugins are not Homebrew-distributable. The
-# plugin host discovers binaries by reading
-# `<TAI_DATA_DIR>/plugins/<name>/<name>`; a binary in
+# No `brews:`/`homebrew_casks:` block — plugins are not
+# Homebrew-distributable. The plugin host discovers binaries by
+# reading `<TAI_DATA_DIR>/plugins/<name>/<name>`; a binary in
 # `/opt/homebrew/bin/` is invisible to it.
+
+# GoReleaser's release step is DISABLED for triage. The OSS version
+# of goreleaser v2 doesn't support `monorepo.tag_prefix` or
+# `release.tag` (both Pro-only), so it can't natively publish to a
+# prefixed tag like `plugins/triage/v0.5.0` while computing the
+# bare semver `.Version` from it. Instead, `make release-triage`:
+#   1. Runs goreleaser to BUILD artifacts under dist/triage/
+#      (this config + GORELEASER_CURRENT_TAG=v0.5.0).
+#   2. Calls `gh release create plugins/triage/v0.5.0 ...` to
+#      create the GitHub Release at the full prefixed tag and
+#      upload the artifacts.
+# See RELEASE.md for the runbook.
 release:
-  github:
-    owner: dmastrorillo
-    name: tai
-  prerelease: auto
+  disable: true
 
 changelog:
   use: github

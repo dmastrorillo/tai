@@ -79,6 +79,16 @@ func (h *HTTPFetcher) Fetch(ctx context.Context, pluginName string, src Source, 
 	// back to highest-semver stable `v*` across the foreign repo.
 	// Pre-release tags are dropped at the lookup layer — see
 	// release-cycle spec, "Prefix-aware latest release lookup".
+	//
+	// LOAD-BEARING DEPENDENCY: LatestPrefixedTag returns the FULL
+	// tag_name (e.g. "plugins/triage/v0.5.0"), which lookupAsset
+	// below passes directly to `/releases/tags/<tag>`. That tag
+	// MUST exist on the GitHub Releases page — `make release-triage`
+	// is what creates it via `gh release create <full-prefixed-tag>`.
+	// If a future Make-target edit changes `gh release create` to
+	// publish at the bare semver instead of the prefixed tag, this
+	// lookup will 404. The Make target and this lookup are
+	// load-bearing siblings; change one, change the other.
 	tag := src.Version
 	if tag == "" {
 		prefix := PluginTagPrefix(pluginName, src)

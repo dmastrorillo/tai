@@ -6,3 +6,10 @@
 # Go test artefacts
 *.test
 *.out
+
+# GoReleaser snapshot/release artefacts (written by `make release-*`).
+/dist/
+
+# macOS Finder metadata (matches at every depth — git's default for
+# patterns without a slash).
+.DS_Store

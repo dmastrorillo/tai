@@ -47,8 +47,12 @@ ledger-update:
 # publishing to GitHub Releases or pushing the brew formula. Run this
 # before tagging to catch config drift early.
 #
-# Requires `goreleaser` (>= v1.13 for `monorepo.tag_prefix`) on PATH.
-# See RELEASE.md for install instructions.
+# Each goreleaser invocation writes to its own subdirectory under
+# dist/ (configured via `dist:` at the top of each .goreleaser.*.yaml)
+# so the two runs don't clobber each other when --clean fires.
+#
+# Requires `goreleaser` v2 on PATH. See RELEASE.md for install
+# instructions.
 release-snapshot:
 	goreleaser release --config .goreleaser.core.yaml --snapshot --clean --skip=publish,announce
 	goreleaser release --config .goreleaser.triage.yaml --snapshot --clean --skip=publish,announce
@@ -63,10 +67,41 @@ release-core:
 	goreleaser release --config .goreleaser.core.yaml --clean
 
 # Publish a triage plugin release. The current HEAD MUST be at a
-# `plugins/triage/vX.Y.Z` tag.
+# `plugins/triage/vX.Y.Z` tag AND that tag MUST be pushed to
+# origin (the pre-push check catches the common "forgot to push"
+# mistake before goreleaser spends 10-30s building all archives).
+#
+# Two-step because goreleaser v2 OSS lacks `monorepo.tag_prefix`
+# and `release.tag` (both Pro-only):
+#   1. Run goreleaser with release: { disable: true } to BUILD
+#      cross-platform archives + checksums under dist/triage/,
+#      with GORELEASER_CURRENT_TAG=<bare semver> so .Version is
+#      injected correctly into the binary.
+#   2. Use `gh release create` to create the GitHub Release at the
+#      full prefixed tag and upload the goreleaser-built artifacts.
 #
 # Requires env:
-#   GITHUB_TOKEN              — write scope on dmastrorillo/tai
-# (No tap token required — plugins are not Homebrew-distributable.)
+#   GITHUB_TOKEN  — write scope on dmastrorillo/tai (used by both
+#                   goreleaser and gh).
+# Requires `gh` CLI on PATH (https://cli.github.com/).
 release-triage:
-	goreleaser release --config .goreleaser.triage.yaml --clean
+	@tag="$$(git describe --exact-match --tags HEAD 2>/dev/null || true)"; \
+	case "$$tag" in \
+	  plugins/triage/v*) ;; \
+	  *) echo "ERROR: HEAD not at a plugins/triage/vX.Y.Z tag (got: $$tag)" >&2; exit 1 ;; \
+	esac; \
+	if ! git ls-remote --exit-code origin "refs/tags/$$tag" >/dev/null 2>&1; then \
+	  echo "ERROR: tag $$tag is not pushed to origin. Run: git push origin $$tag" >&2; \
+	  exit 1; \
+	fi; \
+	bare="$${tag#plugins/triage/}"; \
+	echo "Building triage release artifacts for $$tag (.Version=$$bare)..."; \
+	GORELEASER_CURRENT_TAG="$$bare" \
+	  goreleaser release --config .goreleaser.triage.yaml --clean; \
+	echo "Creating GitHub Release $$tag..."; \
+	case "$$bare" in \
+	  *-*) gh release create "$$tag" --title "$$tag" --verify-tag --prerelease \
+	         dist/triage/tai-plugin-triage-*.tar.gz dist/triage/checksums.txt ;; \
+	  *)   gh release create "$$tag" --title "$$tag" --verify-tag \
+	         dist/triage/tai-plugin-triage-*.tar.gz dist/triage/checksums.txt ;; \
+	esac

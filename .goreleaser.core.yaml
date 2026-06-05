@@ -4,27 +4,28 @@
 #   ("GoReleaser configuration layout" requirement).
 #
 # This config is invoked by `make release-core` (or `make release-snapshot`).
-# It responds ONLY to bare `vX.Y.Z` tags at the repo root — the empty
-# `monorepo.tag_prefix` is what gates that. Plugin tags
-# (`plugins/<name>/vX.Y.Z`) are handled by the sibling
-# `.goreleaser.<plugin>.yaml` files.
+# It responds to bare `vX.Y.Z` tags at the repo root. GoReleaser v2
+# picks the most recent matching tag at HEAD; the maintainer ensures
+# HEAD is at a bare semver before running `make release-core`. Plugin
+# tags (`plugins/<name>/vX.Y.Z`) are handled by the sibling
+# `.goreleaser.<plugin>.yaml` files via the Make-target shim (see
+# design.md D2 for why a shim — `monorepo.tag_prefix` is Pro-only in
+# v2).
 #
 # Bare-vs-prefixed tag asymmetry is forced by Go's module-version rule
 # (one go.mod at repo root → only root-level vX.Y.Z tags are valid Go
 # module versions for `go install github.com/dmastrorillo/tai/...`).
 # See design.md D1 for the full rationale.
 #
-# Minimum GoReleaser version: v1.13 (introduces `monorepo.tag_prefix`).
+# Requires GoReleaser v2 (OSS — no Pro license required).
 
 version: 2
 
 project_name: tai
 
-monorepo:
-  # Empty prefix: matches bare `vX.Y.Z` tags. Prefixed tags
-  # (`core/v...`, `plugins/.../v...`) are ignored.
-  tag_prefix: ""
-  dir: .
+# Subdirectory so `make release-snapshot` can run BOTH configs
+# back-to-back without --clean wiping the previous run's output.
+dist: dist/core
 
 before:
   hooks:
@@ -66,9 +67,10 @@ archives:
     # `.zip`. The naming is brew-friendly and matches the convention
     # most Homebrew tap formulae expect.
     name_template: "tai_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -86,25 +88,26 @@ release:
     name: tai
   prerelease: auto
 
-brews:
+homebrew_casks:
   - name: tai
     # Self-hosted tap. The tap repo must exist before this runs (one-
     # time manual setup captured in tasks.md §2.1). HOMEBREW_TAP_GITHUB_TOKEN
     # must be a PAT with `Contents: Write` scope on the tap repo.
+    #
+    # goreleaser v2 deprecated `brews:` in favour of `homebrew_casks:`
+    # (formulas were a hack on top of the cask machinery anyway).
+    # End-user install command is unchanged:
+    # `brew install dmastrorillo/tap/tai`.
+    binaries: [tai]
     repository:
       owner: dmastrorillo
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/dmastrorillo/tai"
     description: "Ship AI tooling (skills, commands, agents, workflows, standards) from a git repo to every developer machine"
-    license: "MIT"
-    # `auto` skips the brew commit for pre-release tags. Matches the
+    # `auto` skips the cask commit for pre-release tags. Matches the
     # spec: "The Homebrew formula SHALL serve stable releases only."
     skip_upload: auto
-    test: |
-      system "#{bin}/tai", "--version"
-    install: |
-      bin.install "tai"
 
 changelog:
   use: github

@@ -31,8 +31,8 @@ The bare-vs-prefixed asymmetry is forced by Go's module-version rule: this repos
 
 The repository SHALL provide two GoReleaser configuration files at the repo root:
 
-- `.goreleaser.core.yaml` — builds and releases the `tai` core binary. Its `monorepo.tag_prefix` MUST be unset (matches bare `vX.Y.Z` tags). Its `archives` block MUST produce `tai_<os>_<arch>.tar.gz` (Windows: `.zip`). Its `brews:` block MUST target the `dmastrorillo/homebrew-tap` repository. Its `builds.ldflags` MUST inject `-X github.com/dmastrorillo/tai/core/internal/version.String={{ .Version }}`.
-- `.goreleaser.triage.yaml` — builds and releases the `triage` plugin binary. Its `monorepo.tag_prefix` MUST be `plugins/triage/`. Its `archives` block MUST produce `tai-plugin-triage-<os>-<arch>.tar.gz` (byte-identical to `core/internal/plugins.AssetFilename("triage", os, arch)`). Its `builds.ldflags` MUST inject `-X github.com/dmastrorillo/tai/plugins/triage/internal/version.String={{ .Version }}`. It MUST NOT define a `brews:` block.
+- `.goreleaser.core.yaml` — builds and releases the `tai` core binary. Triggered by bare `vX.Y.Z` tags at the repo root (GoReleaser v2's default tag matching). Its `archives` block MUST produce `tai_<os>_<arch>.tar.gz` (Windows: `.zip`). Its `homebrew_casks:` block MUST target the `dmastrorillo/homebrew-tap` repository. Its `builds.ldflags` MUST inject `-X github.com/dmastrorillo/tai/core/internal/version.String=v{{ .Version }}`.
+- `.goreleaser.triage.yaml` — builds the `triage` plugin binary; release publishing is delegated to `gh` CLI (see "Plugin release tag-prefix handling" below). Its `archives` block MUST produce `tai-plugin-triage-<os>-<arch>.tar.gz` (byte-identical to `core/internal/plugins.AssetFilename("triage", os, arch)`). Its `builds.ldflags` MUST inject `-X github.com/dmastrorillo/tai/plugins/triage/internal/version.String=v{{ .Version }}`. It MUST set `release: { disable: true }` and MUST NOT define a `homebrew_casks:` block.
 
 Both configurations SHALL build for the matrix `{linux, darwin, windows} × {amd64, arm64}` with `CGO_ENABLED=0`.
 
@@ -144,7 +144,7 @@ Plugin binaries SHALL NOT be distributed via Homebrew. The plugin host requires 
 #### Scenario: Tap formula updated on core release
 
 - **WHEN** the maintainer runs `make release-core` against tag `v0.6.0` with a valid `HOMEBREW_TAP_GITHUB_TOKEN`
-- **THEN** a commit is pushed to `dmastrorillo/homebrew-tap` updating `Formula/tai.rb` to point at the `v0.6.0` archives
+- **THEN** a commit is pushed to `dmastrorillo/homebrew-tap` updating `Casks/tai.rb` to point at the `v0.6.0` archives
 - **AND** `brew install dmastrorillo/tap/tai` installs version `v0.6.0`
 
 #### Scenario: Brew install reports correct version
@@ -181,14 +181,14 @@ The Makefile SHALL provide three release-related targets:
 
 - `make release-snapshot` — runs both `.goreleaser.*.yaml` configurations with `--snapshot --clean --skip=publish,announce`. Produces archives under `dist/` without publishing or pushing. Has no required env vars. Used to validate config changes locally before tagging.
 - `make release-core` — runs `goreleaser release --config .goreleaser.core.yaml --clean`. Requires `GITHUB_TOKEN` (releases scope) and `HOMEBREW_TAP_GITHUB_TOKEN` (write scope on the tap repo) in the env. GoReleaser will refuse to run if the working tree is not at a tag or has uncommitted changes — this is the expected gate.
-- `make release-triage` — runs `goreleaser release --config .goreleaser.triage.yaml --clean`. Requires `GITHUB_TOKEN`. No tap token required (no brew block).
+- `make release-triage` — two-step plugin-release publishing. (1) Extracts the bare semver from the current `plugins/triage/vX.Y.Z` tag and runs `GORELEASER_CURRENT_TAG=<bare> goreleaser release --config .goreleaser.triage.yaml --clean` to build archives under `dist/triage/` (the config disables goreleaser's release-publish step). (2) Runs `gh release create plugins/triage/vX.Y.Z dist/triage/tai-plugin-triage-*.tar.gz dist/triage/checksums.txt --title plugins/triage/vX.Y.Z` (and `--prerelease` when the tag carries a SemVer pre-release suffix). Requires `GITHUB_TOKEN` (used by `gh`) and the `gh` CLI on `$PATH`.
 
 CI/CD execution of these targets via GitHub Actions is explicitly out of scope for this capability and is a separate follow-up.
 
 #### Scenario: release-snapshot validates without publishing
 
 - **WHEN** the maintainer runs `make release-snapshot` on a dirty working tree
-- **THEN** archives are produced under `dist/`
+- **THEN** archives are produced under `dist/core/` and `dist/triage/`
 - **AND** no GitHub Release is created
 - **AND** no commit is pushed to `dmastrorillo/homebrew-tap`
 
@@ -196,7 +196,29 @@ CI/CD execution of these targets via GitHub Actions is explicitly out of scope f
 
 - **WHEN** the maintainer runs `make release-core` and HEAD is NOT at a `vX.Y.Z` tag
 - **THEN** GoReleaser exits non-zero with a clear error naming the missing tag
-- **AND** no GitHub Release is created
+
+### Requirement: Plugin release tag-prefix handling
+
+Because GoReleaser v2's OSS edition lacks `monorepo.tag_prefix` and `release.tag` (both Pro-only), plugin releases SHALL be published via a Make-target shim that:
+
+1. Extracts the bare semantic version (e.g. `v0.5.0`) from the prefixed git tag (e.g. `plugins/triage/v0.5.0`).
+2. Sets `GORELEASER_CURRENT_TAG` to the bare semver so GoReleaser computes `.Version` correctly for ldflags injection.
+3. Runs GoReleaser with `release: { disable: true }` to BUILD archives only.
+4. Invokes `gh release create <full-prefixed-tag> <artifacts>` to publish the GitHub Release at the original prefixed tag.
+
+This pipeline SHALL produce a GitHub Release whose `tag_name` matches the maintainer's pushed tag verbatim (`plugins/triage/vX.Y.Z`) — required because `core/internal/plugins.LatestPrefixedTag` filters releases by tag prefix.
+
+#### Scenario: Bare semver injected into triage binary
+
+- **WHEN** `make release-triage` runs against tag `plugins/triage/v0.5.0`
+- **THEN** the resulting `triage` binary, when interrogated for its version, reports `v0.5.0` (not `plugins/triage/v0.5.0`, not `dev`)
+
+#### Scenario: GitHub Release published at prefixed tag
+
+- **WHEN** `make release-triage` runs against tag `plugins/triage/v0.5.0`
+- **THEN** a GitHub Release is created on `dmastrorillo/tai` with `tag_name == "plugins/triage/v0.5.0"`
+- **AND** the release's assets include `tai-plugin-triage-<os>-<arch>.tar.gz` for every `(os, arch)` in the build matrix
+- **AND** the release is NOT marked `prerelease: true` (the tag has no SemVer pre-release suffix)
 
 ### Requirement: Conventional Commits scope enforcement
 

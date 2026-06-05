@@ -27,9 +27,10 @@ make release-snapshot
 
 ### One-time
 
-- **GoReleaser ≥ v1.13** on `$PATH` (the `monorepo.tag_prefix` feature lands in v1.13).
+- **GoReleaser v2** on `$PATH`. The pipeline is OSS-only; no Pro license required. (We hand-roll the monorepo prefix handling in the Makefile — see "How plugin tag-prefix handling works" below — because `monorepo.tag_prefix` and `release.tag` are Pro-only in v2.)
   - macOS: `brew install goreleaser/tap/goreleaser`
   - Linux: see <https://goreleaser.com/install/>
+- **`gh` CLI** on `$PATH` (<https://cli.github.com/>). `make release-triage` uses `gh release create` to publish the plugin release at its prefixed tag — see "How plugin tag-prefix handling works" below.
 - **A self-hosted Homebrew tap repo** at `github.com/dmastrorillo/homebrew-tap`. Create it empty — the first `make release-core` populates it. A one-line README mentioning "auto-managed by GoReleaser" is enough.
 - **A `HOMEBREW_TAP_GITHUB_TOKEN`** in your shell env. Generate a fine-grained PAT with **Contents: Write** scope limited to `dmastrorillo/homebrew-tap`. Required for core releases only (plugin releases don't push to the tap).
 
@@ -58,7 +59,7 @@ Pre-releases use the standard SemVer suffix: `v0.6.0-rc.1`, `plugins/triage/v0.5
 
 ### `make release-snapshot`
 
-Runs both configs with `--snapshot --clean --skip=publish,announce`. Produces `dist/` archives without publishing or pushing. No env vars required. Use this to validate changes to `.goreleaser.*.yaml` before tagging.
+Runs both configs with `--snapshot --clean --skip=publish,announce`. Produces archives under `dist/core/` (one per `os × arch`, plus the generated cask under `dist/core/homebrew/Casks/tai.rb`) and `dist/triage/` (same matrix, all `.tar.gz`). No env vars required. Use this to validate changes to `.goreleaser.*.yaml` before tagging.
 
 ### `make release-core`
 
@@ -67,19 +68,34 @@ Runs `goreleaser release --config .goreleaser.core.yaml --clean`. Publishes:
 - A GitHub Release on `dmastrorillo/tai` at the current tag.
 - Archives: `tai_<os>_<arch>.tar.gz` (Linux/macOS), `tai_windows_<arch>.zip`.
 - `checksums.txt` alongside.
-- An updated `Formula/tai.rb` committed and pushed to `dmastrorillo/homebrew-tap`.
+- An updated `Casks/tai.rb` committed and pushed to `dmastrorillo/homebrew-tap` (the cask carries a `binary "tai"` stanza so brew symlinks it into `/opt/homebrew/bin/tai`).
 
 Requires: `GITHUB_TOKEN`, `HOMEBREW_TAP_GITHUB_TOKEN`.
 
 ### `make release-triage`
 
-Runs `goreleaser release --config .goreleaser.triage.yaml --clean`. Publishes:
+Two-step because the OSS goreleaser v2 lacks the Pro-only `monorepo.tag_prefix` / `release.tag` features needed for prefixed-tag releases. The target:
+
+1. Extracts the bare semver from the current `plugins/triage/vX.Y.Z` tag.
+2. Runs goreleaser with `release: { disable: true }` and `GORELEASER_CURRENT_TAG=<bare>` so the binary's ldflags-injected `version.String` is the bare semver.
+3. Calls `gh release create plugins/triage/vX.Y.Z ... dist/triage/*.tar.gz checksums.txt` to publish at the prefixed tag.
+
+Publishes:
 
 - A GitHub Release on `dmastrorillo/tai` at the current `plugins/triage/vX.Y.Z` tag.
 - One archive per `os × arch`: `tai-plugin-triage-<os>-<arch>.tar.gz` (always tar.gz, even on Windows — the plugin-host fetcher reads tarballs only).
 - `checksums.txt` alongside.
 
-Requires: `GITHUB_TOKEN`. NO tap token — plugins are not Homebrew-distributable.
+Requires: `GITHUB_TOKEN` (used by `gh`), `gh` CLI on `$PATH`. NO tap token — plugins are not Homebrew-distributable.
+
+### How plugin tag-prefix handling works
+
+GoReleaser v2 made both `monorepo.tag_prefix` and `release.tag` Pro-only. The OSS workaround in this repo:
+
+- **Core** uses bare `vX.Y.Z` tags and needs no special handling — GoReleaser's defaults Just Work.
+- **Plugins** use prefixed tags (`plugins/<name>/vX.Y.Z`). The Make target extracts the bare `vX.Y.Z` portion, exports it as `GORELEASER_CURRENT_TAG` so GoReleaser computes `.Version` from a sane string (e.g. `0.5.0`, not `plugins/triage/v0.5.0`), and disables GoReleaser's release-publishing step (`release: { disable: true }`). The actual GitHub Release is then created via `gh release create <full-prefixed-tag>` with the goreleaser-built artifacts uploaded as assets.
+
+If a future first-party plugin is added, copy `.goreleaser.triage.yaml` to `.goreleaser.<plugin>.yaml`, adjust the build path/binary name/archive template, and add a sibling Make target that does the same prefix-extraction dance.
 
 ---
 

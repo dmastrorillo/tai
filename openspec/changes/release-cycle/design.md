@@ -49,15 +49,26 @@ For plugins, no such constraint exists — they are not installable via `go inst
 - **Prefixed tags for core too (`core/vX.Y.Z`).** Symmetric, prettier, but breaks `go install`. Could be salvaged by splitting the module — see D2.
 - **Split the module per binary.** `core/go.mod` (path `github.com/dmastrorillo/tai/core`), `plugins/triage/go.mod`. Then `core/v0.6.0` becomes a valid submodule version. Considered and rejected: the refactor cost (every cross-tree import gets versioned, `go.work` for local development, `pkg/` becomes a third module, every BDD test harness recompiles) is much larger than the tag-asymmetry it cures. Asymmetry is uncomfortable but matches the asymmetry already in the repo: there is one Go module with many binaries inside it.
 
-### D2 — Two GoReleaser configs, not one
+### D2 — Two GoReleaser configs, not one. OSS-only — no Pro license.
 
-`.goreleaser.core.yaml` and `.goreleaser.triage.yaml`. Each carries `monorepo.tag_prefix:` to scope which tags trigger it (core leaves it empty; triage uses `plugins/triage/`).
+`.goreleaser.core.yaml` and `.goreleaser.triage.yaml`. Core uses bare `vX.Y.Z` tags, which GoReleaser handles natively. Triage uses prefixed `plugins/triage/vX.Y.Z` tags.
 
-The structural reason: GoReleaser ties one config to one release. If core and triage shared a config and a tag, every "triage hotfix" would also re-tag core, and every changelog would mix both binaries' commits.
+**OSS Pro-feature gap (discovered during implementation):** GoReleaser v2 made both `monorepo.tag_prefix` and `release.tag` Pro-only. The original design assumed they were OSS. The replacement OSS strategy:
 
-Splitting also keeps the brew block (which only applies to core) and the archive name template (which differs per binary) cleanly separated. A single config with conditionals would be a bigger maintenance hazard than two parallel files.
+- **Core**: stays trivial — bare tags, no prefix manipulation, `homebrew_casks:` block writes the formula to the tap.
+- **Triage**: `release: { disable: true }` in the goreleaser config. `make release-triage`:
+  1. Extracts the bare semver from the current `plugins/triage/vX.Y.Z` tag.
+  2. Exports `GORELEASER_CURRENT_TAG=<bare-semver>` so `.Version` is computed correctly for ldflags injection.
+  3. Runs goreleaser to BUILD artifacts under `dist/triage/` (no release).
+  4. Calls `gh release create <full-prefixed-tag> dist/triage/...` to publish the GitHub Release at the original prefixed tag with the goreleaser-built archives.
 
-**Alternative:** one `.goreleaser.yaml` with multiple `builds` entries. Easier to author initially, harder to evolve once the configs diverge — and they will (brew applies to core only; archive naming differs; in the future, signing keys may differ).
+Splitting one config per binary remains correct: cask block only applies to core, archive name templates differ, and the release-publish strategy differs (goreleaser-native for core, gh-CLI shim for triage).
+
+**Alternatives considered and rejected:**
+
+- **Pay for GoReleaser Pro.** Would make the two configs symmetric (both use `monorepo.tag_prefix` + `release.tag`). ~$19/month per maintainer. Rejected for a v0.x with one plugin; revisit if the plugin count grows.
+- **One `.goreleaser.yaml` with multiple `builds` entries.** Easier to author initially, harder to evolve once the configs diverge — and they have (release-publish strategy now differs per binary).
+- **Pin goreleaser v1.x (last OSS-friendly version).** `monorepo` may have been Pro-only since introduction; not verified. Adding a binary-version pin to brew install instructions is brittle.
 
 ### D3 — Pre-releases supported, opt-in only
 
@@ -154,7 +165,7 @@ Standard Go-module convention. Minor bumps within v0.x may include breaking chan
 | The two-config GoReleaser setup drifts (e.g. archive name changes in one but not the other). | `make release-snapshot` runs both. A BDD case in `pkg/test-cases.md` pins the triage archive filename against `core/internal/plugins.AssetFilename`'s expectation — drift causes a red test, not a runtime fetch failure six months later. |
 | Brew tap PAT leaks. | Stored only in the maintainer's local shell env for the local-first phase. When CI is added, scoped to write-only on the tap repo. |
 | `per_page=100` ceiling silently drops the true latest plugin release. | 100 is generous for any single binary's release stream within this repo for years. Documented at the lookup site. Pagination is a future change with a one-line refactor (loop until `Link: rel="next"` is absent). |
-| `monorepo.tag_prefix` in GoReleaser is only available in v1.13+. | Pin the GoReleaser version in the Makefile invocation comment and in CONTRIBUTING; surface a clear error if the installed binary is too old. |
+| `GORELEASER_CURRENT_TAG` mismatch (Make extracts the wrong bare semver) or `gh` CLI absent at release time → `make release-triage` produces wrong version strings or fails late. | The Make target validates the tag pattern (`plugins/triage/v*`) and runs `git ls-remote --exit-code origin "refs/tags/$tag"` before goreleaser, so a missing/unpushed tag fails fast; `gh release create` fails loudly if `gh` is absent. `RELEASE.md` Prerequisites and `CONTRIBUTING.md` Dev setup both name `gh` explicitly. |
 | A `feat(pkg): ...` commit between a core release and a triage release appears in BOTH changelogs — looks like duplication. | Accurate, not a bug. Both binaries' behaviour really did change. Documented in CONTRIBUTING. |
 | Re-enabling commit-lint blocks PRs whose commit messages don't conform. | A grace PR (separate from the release-cycle one) re-enables it; any blocked author gets a clear error pointing at `.commitlintrc.yml`. |
 | The tap repo doesn't exist when someone runs the first `make release-core`. | Captured as a tasks.md item (one-time manual setup). GoReleaser will fail loudly with a clear error if the tap repo is missing — not silent. |
