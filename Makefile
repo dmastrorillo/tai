@@ -85,7 +85,8 @@ release-core:
 #                   goreleaser and gh).
 # Requires `gh` CLI on PATH (https://cli.github.com/).
 release-triage:
-	@tag="$$(git describe --exact-match --tags HEAD 2>/dev/null || true)"; \
+	@set -e; \
+	tag="$$(git describe --exact-match --tags HEAD 2>/dev/null || true)"; \
 	case "$$tag" in \
 	  plugins/triage/v*) ;; \
 	  *) echo "ERROR: HEAD not at a plugins/triage/vX.Y.Z tag (got: $$tag)" >&2; exit 1 ;; \
@@ -97,7 +98,7 @@ release-triage:
 	bare="$${tag#plugins/triage/}"; \
 	echo "Building triage release artifacts for $$tag (.Version=$$bare)..."; \
 	GORELEASER_CURRENT_TAG="$$bare" \
-	  goreleaser release --config .goreleaser.triage.yaml --clean; \
+	  goreleaser release --config .goreleaser.triage.yaml --clean --skip=validate; \
 	echo "Creating GitHub Release $$tag..."; \
 	case "$$bare" in \
 	  *-*) gh release create "$$tag" --title "$$tag" --verify-tag --prerelease \
