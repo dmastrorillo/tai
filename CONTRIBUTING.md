@@ -39,6 +39,8 @@ go test ./...
 
 You need a recent stable Go (anything still in support should work). No other external tooling required to build or test.
 
+Cutting a release additionally requires [GoReleaser](https://goreleaser.com/) ≥ v1.13 (for `monorepo.tag_prefix` support). See [`RELEASE.md`](./RELEASE.md) for the full runbook covering tag conventions, the three `make release-*` targets, required env vars, and one-time tap-repo setup.
+
 ### Pre-commit hooks (recommended)
 
 The repo ships a [`.pre-commit-config.yaml`](.pre-commit-config.yaml) that runs gofmt, `go vet`, golangci-lint, and Conventional Commits validation locally before every commit. CI runs the same checks, but the pre-commit hooks catch issues at the moment you make them, which is much cheaper than discovering them in a PR.

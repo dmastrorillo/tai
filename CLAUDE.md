@@ -191,7 +191,7 @@ Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVers
 - Wrap errors with `fmt.Errorf("context: %w", err)`. Never lose the cause.
 - Use `context.Context` for anything that might be cancellable or time out (network, long file walks, prompts).
 - Logging: `log/slog` from the standard library.
-- Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `core/internal/version.String`, `plugins/<name>/internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow. Each binary owns its own version package — core and each plugin ship on independent release lifecycles.
+- Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `core/internal/version.String`, `plugins/<name>/internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code (including tests), and MUST live in a dedicated package so the exception's surface stays narrow. Each binary owns its own version package so the linker can inject distinct values; first-party binaries in this repo share commits and release through the prefix-aware tag scheme owned by the `release-cycle` capability (bare `vX.Y.Z` for core, `plugins/<name>/vX.Y.Z` for plugins). Third-party plugins ship on their own cadence from their own repos.
 - One exported symbol per file is a guideline, not a rule — but if a file has many, look for a missing package boundary.
 
 ---
@@ -213,6 +213,10 @@ When `tai` invokes a plugin subprocess (`tai <plugin> <args>`), it sets these en
 Stdin, stdout, stderr, and the exit code pass through unchanged. The host translates a non-zero child exit into its own exit code; the plugin owns its own template-conforming error output via `pkg/cliout`.
 
 Go plugin authors should not parse the env vars themselves: import `pkg/taiplugin` and call `taiplugin.Load()` for a typed `*Context`. The same package re-exports the error code taxonomy (`pkg/errcode`) and the CLI output writer (`pkg/cliout`) so a plugin's footer-format is identical to `tai`'s.
+
+### Plugins are NOT distributable via Homebrew
+
+The core `tai` binary ships through a self-hosted brew tap (`dmastrorillo/homebrew-tap`); see the `release-cycle` capability for the full setup. **Plugins do not.** A brew formula would install the plugin binary to `/opt/homebrew/bin/<name>`, but the plugin host discovers plugins by reading `<TAI_DATA_DIR>/plugins/<name>/<name>` — a binary in `/opt/homebrew/bin/` is invisible to the host. The only supported plugin install path is `tai plugins <name> install`, which writes the binary plus `assets/` under `<TAI_DATA_DIR>/plugins/<name>/`. Do not author brew formulae for first-party plugins.
 
 ### Asset namespacing
 

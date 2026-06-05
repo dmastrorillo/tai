@@ -71,8 +71,35 @@ func (h *HTTPFetcher) Fetch(ctx context.Context, pluginName string, src Source, 
 		base = "https://api.github.com"
 	}
 
-	// Resolve the release tag.
+	// Resolve the release tag. When the caller passed an explicit
+	// --version (src.Version != ""), use it verbatim. Otherwise
+	// resolve via the prefix-aware lookup: for first-party plugins
+	// from this monorepo it picks the highest-semver stable
+	// `plugins/<name>/v*` tag; for third-party plugins it falls
+	// back to highest-semver stable `v*` across the foreign repo.
+	// Pre-release tags are dropped at the lookup layer — see
+	// release-cycle spec, "Prefix-aware latest release lookup".
 	tag := src.Version
+	if tag == "" {
+		prefix := PluginTagPrefix(pluginName, src)
+		latest, err := LatestPrefixedTag(ctx, client, base, src.Host, src.Repo, prefix)
+		if err != nil {
+			return "", err
+		}
+		if latest == "" {
+			searched := "any vX.Y.Z tag"
+			if prefix != "" {
+				searched = prefix + "vX.Y.Z"
+			}
+			return "", errcode.Newf(errcode.PluginFetchFailed,
+				"no stable release of %s matches %q on %s", pluginName, searched, src.Repo).
+				WithHelp(
+					"check the source repo's Releases page for a matching tag",
+					"or pass --version to install a specific (including pre-release) version",
+				)
+		}
+		tag = latest
+	}
 	assetURL, resolvedTag, err := h.lookupAsset(ctx, client, base, pluginName, src.Repo, tag)
 	if err != nil {
 		return "", err
@@ -107,9 +134,15 @@ func expectedAssetName(pluginName string) string {
 	return AssetFilename(pluginName, runtime.GOOS, runtime.GOARCH)
 }
 
-// lookupAsset asks the GitHub Releases API for the given tag (or
-// "latest"), iterates the assets, and returns the matching asset's
-// download URL plus the resolved tag string.
+// lookupAsset asks the GitHub Releases API for a specific tag,
+// iterates the assets, and returns the matching asset's download
+// URL plus the resolved tag string.
+//
+// Pre-condition: `tag` MUST be a concrete tag name. Resolving
+// "latest" is the caller's job — see Fetch above, which routes the
+// resolution through LatestPrefixedTag so the prefix-aware
+// algorithm pinned by the release-cycle spec is the single source
+// of truth. Passing an empty tag here is a programmer error.
 func (h *HTTPFetcher) lookupAsset(ctx context.Context, client *http.Client, base, pluginName, repo, tag string) (string, string, error) {
 	// `repo` is `<org>/<repo>` from the registry/source spec.
 	if repo == "" {
@@ -117,12 +150,11 @@ func (h *HTTPFetcher) lookupAsset(ctx context.Context, client *http.Client, base
 			"plugin source has no repo — expected <org>/<repo>").
 			WithHelp("set the source spec to `<host>/<org>/<repo>[/<subpath>]@<version>`")
 	}
-	endpoint := base + "/repos/" + repo + "/releases/"
-	if tag == "" || tag == "latest" {
-		endpoint += "latest"
-	} else {
-		endpoint += "tags/" + tag
+	if tag == "" {
+		return "", "", errcode.New(errcode.PluginFetchFailed,
+			"lookupAsset called with empty tag — Fetch must resolve via LatestPrefixedTag first")
 	}
+	endpoint := base + "/repos/" + repo + "/releases/tags/" + tag
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")

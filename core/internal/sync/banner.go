@@ -18,7 +18,9 @@
 //     background goroutine; populates the TAI + installed-plugins
 //     layers in the state file.
 //   - LatestTagForTesting — test-only seam swapping the
-//     GitHub-Releases HTTP query.
+//     GitHub-Releases `/releases/latest` query.
+//   - LatestPrefixedTagForTesting — test-only seam swapping the
+//     prefix-aware GitHub-Releases lookup (plugin rows only).
 //
 // Spec: openspec/changes/pivot-to-ai-as-code/specs/update-banner/
 // spec.md.
@@ -38,7 +40,6 @@ import (
 	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/plugins"
-	"github.com/dmastrorillo/tai/core/internal/version"
 )
 
 // taiReleaseRepo is the hard-coded GitHub repo whose latest release
@@ -90,6 +91,61 @@ func LatestTagForTesting(t testing.TB, fn LatestTagFn) {
 		latestTag = prev
 		latestTagMu.Unlock()
 	})
+}
+
+// LatestPrefixedTagFn is the signature of the prefix-aware lookup
+// the plugin-row layer calls. Production binds it to
+// httpLatestPrefixedTag (which wraps plugins.LatestPrefixedTag with
+// the package's timeout-bounded HTTP client). Tests substitute a
+// stub via LatestPrefixedTagForTesting.
+//
+// Return convention: ("", nil) is the "no matching stable release"
+// sentinel; the caller MUST treat it as "no update available", NOT
+// as an error. Real lookup failures return (_, non-nil) and the
+// caller absorbs them per the spec.
+type LatestPrefixedTagFn func(ctx context.Context, host, repo, prefix string) (string, error)
+
+// latestPrefixedTagMu guards latestPrefixedTag for concurrent
+// reads/writes between the background Poll goroutine and tests
+// that swap the function via LatestPrefixedTagForTesting. Same
+// race-safety contract as latestTagMu above; without the mutex,
+// `go test -race` would flag a write/read race on the package-
+// level var.
+var (
+	latestPrefixedTagMu sync.RWMutex
+	latestPrefixedTag   LatestPrefixedTagFn = httpLatestPrefixedTag
+)
+
+// callLatestPrefixedTag reads latestPrefixedTag under the mutex and
+// invokes it. Production code MUST use this accessor rather than
+// reaching for the package var directly.
+func callLatestPrefixedTag(ctx context.Context, host, repo, prefix string) (string, error) {
+	latestPrefixedTagMu.RLock()
+	fn := latestPrefixedTag
+	latestPrefixedTagMu.RUnlock()
+	return fn(ctx, host, repo, prefix)
+}
+
+// LatestPrefixedTagForTesting swaps the prefix-aware lookup
+// function for the lifetime of t. Parallel to LatestTagForTesting.
+func LatestPrefixedTagForTesting(t testing.TB, fn LatestPrefixedTagFn) {
+	t.Helper()
+	latestPrefixedTagMu.Lock()
+	prev := latestPrefixedTag
+	latestPrefixedTag = fn
+	latestPrefixedTagMu.Unlock()
+	t.Cleanup(func() {
+		latestPrefixedTagMu.Lock()
+		latestPrefixedTag = prev
+		latestPrefixedTagMu.Unlock()
+	})
+}
+
+// httpLatestPrefixedTag is the production binding for
+// LatestPrefixedTagFn. Wraps plugins.LatestPrefixedTag with the
+// package's timeout-bounded client.
+func httpLatestPrefixedTag(ctx context.Context, host, repo, prefix string) (string, error) {
+	return plugins.LatestPrefixedTag(ctx, releaseHTTPClient, "", host, repo, prefix)
 }
 
 // releaseHTTPClient is the timeout-bounded client used for GitHub
@@ -241,12 +297,20 @@ func renderBanner(s PollState) string {
 // poll retries cleanly per the cadence rule. (Pre-fix behaviour
 // wrote "Latest = Current" on failure, which suppressed the next
 // retry until the cache expired — a violation surfaced in review.)
-func extendPollWithBannerLayers(ctx context.Context, dataDir string, state *PollState) {
+//
+// The `currentVersion` parameter is the running binary's
+// `version.String`. Production passes `version.String` directly;
+// tests pass concrete values like "v0.6.0" or "dev" so the routing
+// rule ("dev → skip TAI layer; stamped → query the legacy
+// /releases/latest seam") can be exercised without -ldflags.
+// Threading it as a parameter avoids violating CLAUDE.md's "tests
+// MUST NOT mutate version.String" rule.
+func extendPollWithBannerLayers(ctx context.Context, dataDir, currentVersion string, state *PollState) {
 	// TAI itself. Only meaningful when the running binary has a
 	// concrete (non-"dev") version stamped via -ldflags="-X
 	// version.String=…". Local builds skip the check entirely so
 	// the field stays empty rather than being half-populated.
-	if v := strings.TrimSpace(version.String); v != "" && v != "dev" {
+	if v := strings.TrimSpace(currentVersion); v != "" && v != "dev" {
 		if tag, err := callLatestTag(ctx, "github.com", taiReleaseRepo); err == nil {
 			state.TAICurrent = v
 			state.TAILatest = tag
@@ -264,14 +328,37 @@ func extendPollWithBannerLayers(ctx context.Context, dataDir string, state *Poll
 	}
 	state.Plugins = state.Plugins[:0]
 	for _, e := range pluginsState.Plugins {
-		tag, err := callLatestTag(ctx, e.Source.Host, e.Source.Repo)
+		// Prefix-aware lookup. For first-party plugins from this
+		// monorepo, PluginTagPrefix returns "plugins/<name>/" — the
+		// algorithm filters out unprefixed (core) tags and other
+		// plugin streams. For third-party plugins, it returns ""
+		// and the algorithm matches every tag from the foreign
+		// source repo. Either way, the legacy /releases/latest
+		// endpoint is no longer used for plugin lookups — see
+		// release-cycle spec D5.
+		prefix := plugins.PluginTagPrefix(e.Name, e.Source)
+		fullTag, err := callLatestPrefixedTag(ctx, e.Source.Host, e.Source.Repo, prefix)
 		if err != nil {
+			// Real failure (network, 5xx). Omit the row so the
+			// next poll retries cleanly — same contract as the
+			// pre-release-cycle behaviour.
 			continue
 		}
+		if fullTag == "" {
+			// "No matching stable release" sentinel. Omit the row;
+			// callers MUST treat this as "no update available" and
+			// the user will see a normal banner-less invocation.
+			continue
+		}
+		// LatestPrefixedTag returns the FULL tag_name (e.g.
+		// "plugins/triage/v0.5.0"). Strip the prefix for display
+		// and version-comparison; `e.Version` stored in plugins.json
+		// is the stripped form (`v0.5.0`), so the Latest field must
+		// match that shape for `Current != Latest` to be meaningful.
 		state.Plugins = append(state.Plugins, PluginUpdate{
 			Name:    e.Name,
 			Current: e.Version,
-			Latest:  tag,
+			Latest:  strings.TrimPrefix(fullTag, prefix),
 		})
 	}
 }

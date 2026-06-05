@@ -1,0 +1,100 @@
+# GoReleaser configuration for the `triage` plugin binary.
+#
+# Spec: openspec/changes/release-cycle/specs/release-cycle/spec.md
+#   ("GoReleaser configuration layout" requirement).
+#
+# Responds ONLY to tags matching `plugins/triage/vX.Y.Z` via
+# `monorepo.tag_prefix`. Adding a future first-party plugin means
+# adding a sibling `.goreleaser.<plugin>.yaml` — never extending
+# this file or the core one.
+#
+# The archive name `tai-plugin-triage-{os}-{arch}.tar.gz` is the
+# load-bearing contract: `core/internal/plugins.AssetFilename` returns
+# this exact string and the plugin host's HTTP fetcher uses it to
+# locate the asset in the GitHub Release. Drift breaks
+# `tai plugins triage install`. A Go test pins this — see
+# core/internal/plugins/fetch_test.go.
+#
+# Minimum GoReleaser version: v1.13.
+
+version: 2
+
+project_name: tai-plugin-triage
+
+monorepo:
+  tag_prefix: "plugins/triage/"
+  dir: .
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: triage
+    main: ./plugins/triage/cmd/triage
+    binary: triage
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      # Independent linker-injection target — the triage version
+      # package is deliberately separate from core's so the two can
+      # be set to different values when released independently.
+      - -s -w -X github.com/dmastrorillo/tai/plugins/triage/internal/version.String=v{{ .Version }}
+
+archives:
+  - id: triage
+    ids:
+      - triage
+    # MUST equal `core/internal/plugins.AssetFilename("triage", os, arch)`.
+    # That function returns `tai-plugin-triage-<os>-<arch>.tar.gz`
+    # (always .tar.gz, even on Windows, because the plugin-host
+    # fetcher reads tarballs only). Windows is therefore NOT
+    # overridden to `.zip` here.
+    name_template: "tai-plugin-triage-{{ .Os }}-{{ .Arch }}"
+    format: tar.gz
+    files:
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+# No `brews:` block — plugins are not Homebrew-distributable. The
+# plugin host discovers binaries by reading
+# `<TAI_DATA_DIR>/plugins/<name>/<name>`; a binary in
+# `/opt/homebrew/bin/` is invisible to it.
+release:
+  github:
+    owner: dmastrorillo
+    name: tai
+  prerelease: auto
+
+changelog:
+  use: github
+  sort: asc
+  # Triage's changelog includes its own scope + the shared `pkg`
+  # scope. A `feat(pkg): ...` commit appears here AND in core's
+  # changelog the next time each binary releases — see design.md D6.
+  filters:
+    include:
+      - "^feat\\((triage|pkg)\\):"
+      - "^fix\\((triage|pkg)\\):"
+      - "^perf\\((triage|pkg)\\):"
+  groups:
+    - title: Features
+      regexp: "^feat\\((triage|pkg)\\):"
+      order: 0
+    - title: Fixes
+      regexp: "^fix\\((triage|pkg)\\):"
+      order: 1
+    - title: Performance
+      regexp: "^perf\\((triage|pkg)\\):"
+      order: 2

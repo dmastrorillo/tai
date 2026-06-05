@@ -253,6 +253,75 @@ func TestBanner_TCUB007_fires_at_cli_boundary(t *testing.T) {
 // plus source-repo would otherwise produce 5 lines (header + 4 rows);
 // the collapse keeps the line cap. Not tied to a TC-ID — locks the
 // regression caught in Phase 5 review.
+// TestBanner_TCREL006_plugin_row_appears_in_stderr is the CLI-boundary
+// anchor for TC-REL-006: a plugin's latest version, resolved via the
+// prefix-aware lookup, MUST appear in the rendered stderr banner.
+// The poll-layer unit test in core/internal/sync/banner_test.go pins
+// the PollState contract; this test pins the user-observable stderr
+// output, closing the "internal struct, not user-observable" gap.
+//
+// TC-ID: TC-REL-006 (core/test-cases.md).
+func TestBanner_TCREL006_plugin_row_appears_in_stderr(t *testing.T) {
+	dataDir := bannerEnv(t)
+	yesterday := time.Now().AddDate(0, 0, -1).Local().Format(time.DateOnly)
+	seedPollState(t, dataDir, sync.PollState{
+		LastCheck:      time.Now(),
+		LastBannerDate: yesterday,
+		// Mirrors the BDD fixture: triage installed at v0.4.0, latest
+		// stable plugins/triage/v0.5.0 already stripped for display.
+		Plugins: []sync.PluginUpdate{
+			{Name: "triage", Current: "v0.4.0", Latest: "v0.5.0"},
+		},
+	})
+
+	var stderr bytes.Buffer
+	sync.EmitBanner(&stderr, dataDir, time.Now())
+
+	out := stderr.String()
+	for _, want := range []string{
+		"triage",
+		"v0.4.0",
+		"v0.5.0",
+		"tai plugins triage update",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("banner missing %q\nbanner:\n%s", want, out)
+		}
+	}
+}
+
+// TestBanner_TCREL007_no_plugin_row_when_only_prereleases is the
+// CLI-boundary anchor for TC-REL-007: when the plugin's prefix-aware
+// lookup returns the "no stable release" sentinel, the poll layer
+// omits the row from PollState.Plugins, and the rendered stderr
+// banner contains no plugin row. The "no banner at all" case
+// triggers because there is nothing else pending.
+//
+// TC-ID: TC-REL-007.
+func TestBanner_TCREL007_no_plugin_row_when_only_prereleases(t *testing.T) {
+	dataDir := bannerEnv(t)
+	yesterday := time.Now().AddDate(0, 0, -1).Local().Format(time.DateOnly)
+	// Empty Plugins slice mimics the post-poll state when
+	// LatestPrefixedTag returned ("", nil) for the only installed
+	// plugin (TC-REL-003 sentinel). No other pending updates.
+	seedPollState(t, dataDir, sync.PollState{
+		LastCheck:      time.Now(),
+		LastBannerDate: yesterday,
+		Plugins:        nil,
+	})
+
+	var stderr bytes.Buffer
+	sync.EmitBanner(&stderr, dataDir, time.Now())
+
+	out := stderr.String()
+	if out != "" {
+		t.Errorf("expected empty stderr (no pending updates), got:\n%s", out)
+	}
+	if strings.Contains(out, "triage") {
+		t.Errorf("banner must not name triage when no stable release is available")
+	}
+}
+
 func TestBanner_multi_plugin_collapses_to_one_row(t *testing.T) {
 	dataDir := bannerEnv(t)
 	yesterday := time.Now().AddDate(0, 0, -1).Local().Format(time.DateOnly)

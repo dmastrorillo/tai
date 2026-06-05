@@ -11,9 +11,12 @@
 // rule. Tests MUST NOT mutate String — assertions should read its
 // current value, never overwrite it, to keep parallel tests race-free.
 //
-// The triage plugin's version is independent of the core tai binary's
-// version under core/internal/version; the two binaries ship from the
-// same repo but on independent release cadences after the pivot.
+// The triage plugin has its own version package so the linker can
+// inject a value distinct from core's. Both first-party binaries
+// ship from this repo together, but the prefix-aware tag scheme
+// owned by the `release-cycle` capability (`plugins/triage/vX.Y.Z`
+// for this binary, bare `vX.Y.Z` for core) lets each release on
+// its own schedule when needed.
 package version
 
 // String is the version string surfaced by the triage plugin's

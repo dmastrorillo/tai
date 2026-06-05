@@ -1,0 +1,132 @@
+# GoReleaser configuration for the `tai` core binary.
+#
+# Spec: openspec/changes/release-cycle/specs/release-cycle/spec.md
+#   ("GoReleaser configuration layout" requirement).
+#
+# This config is invoked by `make release-core` (or `make release-snapshot`).
+# It responds ONLY to bare `vX.Y.Z` tags at the repo root — the empty
+# `monorepo.tag_prefix` is what gates that. Plugin tags
+# (`plugins/<name>/vX.Y.Z`) are handled by the sibling
+# `.goreleaser.<plugin>.yaml` files.
+#
+# Bare-vs-prefixed tag asymmetry is forced by Go's module-version rule
+# (one go.mod at repo root → only root-level vX.Y.Z tags are valid Go
+# module versions for `go install github.com/dmastrorillo/tai/...`).
+# See design.md D1 for the full rationale.
+#
+# Minimum GoReleaser version: v1.13 (introduces `monorepo.tag_prefix`).
+
+version: 2
+
+project_name: tai
+
+monorepo:
+  # Empty prefix: matches bare `vX.Y.Z` tags. Prefixed tags
+  # (`core/v...`, `plugins/.../v...`) are ignored.
+  tag_prefix: ""
+  dir: .
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tai
+    main: ./core/cmd/tai
+    binary: tai
+    env:
+      # `modernc.org/sqlite` is pure-Go, so CGO_ENABLED=0 cross-compiles
+      # the whole matrix below from a single host. Re-evaluate if anyone
+      # ever adds a CGO dependency.
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      # The version package is documented as the project's sole
+      # exception to "no package-level mutable state" specifically so
+      # the linker can inject this value. `{{ .Version }}` is the tag
+      # name with the leading `v` stripped (e.g. tag `v0.6.0` →
+      # `0.6.0`). The version package's String var default of "dev"
+      # is what unsigned local builds still see.
+      - -s -w -X github.com/dmastrorillo/tai/core/internal/version.String=v{{ .Version }}
+
+archives:
+  - id: tai
+    ids:
+      - tai
+    # `tai_{{ .Os }}_{{ .Arch }}` produces `tai_darwin_arm64.tar.gz`
+    # etc. on Unix; the `format_overrides` below switches Windows to
+    # `.zip`. The naming is brew-friendly and matches the convention
+    # most Homebrew tap formulae expect.
+    name_template: "tai_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# Pre-release tags (any tag with a SemVer pre-release suffix —
+# v0.6.0-rc.1, v0.6.0-beta.2) are auto-flagged `prerelease: true`
+# by GoReleaser. The banner and the plugin host's "latest" lookups
+# skip these. See `release-cycle` spec, "Pre-release semantics".
+release:
+  github:
+    owner: dmastrorillo
+    name: tai
+  prerelease: auto
+
+brews:
+  - name: tai
+    # Self-hosted tap. The tap repo must exist before this runs (one-
+    # time manual setup captured in tasks.md §2.1). HOMEBREW_TAP_GITHUB_TOKEN
+    # must be a PAT with `Contents: Write` scope on the tap repo.
+    repository:
+      owner: dmastrorillo
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/dmastrorillo/tai"
+    description: "Ship AI tooling (skills, commands, agents, workflows, standards) from a git repo to every developer machine"
+    license: "MIT"
+    # `auto` skips the brew commit for pre-release tags. Matches the
+    # spec: "The Homebrew formula SHALL serve stable releases only."
+    skip_upload: auto
+    test: |
+      system "#{bin}/tai", "--version"
+    install: |
+      bin.install "tai"
+
+changelog:
+  use: github
+  sort: asc
+  # Conventional Commits scope filter. Includes only commits whose
+  # type is feat/fix/perf AND whose scope is core or pkg. `pkg` is
+  # shared framework code that genuinely ships in this binary, so it
+  # belongs in the changelog. `pkg` commits also appear in the
+  # triage changelog the next time triage releases — see
+  # design.md D6.
+  filters:
+    include:
+      - "^feat\\((core|pkg)\\):"
+      - "^fix\\((core|pkg)\\):"
+      - "^perf\\((core|pkg)\\):"
+  groups:
+    - title: Features
+      regexp: "^feat\\((core|pkg)\\):"
+      order: 0
+    - title: Fixes
+      regexp: "^fix\\((core|pkg)\\):"
+      order: 1
+    - title: Performance
+      regexp: "^perf\\((core|pkg)\\):"
+      order: 2

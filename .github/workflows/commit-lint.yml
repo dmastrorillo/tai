@@ -1,15 +1,14 @@
 name: Commit lint
 
-# DISABLED FOR NOW. Disabled alongside ci.yml until Phase 0 of the
-# pivot has landed and CI gates are turned back on. Local enforcement
-# via the .pre-commit-config.yaml `commit-msg` hook still applies for
+# Enforces Conventional Commits on every pull request. The scope-enum
+# in .commitlintrc.yml (core, pkg, triage, openspec, ci) is the
+# contract the auto-generated changelogs in .goreleaser.*.yaml rely
+# on, so it MUST stay enforced. Local enforcement via the
+# .pre-commit-config.yaml `commit-msg` hook still applies for
 # contributors who have installed pre-commit.
-#
-# To re-enable, replace `on: workflow_dispatch` with:
-#   on:
-#     pull_request:
-#       types: [opened, edited, reopened, synchronize]
-on: workflow_dispatch
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read

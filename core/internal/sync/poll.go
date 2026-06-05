@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/config"
+	"github.com/dmastrorillo/tai/core/internal/version"
 )
 
 // PollState records the result of the most recent background
@@ -200,7 +201,7 @@ func Poll(ctx context.Context, cfg *config.File, dataDir string) error {
 	// tags. Per-layer failures are silently absorbed (the affected
 	// layer is omitted from state) so the next poll retries cleanly
 	// without polluting the cache with fake "no update" rows.
-	extendPollWithBannerLayers(ctx, dataDir, &state)
+	extendPollWithBannerLayers(ctx, dataDir, version.String, &state)
 
 	return SaveState(dataDir, state)
 }

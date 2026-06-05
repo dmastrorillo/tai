@@ -57,11 +57,35 @@ A few honest comparisons.
 
 Full version in [`docs/NORTHSTAR.md`](docs/NORTHSTAR.md).
 
+## Install
+
+Three paths, pick whichever fits your machine:
+
+```bash
+# 1. Homebrew (macOS, Linux — no Go required)
+brew install dmastrorillo/tap/tai
+
+# 2. go install (any platform that has the Go toolchain)
+go install github.com/dmastrorillo/tai/core/cmd/tai@latest
+
+# 3. Direct binary download
+#    Grab the appropriate archive for your OS/arch from
+#    https://github.com/dmastrorillo/tai/releases, extract, drop on PATH.
+```
+
+Plugins (currently just `triage`) are NOT installed via brew or `go install` — TAI manages them itself:
+
+```bash
+tai plugins triage install
+```
+
+The plugin host writes the binary plus its assets under `<TAI_DATA_DIR>/plugins/triage/`; brew or `go install` would put it somewhere TAI cannot discover.
+
 ## Quick start
 
 ```bash
-# install (the way you'd install any Go CLI for now; release channels TBD)
-go install github.com/dmastrorillo/tai/core/cmd/tai@latest
+# install (Homebrew shown — see "Install" above for go install / direct download)
+brew install dmastrorillo/tap/tai
 
 # point at one or more target directories (where your AI tool reads from)
 tai config target add ~/.claude       # example: Claude Code

@@ -37,6 +37,7 @@ components. **Never renumber existing IDs.**
 | [`IC`](#ic--install-commands) | `tai install-commands`: bundled slash-command install into `<target>/<commands>/tai/`, falsy skip, idempotent re-run, stale removal |
 | [`PLG`](#plg--plugin-host) | `tai plugins` and the subprocess invocation: registry lookup, install/update/remove/list, asset namespacing, env-var contract, `plugins.yml` auto-install on sync |
 | [`UB`](#ub--update-banner) | Background update-check refresh of TAI/plugin/source-repo versions, once-per-day stderr banner, `tai update` non-verb |
+| [`REL`](#rel--release-cycle--prefix-aware-lookups) | Release-pipeline contracts owned by core: plugin asset-filename pin, prefix-aware "latest" lookup algorithm for plugin streams, banner plugin-row behaviour under prefixed tags |
 
 (Cases originally numbered TC-CMD-003 through TC-CMD-007 cover the
 bundled-command-framework parser used by the Triage plugin and live in
@@ -1345,3 +1346,151 @@ Exercised by `core/internal/cmd/banner_test.go` →
 `TestBanner_TCUB007_fires_at_cli_boundary`.
 
 <!-- Add new UB cases here as their proposals land. -->
+
+---
+
+## REL — release cycle & prefix-aware lookups
+
+The release-cycle capability (`openspec/specs/release-cycle/spec.md`,
+landed by the `release-cycle` change) pins two contracts that core
+must honour at runtime:
+
+1. The release-asset filename for a plugin's tarball MUST equal
+   `core/internal/plugins.AssetFilename(name, os, arch)`. The same
+   string is produced by GoReleaser (`.goreleaser.<plugin>.yaml`'s
+   `archives.name_template`) and consumed by the plugin host's HTTP
+   fetcher. Drift breaks `tai plugins <name> install` at runtime —
+   these cases catch it at test time instead.
+
+2. The "latest" lookup for any prefixed plugin tag stream
+   (`plugins/<name>/v*`) MUST use the list-and-filter algorithm
+   defined in the release-cycle spec, NOT GitHub's
+   `/repos/{repo}/releases/latest` endpoint. The endpoint returns
+   the chronologically newest non-pre-release across the entire
+   repo and would cross-contaminate plugin lookups with core
+   releases once core ships under bare `v*` tags from the same
+   repo.
+
+### TC-REL-001 — `AssetFilename` matches the GoReleaser archive name
+
+- **Given** the release pipeline produces archives via
+  `.goreleaser.<plugin>.yaml` with `archives.name_template:
+  tai-plugin-<plugin>-{{ .Os }}-{{ .Arch }}` and `format: tar.gz`,
+- **When** `core/internal/plugins.AssetFilename(name, os, arch)` is
+  called for any plugin name and any `(os, arch)` in the build
+  matrix (`{linux, darwin, windows} × {amd64, arm64}`),
+- **Then** the returned string is exactly
+  `tai-plugin-<name>-<os>-<arch>.tar.gz` for every pair,
+- **And** the result equals byte-for-byte the filename present in
+  `dist/` after `make release-snapshot`.
+
+Exercised by `core/internal/plugins/fetch_test.go` →
+`TestAssetFilename_TCREL001_matches_goreleaser_archive_name`. The
+test names every `(os, arch)` pair the spec pins, so any future
+edit that loosens the format string (drops the `.tar.gz`,
+swaps the dashes for underscores, etc.) flips the test red.
+
+### TC-REL-002 — Prefix-aware lookup ignores releases without the plugin prefix
+
+- **Given** the plugin host queries `<source-repo>/releases` and the
+  response contains a mix of tags — some `vX.Y.Z` (core releases,
+  unprefixed) and some `plugins/<name>/vA.B.C`,
+- **When** the host resolves "latest version for plugin `<name>`",
+- **Then** only entries whose `tag_name` starts with
+  `plugins/<name>/` are considered,
+- **And** the highest semver among those entries is returned,
+- **And** unprefixed `vX.Y.Z` entries are silently skipped even when
+  they are chronologically newer.
+
+Exercised by `core/internal/plugins/fetch_test.go` →
+`TestLatestPrefixed_TCREL002_filters_by_prefix`.
+
+### TC-REL-003 — Prefix-aware lookup drops pre-release tags
+
+- **Given** the only matching plugin tag is
+  `plugins/<name>/v0.5.0-rc.1` (the release's `prerelease: true`),
+- **When** the host resolves "latest stable version for plugin
+  `<name>`",
+- **Then** the pre-release entry is dropped,
+- **And** the next-highest stable semver is returned,
+- **And** if no stable entry exists, the lookup returns the
+  "no release" sentinel (callers treat it as "no update
+  available", not an error).
+
+Exercised by `core/internal/plugins/fetch_test.go` →
+`TestLatestPrefixed_TCREL003_drops_prereleases`.
+
+### TC-REL-004 — Prefix-aware lookup returns the maximum semver, not the chronologically newest
+
+- **Given** the matching plugin tags are `plugins/<name>/v0.5.0`
+  (published 2026-06-01) and `plugins/<name>/v0.4.1` (published
+  2026-06-15, e.g. a hotfix on a previous line),
+- **When** the host resolves "latest version for plugin `<name>`",
+- **Then** `v0.5.0` is returned (highest semver),
+- **And** publication order is not consulted.
+
+Exercised by `core/internal/plugins/fetch_test.go` →
+`TestLatestPrefixed_TCREL004_picks_max_semver`.
+
+### TC-REL-005 — Malformed plugin tags are silently dropped
+
+- **Given** the matching plugin tags are `plugins/<name>/v0.5.0`
+  and `plugins/<name>/oops-not-a-version`,
+- **When** the host resolves "latest version for plugin `<name>`",
+- **Then** the malformed tag is dropped without error or warning,
+- **And** `v0.5.0` is returned.
+
+Exercised by `core/internal/plugins/fetch_test.go` →
+`TestLatestPrefixed_TCREL005_tolerates_malformed_tags`.
+
+### TC-REL-006 — Banner plugin-row uses the prefix-aware lookup
+
+- **Given** `<TAI_DATA_DIR>/state/plugins.json` records that the
+  `triage` plugin is installed at version `v0.4.0`,
+- **And** the source repo's `releases` payload contains (newest
+  first by `published_at`): `v0.6.1` (core),
+  `plugins/triage/v0.5.0`, `v0.6.0` (core), `plugins/triage/v0.4.0`,
+- **When** the background update check runs and the banner fires
+  the next day,
+- **Then** the banner's triage row reads `triage v0.4.0 → v0.5.0`,
+- **And** the row never names `v0.6.1` or any other unprefixed
+  core release (no cross-contamination).
+
+Exercised at the poll-layer by `core/internal/sync/banner_test.go` →
+`TestBanner_TCREL006_plugin_row_uses_prefix_aware_lookup` (asserts
+`PollState.Plugins`), and at the CLI boundary by
+`core/internal/cmd/banner_test.go` →
+`TestBanner_TCREL006_plugin_row_appears_in_stderr` (asserts the
+rendered stderr bytes).
+
+### TC-REL-007 — Banner plugin-row suppressed when only pre-release plugin tags exist
+
+- **Given** the installed plugin is `triage v0.4.0`,
+- **And** the only newer triage release in the source repo is
+  `plugins/triage/v0.5.0-rc.1` (`prerelease: true`),
+- **When** the background update check runs,
+- **Then** the cache file records no available triage update,
+- **And** no `triage` row appears in the banner.
+
+Exercised at the poll-layer by `core/internal/sync/banner_test.go` →
+`TestBanner_TCREL007_plugin_row_skips_prereleases` (asserts
+`PollState.Plugins` stays empty), and at the CLI boundary by
+`core/internal/cmd/banner_test.go` →
+`TestBanner_TCREL007_no_plugin_row_when_only_prereleases` (asserts
+the rendered stderr is empty).
+
+### TC-REL-008 — Banner core-row keeps using `/releases/latest`
+
+- **Given** the source repo has core releases `v0.6.1`, `v0.6.0`,
+  and a pre-release `v0.7.0-rc.1`, with installed core `v0.6.0`,
+- **When** the background update check runs,
+- **Then** the core lookup hits
+  `/repos/{repo}/releases/latest` (NOT the list-and-filter path),
+- **And** the cache file records `tai 0.6.0 → 0.6.1` (the endpoint
+  already excludes pre-releases for bare-tag streams),
+- **And** the banner reflects the same.
+
+Exercised by `core/internal/sync/banner_test.go` →
+`TestBanner_TCREL008_core_row_uses_releases_latest`.
+
+<!-- Add new REL cases here as their proposals land. -->
