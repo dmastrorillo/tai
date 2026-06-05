@@ -121,8 +121,8 @@ $GOBIN/tai --version   # must print v<X.Y.Z>
 
 ```bash
 # 1. The plugin host picks up the new version
-tai plugins triage install        # fresh install
-tai plugins triage update         # if previously installed
+tai plugins install triage        # fresh install
+tai plugins update triage         # if previously installed
 
 # 2. The version is recorded in plugins.json
 cat "$TAI_DATA_DIR/state/plugins.json" | jq '.plugins[] | select(.name=="triage")'

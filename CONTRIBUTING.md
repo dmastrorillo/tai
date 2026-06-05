@@ -158,7 +158,7 @@ There is no DCO sign-off requirement.
 
 ## Plugins
 
-If you want to ship a third-party plugin, you do not need to commit anything to this repo. Build a binary that follows the plugin wire contract (env vars, error template, namespacing rules in [`README.md`](README.md#authoring-a-plugin)), publish a GitHub release with assets named `tai-plugin-<name>-<os>-<arch>`, and document the explicit source users should pass to `tai plugins <name> install --source <...>`.
+If you want to ship a third-party plugin, you do not need to commit anything to this repo. Build a binary that follows the plugin wire contract (env vars, error template, namespacing rules in [`README.md`](README.md#authoring-a-plugin)), publish a GitHub release with assets named `tai-plugin-<name>-<os>-<arch>`, and document the explicit source users should pass to `tai plugins install <name> --source <...>`.
 
 To propose your plugin be added to the built-in first-party registry, open an issue with the **Feature request** template explaining the use case. The bar is high: the plugin needs to be useful to a broad audience and reliably maintained.
 

@@ -1,6 +1,6 @@
 ---
 name: tai-release
-description: Cuts a release of the tai CLI or one of its first-party plugins via the local-first goreleaser + gh-CLI pipeline owned by the release-cycle capability. Use when the user says "cut a release", "ship X", "tag and release", "release tai", "release triage", "publish v0.x", mentions `make release-snapshot` / `make release-core` / `make release-triage`, when working with `.goreleaser.core.yaml` / `.goreleaser.triage.yaml`, when validating the brew tap at `dmastrorillo/homebrew-tap`, when troubleshooting `tai plugins triage install/update` failures that may trace to a missing release asset, when handling the `plugins/<name>/vX.Y.Z` prefixed tag scheme, when adding a second first-party plugin, or when debugging why `tai --version` prints `dev` after a build. Also use for questions about the OSS workaround replacing goreleaser's Pro-only `monorepo.tag_prefix`.
+description: Cuts a release of the tai CLI or one of its first-party plugins via the local-first goreleaser + gh-CLI pipeline owned by the release-cycle capability. Use when the user says "cut a release", "ship X", "tag and release", "release tai", "release triage", "publish v0.x", mentions `make release-snapshot` / `make release-core` / `make release-triage`, when working with `.goreleaser.core.yaml` / `.goreleaser.triage.yaml`, when validating the brew tap at `dmastrorillo/homebrew-tap`, when troubleshooting `tai plugins install/update triage` failures that may trace to a missing release asset, when handling the `plugins/<name>/vX.Y.Z` prefixed tag scheme, when adding a second first-party plugin, or when debugging why `tai --version` prints `dev` after a build. Also use for questions about the OSS workaround replacing goreleaser's Pro-only `monorepo.tag_prefix`.
 ---
 
 # tai release lifecycle
@@ -14,7 +14,7 @@ Canonical reference: `RELEASE.md` at repo root. Behavioural contract: `openspec/
 | Path | Target | Tag | GitHub Release | Install surface |
 |---|---|---|---|---|
 | Core CLI | `make release-core` | `vX.Y.Z` (bare, at repo root) | At `vX.Y.Z` | `brew install dmastrorillo/tap/tai`, `go install github.com/dmastrorillo/tai/core/cmd/tai@latest`, direct download |
-| Triage plugin | `make release-triage` | `plugins/triage/vX.Y.Z` | At full prefixed tag | `tai plugins triage install` only |
+| Triage plugin | `make release-triage` | `plugins/triage/vX.Y.Z` | At full prefixed tag | `tai plugins install triage` only |
 
 Plugins are NOT brew-distributable — the plugin host expects binaries under `<TAI_DATA_DIR>/plugins/<name>/`, not `/opt/homebrew/bin/`. Don't author a brew formula for triage.
 
@@ -68,8 +68,8 @@ make release-triage
 Validation:
 
 ```bash
-tai plugins triage install        # fresh install
-tai plugins triage update         # if previously installed
+tai plugins install triage        # fresh install
+tai plugins update triage         # if previously installed
 cat "$TAI_DATA_DIR/state/plugins.json" | jq '.plugins[] | select(.name=="triage")'
 ```
 
@@ -85,13 +85,13 @@ cat "$TAI_DATA_DIR/state/plugins.json" | jq '.plugins[] | select(.name=="triage"
 
 Use SemVer pre-release suffix: `v0.6.0-rc.1`, `plugins/triage/v0.5.0-beta.2`. Goreleaser auto-flags `prerelease: true` on the GitHub Release. Effects:
 
-- Banner AND `tai plugins <name> install/update --version`-omitted path both ignore pre-releases (filter in `core/internal/plugins.LatestPrefixedTag`, called by both code paths).
+- Banner AND `tai plugins install <name>/update --version`-omitted path both ignore pre-releases (filter in `core/internal/plugins.LatestPrefixedTag`, called by both code paths).
 - Brew tap cask is NOT updated (`skip_upload: auto`).
 
 `LatestPrefixedTag` applies two independent pre-release filters: (1) the GitHub API's `prerelease: true` field; (2) `parseSemverNumeric` rejects any version string containing `-` or `+`. A tag mismarked as non-pre-release on the GitHub side is still dropped at step 2.
 
 Opt-in paths:
-- `tai plugins <name> install --version vX.Y.Z-rc.N`
+- `tai plugins install <name> --version vX.Y.Z-rc.N`
 - `go install github.com/dmastrorillo/tai/core/cmd/tai@vX.Y.Z-rc.N`
 - Direct download from the GitHub Release page (visible, marked "Pre-release")
 
@@ -152,4 +152,4 @@ See `RELEASE.md` "What changes mid-cycle" section. Five touchpoints: `registry.g
 | Cut triage release | `git tag plugins/triage/vX.Y.Z && git push origin plugins/triage/vX.Y.Z && make release-triage` |
 | Verify brew install | `brew update && brew install dmastrorillo/tap/tai && tai --version` |
 | Verify go install | `go install github.com/dmastrorillo/tai/core/cmd/tai@vX.Y.Z` |
-| Verify plugin install | `tai plugins triage install --version vX.Y.Z` |
+| Verify plugin install | `tai plugins install triage --version vX.Y.Z` |

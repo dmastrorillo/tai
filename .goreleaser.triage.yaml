@@ -17,7 +17,7 @@
 # load-bearing contract: `core/internal/plugins.AssetFilename` returns
 # this exact string and the plugin host's HTTP fetcher uses it to
 # locate the asset in the GitHub Release. Drift breaks
-# `tai plugins triage install`. A Go test pins this — see
+# `tai plugins install triage`. A Go test pins this — see
 # core/internal/plugins/fetch_test.go.
 #
 # Requires GoReleaser v2 (OSS — no Pro license required).

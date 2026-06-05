@@ -216,7 +216,7 @@ Go plugin authors should not parse the env vars themselves: import `pkg/taiplugi
 
 ### Plugins are NOT distributable via Homebrew
 
-The core `tai` binary ships through a self-hosted brew tap (`dmastrorillo/homebrew-tap`); see the `release-cycle` capability for the full setup. **Plugins do not.** A brew formula would install the plugin binary to `/opt/homebrew/bin/<name>`, but the plugin host discovers plugins by reading `<TAI_DATA_DIR>/plugins/<name>/<name>` — a binary in `/opt/homebrew/bin/` is invisible to the host. The only supported plugin install path is `tai plugins <name> install`, which writes the binary plus `assets/` under `<TAI_DATA_DIR>/plugins/<name>/`. Do not author brew formulae for first-party plugins.
+The core `tai` binary ships through a self-hosted brew tap (`dmastrorillo/homebrew-tap`); see the `release-cycle` capability for the full setup. **Plugins do not.** A brew formula would install the plugin binary to `/opt/homebrew/bin/<name>`, but the plugin host discovers plugins by reading `<TAI_DATA_DIR>/plugins/<name>/<name>` — a binary in `/opt/homebrew/bin/` is invisible to the host. The only supported plugin install path is `tai plugins install <name>`, which writes the binary plus `assets/` under `<TAI_DATA_DIR>/plugins/<name>/`. Do not author brew formulae for first-party plugins.
 
 ### Asset namespacing
 
@@ -226,7 +226,7 @@ Every asset a plugin distributes lives inside the plugin's namespace. The rules 
 - **Agents**: same prefix rule for `assets/agents/`.
 - **Commands**: filenames in `assets/commands/` are unconstrained — `tai` routes them into `<target.commands>/tai-<plugin>/` regardless of authored name.
 
-The namespace IS the manifest. `tai plugins <name> update` wipes the plugin's namespace in every target and re-copies, with no overwrite prompts.
+The namespace IS the manifest. `tai plugins update <name>` wipes the plugin's namespace in every target and re-copies, with no overwrite prompts.
 
 ### Local state: `plugins.json`
 
@@ -261,7 +261,7 @@ At the start of every `tai sync`, the host reads `<clone>/plugins.yml`
 (if present) and installs any listed plugin not already in
 `plugins.json`. The list is additive — removing a YAML entry does NOT
 uninstall the plugin from a developer's machine (removal is
-exclusively a user gesture via `tai plugins <name> remove`).
+exclusively a user gesture via `tai plugins remove <name>`).
 
 A plugin-install failure during this hook (bad source, network down,
 401) aborts the entire `tai sync` with that error code. This is
@@ -269,7 +269,7 @@ intentional: the host cannot reason about which assets in the
 source-repo sync depend on which plugin, so partial-failure modes
 risk producing a broken target state. Users can recover by removing
 the offending entry from `plugins.yml` (or installing the plugin
-manually with `tai plugins <name> install --source ...`) before
+manually with `tai plugins install <name> --source ...`) before
 re-running sync.
 
 ### Adding a first-party plugin

@@ -76,7 +76,7 @@ go install github.com/dmastrorillo/tai/core/cmd/tai@latest
 Plugins (currently just `triage`) are NOT installed via brew or `go install` — TAI manages them itself:
 
 ```bash
-tai plugins triage install
+tai plugins install triage
 ```
 
 The plugin host writes the binary plus its assets under `<TAI_DATA_DIR>/plugins/triage/`; brew or `go install` would put it somewhere TAI cannot discover.
@@ -162,9 +162,9 @@ A skill or workflow can say "before estimating, run `tai standards load ...` and
 The bit where TAI gets opinionated. A plugin is a standalone executable plus assets. It adds its own top-level verb (`tai triage import`, for example), can ship its own SQLite database, can enforce its own conventions. Plugin assets are namespaced (`tai-<plugin>-*`) so they can never collide with user-authored content. Updates blindly overwrite the namespace.
 
 ```bash
-tai plugins triage install     # install first-party plugin (resolves via TAI's built-in registry)
+tai plugins install triage     # install first-party plugin (resolves via TAI's built-in registry)
 tai plugins list               # see what's installed
-tai plugins triage update      # update to the latest available version
+tai plugins update triage      # update to the latest available version
                                # (uses the source recorded at install time;
                                #  does not take --source or --version itself)
 ```
@@ -172,9 +172,9 @@ tai plugins triage update      # update to the latest available version
 First-party plugins resolve by short name. Third-party plugins resolve by explicit source. Two equivalent forms:
 
 ```bash
-tai plugins acme-custom install --source github.com/acme/tai-plugin-custom --version v1.0.0
+tai plugins install acme-custom --source github.com/acme/tai-plugin-custom --version v1.0.0
 # or, embedding the version in the source:
-tai plugins acme-custom install --source github.com/acme/tai-plugin-custom@v1.0.0
+tai plugins install acme-custom --source github.com/acme/tai-plugin-custom@v1.0.0
 ```
 
 There is no marketplace, no registry beyond the small hard-coded list of first-party names, no central index, no source-repo browser.
@@ -200,9 +200,9 @@ tai standards list
 tai standards load <name>
 
 tai plugins list
-tai plugins <name> install [--source X --version Y]
-tai plugins <name> update
-tai plugins <name> remove
+tai plugins install <name> [--source X --version Y]
+tai plugins update <name>
+tai plugins remove <name>
 
 tai <plugin-name> <subcommand...>            run a plugin's commands
 tai --help

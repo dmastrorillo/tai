@@ -2,7 +2,7 @@
 
 Files in this tree ship inside the `triage` plugin's release artifact
 (`tai-plugin-triage-<os>-<arch>.tar.gz`). At install time
-(`tai plugins triage install`) the tai host extracts the tarball and
+(`tai plugins install triage`) the tai host extracts the tarball and
 copies these assets into every configured target per the plugin
 asset-namespacing rules (post-Phase-6 plugin-host install path):
 
@@ -24,7 +24,7 @@ as the new plugin-host install path:
 
 | Install path                       | Reads from                    | Writes to                                 |
 |------------------------------------|-------------------------------|-------------------------------------------|
-| `tai plugins triage install`       | `assets/commands/`            | `<target>/commands/tai-triage/<file>.md`  |
+| `tai plugins install triage`       | `assets/commands/`            | `<target>/commands/tai-triage/<file>.md`  |
 | `tai triage install` (in-process)  | `cmdframework/commands/`      | `<target>/commands/<file>.md` (flat)      |
 
 This `assets/` tree is the canonical source for the new plugin-host

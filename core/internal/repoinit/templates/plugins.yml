@@ -6,7 +6,7 @@
 #
 # This file is ADDITIVE: removing an entry here does NOT uninstall the
 # plugin from developer machines. To remove a plugin everywhere, the
-# developers run `tai plugins <name> remove` locally.
+# developers run `tai plugins remove <name>` locally.
 #
 # Example:
 # plugins:

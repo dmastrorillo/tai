@@ -46,4 +46,4 @@ Plugins are the opinionated layer of TAI: each plugin owns its own commands and 
 
 ## plugins.yml
 
-A YAML file at the root of the source repo listing the plugins TAI should auto-install on `tai sync`. It is **additive, not authoritative** — a developer may install additional plugins beyond what plugins.yml declares via `tai plugins <name> install`, and those are not removed when the file changes. Removing a plugin from plugins.yml does not uninstall it from developer machines.
+A YAML file at the root of the source repo listing the plugins TAI should auto-install on `tai sync`. It is **additive, not authoritative** — a developer may install additional plugins beyond what plugins.yml declares via `tai plugins install <name>`, and those are not removed when the file changes. Removing a plugin from plugins.yml does not uninstall it from developer machines.
