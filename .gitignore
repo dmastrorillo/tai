@@ -13,3 +13,7 @@
 # macOS Finder metadata (matches at every depth — git's default for
 # patterns without a slash).
 .DS_Store
+
+# Local environment overrides (release tokens, etc.). Never commit.
+.env
+.env.local
