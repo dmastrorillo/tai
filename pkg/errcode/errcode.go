@@ -136,10 +136,9 @@ const (
 
 // Plugin-host codes (introduced by pivot-to-ai-as-code Phase 4 —
 // plugin host). Append-only; see
-// openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md for
-// the normative meanings.
+// openspec/specs/plugin-host/spec.md for the normative meanings.
 const (
-	// PluginUnknown: `tai plugins <name> install` was invoked for a
+	// PluginUnknown: `tai plugins install <name>` was invoked for a
 	// name that has no entry in the built-in first-party registry
 	// AND no `--source` flag was supplied.
 	PluginUnknown Code = "PLUGIN_UNKNOWN"

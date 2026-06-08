@@ -64,7 +64,7 @@ type DB struct {
 // Path layout (Phase 6 of pivot-to-ai-as-code): the DB lives at
 // `<TAI_DATA_DIR>/plugins/triage/state/triage.db`. Placing the file
 // under `plugins/triage/state/` keeps it inside the namespace that
-// `tai plugins triage remove` preserves (see the plugin-host spec:
+// `tai plugins remove triage` preserves (see the plugin-host spec:
 // "the plugin's own runtime state under
 // <TAI_DATA_DIR>/plugins/<name>/state/ MUST be preserved").
 //

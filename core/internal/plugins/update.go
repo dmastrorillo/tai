@@ -41,7 +41,7 @@ func Update(ctx context.Context, name string, dataDir string, cfg *config.File, 
 		return nil, errcode.Newf(errcode.PluginUnknown,
 			"no installed plugin named %q to update", name).
 			WithHelp(
-				"install it first: `tai plugins "+name+" install`",
+				"install it first: `tai plugins install "+name+"`",
 				"or run `tai plugins list` to see what's installed",
 			)
 	}

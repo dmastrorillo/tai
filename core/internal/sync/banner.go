@@ -259,16 +259,16 @@ func renderBanner(s PollState) string {
 		// no plugin row
 	case len(pluginsPending) == 1:
 		p := pluginsPending[0]
-		rows = append(rows, fmt.Sprintf("[tai]   %s %s → %s   run: tai plugins %s update",
+		rows = append(rows, fmt.Sprintf("[tai]   %s %s → %s   run: tai plugins update %s",
 			p.Name, p.Current, p.Latest, p.Name))
 	default:
 		// Collapse to keep the 4-line cap. Lists all names in one
-		// row; the user runs `tai plugins <name> update` per entry.
+		// row; the user runs `tai plugins update <name>` per entry.
 		names := make([]string, len(pluginsPending))
 		for i, p := range pluginsPending {
 			names[i] = p.Name
 		}
-		rows = append(rows, fmt.Sprintf("[tai]   %d plugins have updates (%s)   run: tai plugins <name> update",
+		rows = append(rows, fmt.Sprintf("[tai]   %d plugins have updates (%s)   run: tai plugins update <name>",
 			len(pluginsPending), strings.Join(names, ", ")))
 	}
 

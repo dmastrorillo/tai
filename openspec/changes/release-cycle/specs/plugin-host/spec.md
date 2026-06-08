@@ -20,7 +20,7 @@ The plugin host SHALL NOT assume any specific tag prefix for third-party plugins
 
 ### Requirement: Latest plugin release resolution
 
-When `tai plugins <name> install` or `tai plugins <name> update` is invoked WITHOUT an explicit `--version`, the plugin host SHALL resolve the latest available version using the prefix-aware lookup algorithm defined in the `release-cycle` capability:
+When `tai plugins install <name>` or `tai plugins update <name>` is invoked WITHOUT an explicit `--version`, the plugin host SHALL resolve the latest available version using the prefix-aware lookup algorithm defined in the `release-cycle` capability:
 
 1. `GET /repos/{org}/{repo}/releases?per_page=100` against the plugin's recorded source.
 2. Filter `tag_name` by the plugin's prefix. For first-party plugins from this monorepo, the prefix is `plugins/<name>/`. For third-party plugins whose source repo does not use a prefix, the prefix is empty (match everything).
@@ -34,7 +34,7 @@ The plugin host SHALL NOT use the GitHub `/repos/{org}/{repo}/releases/latest` e
 #### Scenario: install without --version picks max-semver of the plugin prefix
 
 - **GIVEN** the source repo has releases `v0.6.1` (core), `plugins/triage/v0.5.0`, `v0.6.0` (core), `plugins/triage/v0.4.0`
-- **WHEN** the user runs `tai plugins triage install`
+- **WHEN** the user runs `tai plugins install triage`
 - **THEN** the plugin host downloads the asset from the `plugins/triage/v0.5.0` release
 - **AND** `<TAI_DATA_DIR>/state/plugins.json` records version `v0.5.0`
 
@@ -43,19 +43,19 @@ The plugin host SHALL NOT use the GitHub `/repos/{org}/{repo}/releases/latest` e
 - **GIVEN** triage `v0.4.0` is installed
 - **AND** the source repo's most recent triage release is `plugins/triage/v0.5.0-rc.1` (pre-release)
 - **AND** no `plugins/triage/v0.5.0` stable release exists
-- **WHEN** the user runs `tai plugins triage update`
+- **WHEN** the user runs `tai plugins update triage`
 - **THEN** the command exits successfully reporting "already at latest stable version"
 - **AND** the installed version remains `v0.4.0`
 
 #### Scenario: No matching plugin releases surfaces clear error
 
 - **GIVEN** the source repo has core releases but no `plugins/triage/*` tags
-- **WHEN** the user runs `tai plugins triage install`
+- **WHEN** the user runs `tai plugins install triage`
 - **THEN** the command exits with `PLUGIN_FETCH_FAILED`
 - **AND** the error's "what to do" bullets name the prefix `plugins/triage/` and suggest checking the source repo's Releases page
 
 #### Scenario: Explicit --version bypasses the lookup algorithm
 
-- **WHEN** the user runs `tai plugins triage install --version v0.4.0`
+- **WHEN** the user runs `tai plugins install triage --version v0.4.0`
 - **THEN** the plugin host fetches the release at tag `plugins/triage/v0.4.0` directly without listing or filtering
 - **AND** the install succeeds even if `v0.4.0` is older than the latest available

@@ -9,7 +9,7 @@
 // cli.ExitCoder, or surfaces UNKNOWN_SUBCOMMAND with plugin-aware
 // "what to do" bullets.
 //
-// Spec: openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md
+// Spec: openspec/specs/plugin-host/spec.md
 // §"Plugin subprocess invocation".
 
 package cmd
@@ -49,7 +49,7 @@ func (e *pluginExitError) ExitCode() int { return e.code }
 //  2. Hit: execs the plugin's binary with the wire-contract env,
 //     stdio attached, and returns its exit code as a cli.ExitCoder.
 //  3. Miss: surfaces UNKNOWN_SUBCOMMAND with help bullets pointing
-//     at `tai plugins list` and `tai plugins <name> install`.
+//     at `tai plugins list` and `tai plugins install <name>`.
 //
 // Returns the error verbatim (no wrapping) so the caller — the root
 // Action — can `return` it straight through urfave/cli.
@@ -98,14 +98,14 @@ func unknownSubcommandWithPluginHelp(name string) error {
 			WithHelp(
 				"update via your package manager: `brew upgrade tai`",
 				"or via the Go toolchain: `go install github.com/dmastrorillo/tai/core/cmd/tai@latest`",
-				"to update a plugin, run `tai plugins <name> update`",
+				"to update a plugin, run `tai plugins update <name>`",
 			)
 	}
 	return errcode.Newf(errcode.UnknownSubcommand,
 		"unknown command: %q", name).
 		WithHelp(
 			"run `tai plugins list` to see installed plugins",
-			"or install one: `tai plugins "+name+" install`",
+			"or install one: `tai plugins install "+name+"`",
 			"`tai --help` lists every built-in verb",
 		)
 }
@@ -120,8 +120,8 @@ func execPlugin(ctx context.Context, name string, args []string, dataDir string,
 		return errcode.Wrapf(errcode.InternalError, err,
 			"plugin %s is recorded in state but its binary is missing at %s", name, binPath).
 			WithHelp(
-				"reinstall the plugin: `tai plugins "+name+" install`",
-				"or remove the stale state entry: `tai plugins "+name+" remove`",
+				"reinstall the plugin: `tai plugins install "+name+"`",
+				"or remove the stale state entry: `tai plugins remove "+name+"`",
 			)
 	}
 

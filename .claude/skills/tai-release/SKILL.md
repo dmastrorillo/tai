@@ -85,7 +85,7 @@ cat "$TAI_DATA_DIR/state/plugins.json" | jq '.plugins[] | select(.name=="triage"
 
 Use SemVer pre-release suffix: `v0.6.0-rc.1`, `plugins/triage/v0.5.0-beta.2`. Goreleaser auto-flags `prerelease: true` on the GitHub Release. Effects:
 
-- Banner AND `tai plugins install <name>/update --version`-omitted path both ignore pre-releases (filter in `core/internal/plugins.LatestPrefixedTag`, called by both code paths).
+- Banner AND the `tai plugins install <name>` / `tai plugins update <name>` `--version`-omitted paths both ignore pre-releases (filter in `core/internal/plugins.LatestPrefixedTag`, called by both code paths).
 - Brew tap cask is NOT updated (`skip_upload: auto`).
 
 `LatestPrefixedTag` applies two independent pre-release filters: (1) the GitHub API's `prerelease: true` field; (2) `parseSemverNumeric` rejects any version string containing `-` or `+`. A tag mismarked as non-pre-release on the GitHub side is still dropped at step 2.

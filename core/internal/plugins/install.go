@@ -172,7 +172,7 @@ func resolveSource(name string, override Source, version string) (Source, error)
 	return Source{}, errcode.Newf(errcode.PluginUnknown,
 		"no plugin named %q in the built-in registry and no `--source` supplied", name).
 		WithHelp(
-			"pass an explicit source: `tai plugins "+name+" install --source <host>/<org>/<repo>`",
+			"pass an explicit source: `tai plugins install "+name+" --source <host>/<org>/<repo>`",
 			"or check the spelling against `tai plugins list` (for already-installed plugins)",
 		)
 }

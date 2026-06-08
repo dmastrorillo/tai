@@ -44,7 +44,7 @@ The banner MUST:
 - Be prefixed with the literal token `[tai]` on every line so AI agents can recognize and segment it.
 - Be at most 4 short lines.
 - Name every pending update with its current → available version (or, for the source repo, a count of new commits).
-- Name the exact command the user runs to update each (e.g., `tai plugins triage update`).
+- Name the exact command the user runs to update each (e.g., `tai plugins update triage`).
 - For TAI itself, name a representative package-manager command (`brew upgrade tai`, `go install ...@latest`) — TAI does not perform self-updates.
 
 #### Scenario: Banner fires on first command of the day

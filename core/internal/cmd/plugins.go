@@ -3,7 +3,7 @@
 // binary lives in plugin_invoke.go to keep the CLI assembly here
 // focused on the verb-tree shape.
 //
-// Spec: openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md
+// Spec: openspec/specs/plugin-host/spec.md
 
 package cmd
 
@@ -59,7 +59,7 @@ func runPluginsList(_ context.Context, c *cli.Command) error {
 	return plugins.List(state, c.Writer)
 }
 
-// ─── tai plugins <name> install ────────────────────────────────────────
+// ─── tai plugins install <name> ────────────────────────────────────────
 
 func newPluginsInstallCommand() *cli.Command {
 	return &cli.Command{
@@ -96,7 +96,7 @@ func runPluginsInstall(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// ─── tai plugins <name> update ─────────────────────────────────────────
+// ─── tai plugins update <name> ─────────────────────────────────────────
 
 func newPluginsUpdateCommand() *cli.Command {
 	return &cli.Command{
@@ -131,7 +131,7 @@ func runPluginsUpdate(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// ─── tai plugins <name> remove ─────────────────────────────────────────
+// ─── tai plugins remove <name> ─────────────────────────────────────────
 
 func newPluginsRemoveCommand() *cli.Command {
 	return &cli.Command{

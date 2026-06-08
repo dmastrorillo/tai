@@ -58,7 +58,7 @@
 - [ ] 9.1 Decide the first core version number (likely `v0.1.0` or `v0.6.0` aligning with the current pivot ordinal — confirm with the maintainer).
 - [ ] 9.2 Decide the first triage version number (likely `v0.1.0`).
 - [ ] 9.3 Run `git tag <vX.Y.Z> && git push origin <vX.Y.Z> && make release-core`. Verify the GitHub Release page, the brew tap commit, and `brew install dmastrorillo/tap/tai` end-to-end.
-- [ ] 9.4 Run `git tag plugins/triage/<vX.Y.Z> && git push origin plugins/triage/<vX.Y.Z> && make release-triage`. Verify the GitHub Release page and `tai plugins triage install` against the new release end-to-end.
+- [x] 9.4 Run `git tag plugins/triage/<vX.Y.Z> && git push origin plugins/triage/<vX.Y.Z> && make release-triage`. Verify the GitHub Release page and `tai plugins install triage` against the new release end-to-end. Completed: triage `v0.1.0` released and `tai plugins install triage` verified end-to-end on `2026-06-08`.
 
 ## 10. Archive
 

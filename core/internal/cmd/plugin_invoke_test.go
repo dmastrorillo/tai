@@ -98,7 +98,7 @@ func TestPluginInvoke_TCPLG003_unknown_verb(t *testing.T) {
 	for _, want := range []string{
 		"[exit 1: UNKNOWN_SUBCOMMAND]",
 		"tai plugins list",
-		"tai plugins nope install",
+		"tai plugins install nope",
 	} {
 		if !strings.Contains(r.stderr, want) {
 			t.Errorf("stderr missing %q\nstderr:\n%s", want, r.stderr)

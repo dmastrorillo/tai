@@ -106,7 +106,7 @@ The taxonomy spans both core and first-party plugins. Codes are organised into g
 | `WORKFLOW_NOT_FOUND` | 2 | `tai workflow run <name>` referenced a workflow that does not exist. |
 | `STANDARD_INVALID` | 3 | A standard's filename collides with a reserved word. |
 | `STANDARD_NOT_FOUND` | 2 | `tai standards load <name>` referenced a standard that does not exist. |
-| `PLUGIN_UNKNOWN` | 2 | `tai plugins <name> install` for a name not in the registry and no `--source`. |
+| `PLUGIN_UNKNOWN` | 2 | `tai plugins install <name>` for a name not in the registry and no `--source`. |
 | `PLUGIN_NAME_RESERVED` | 1 | An install was attempted for a plugin whose name collides with a reserved core verb. |
 | `PLUGIN_ASSET_NAMING` | 3 | A plugin's skill/agent filename does not start with `tai-<plugin>-`. |
 | `PLUGIN_FETCH_UNAUTHORIZED` | 3 | A 401/403 was returned by the release host during a plugin fetch. |

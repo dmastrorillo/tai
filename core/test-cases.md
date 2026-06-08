@@ -1031,7 +1031,7 @@ namespaced under `tai-<name>-*` (skills/agents) and
 ### TC-PLG-001 — Installed plugin layout on disk
 
 - **Given** the user successfully installs the first-party `triage`
-  plugin via `tai plugins triage install`,
+  plugin via `tai plugins install triage`,
 - **When** the install completes,
 - **Then** `<TAI_DATA_DIR>/plugins/triage/triage` (or `triage.exe` on
   Windows) exists and is executable,
@@ -1062,14 +1062,14 @@ Exercised by `core/internal/cmd/plugin_invoke_test.go` →
 - **Then** the exit code is `1`,
 - **And** stderr's footer is `[exit 1: UNKNOWN_SUBCOMMAND]`,
 - **And** the "what to do" bullets name `tai plugins list` and
-  `tai plugins <name> install` as the resolution.
+  `tai plugins install <name>` as the resolution.
 
 Exercised by `core/internal/cmd/plugin_invoke_test.go` →
 `TestPluginInvoke_TCPLG003_unknown_verb`.
 
 ### TC-PLG-004 — Reserved-verb collision is rejected at install
 
-- **Given** the user attempts `tai plugins config install`,
+- **Given** the user attempts `tai plugins install config`,
 - **When** the install command runs (before any file is written),
 - **Then** the exit code is `1`,
 - **And** stderr's footer is `[exit 1: PLUGIN_NAME_RESERVED]`,
@@ -1099,7 +1099,7 @@ Exercised by `core/internal/cmd/plugin_invoke_test.go` →
 
 - **Given** a plugin `mytool` whose downloaded bundle includes
   `assets/skills/foo.md` (no `tai-mytool-` prefix),
-- **When** the user runs `tai plugins mytool install --source ...`,
+- **When** the user runs `tai plugins install mytool --source ...`,
 - **Then** the install fails with `PLUGIN_ASSET_NAMING`,
 - **And** the error message names the offending file,
 - **And** no files are left under any configured target's namespace
@@ -1122,7 +1122,7 @@ Exercised by `core/internal/plugins/install_test.go` →
 ### TC-PLG-008 — Unknown plugin without `--source` fails with `PLUGIN_UNKNOWN`
 
 - **Given** no built-in registry entry for `acme-custom` exists and
-  the user invokes `tai plugins acme-custom install` (no `--source`),
+  the user invokes `tai plugins install acme-custom` (no `--source`),
 - **When** the install runs,
 - **Then** the exit code is `1`,
 - **And** stderr's footer is `[exit 1: PLUGIN_UNKNOWN]`,
@@ -1182,7 +1182,7 @@ Exercised by `core/internal/cmd/plugins_test.go` →
 
 - **Given** `triage` version `0.4.0` is installed and the state file
   records that source,
-- **When** the user runs `tai plugins triage update` and `0.5.0` is
+- **When** the user runs `tai plugins update triage` and `0.5.0` is
   available,
 - **Then** the binary on disk is the `0.5.0` build,
 - **And** stale namespaced assets under every configured target are
@@ -1196,7 +1196,7 @@ Exercised by `core/internal/plugins/update_test.go` →
 
 - **Given** `triage` is installed and a runtime-state file exists at
   `<TAI_DATA_DIR>/plugins/triage/state/triage.db`,
-- **When** the user runs `tai plugins triage remove`,
+- **When** the user runs `tai plugins remove triage`,
 - **Then** the plugin binary and `assets/` are deleted,
 - **And** every namespaced asset under each configured target is
   removed,
@@ -1306,7 +1306,7 @@ Exercised by `core/internal/cmd/banner_test.go` →
 - **When** the banner fires,
 - **Then** stderr names a package-manager command for TAI
   (`brew upgrade tai` or `go install …@latest`),
-- **And** stderr names `tai plugins <name> update` for the plugin,
+- **And** stderr names `tai plugins update <name>` for the plugin,
 - **And** stderr names `tai sync` for the source-repo.
 
 Exercised by `core/internal/cmd/banner_test.go` →
@@ -1359,7 +1359,7 @@ must honour at runtime:
    `core/internal/plugins.AssetFilename(name, os, arch)`. The same
    string is produced by GoReleaser (`.goreleaser.<plugin>.yaml`'s
    `archives.name_template`) and consumed by the plugin host's HTTP
-   fetcher. Drift breaks `tai plugins <name> install` at runtime —
+   fetcher. Drift breaks `tai plugins install <name>` at runtime —
    these cases catch it at test time instead.
 
 2. The "latest" lookup for any prefixed plugin tag stream

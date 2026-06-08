@@ -13,7 +13,7 @@
 //
 // The list is additive — removing an entry does NOT uninstall the
 // plugin from a developer's machine. Removal is exclusively a user
-// gesture via `tai plugins <name> remove`.
+// gesture via `tai plugins remove <name>`.
 
 package sync
 

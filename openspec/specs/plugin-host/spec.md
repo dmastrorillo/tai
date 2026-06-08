@@ -26,7 +26,7 @@ When the user runs `tai <name> <args...>` and `<name>` is not a reserved core ve
 2. If found, execute the plugin's binary with `<args...>` as `argv` from index 1.
 3. Pass through stdin, stdout, stderr, and exit code unchanged.
 
-If `<name>` is not found, the command MUST exit with `UNKNOWN_SUBCOMMAND` and the "what to do" bullets MUST suggest `tai plugins list` and `tai plugins <name> install`.
+If `<name>` is not found, the command MUST exit with `UNKNOWN_SUBCOMMAND` and the "what to do" bullets MUST suggest `tai plugins list` and `tai plugins install <name>`.
 
 The authoritative list of reserved top-level verbs is maintained here: `config`, `sync`, `repo`, `install-commands`, `workflow`, `standards`, `plugins`, `help`, `version`. Other specs and the implementation registry MUST reference this list rather than duplicating it. A plugin installation MUST fail at install time with `PLUGIN_NAME_RESERVED` if the plugin name collides with any entry in this list. New top-level verbs added to TAI MUST be appended to this list in the same proposal that introduces them.
 
@@ -85,9 +85,9 @@ Plugin assets installed into target directories SHALL follow these naming rules,
 - **WHEN** the user installs the Triage plugin whose `assets/commands/` contains `import.md`
 - **THEN** the target receives the file at `<target.root>/<target.commands>/tai-triage/import.md`
 
-### Requirement: `tai plugins <name> install` performs install plus asset sync
+### Requirement: `tai plugins install <name>` performs install plus asset sync
 
-The system SHALL accept `tai plugins <name> install [--source <spec>] [--version <ver>]`. The install operation:
+The system SHALL accept `tai plugins install <name> [--source <spec>] [--version <ver>]`. The install operation:
 
 1. Resolves `<name>` against the built-in registry of first-party plugins.
 2. If unresolved AND `--source` is provided, uses the explicit source spec. The spec format is `<host>/<org>/<repo>[/<subpath>]@<version>` or compatible.
@@ -105,35 +105,35 @@ If any configured target's relevant sub-path is falsy, the install SHALL skip th
 
 #### Scenario: First-party plugin install
 
-- **WHEN** the user runs `tai plugins triage install` and a configured target exists
+- **WHEN** the user runs `tai plugins install triage` and a configured target exists
 - **THEN** the binary `triage` is downloaded and placed under `<TAI_DATA_DIR>/plugins/triage/`
 - **AND** assets matching the namespacing rules are written under each target
 
 #### Scenario: Unknown plugin without --source
 
-- **WHEN** the user runs `tai plugins acme-custom install` with no `--source`
+- **WHEN** the user runs `tai plugins install acme-custom` with no `--source`
 - **THEN** the command exits with `PLUGIN_UNKNOWN`
 
 #### Scenario: Third-party plugin with explicit source
 
-- **WHEN** the user runs `tai plugins acme-custom install --source github.com/acme/tai-plugin-custom --version v1.2.0`
+- **WHEN** the user runs `tai plugins install acme-custom --source github.com/acme/tai-plugin-custom --version v1.2.0`
 - **THEN** TAI fetches from the GitHub Releases of the named repo
 - **AND** writes binary + assets under `<TAI_DATA_DIR>/plugins/acme-custom/`
 
-### Requirement: `tai plugins <name> update` replaces the installed copy
+### Requirement: `tai plugins update <name>` replaces the installed copy
 
-`tai plugins <name> update` SHALL fetch the latest available version from the same source recorded at install time, write it into the same path overwriting the previous version, wipe the plugin's namespace in each target, and re-copy current assets. State is updated with the new version and a fresh install timestamp.
+`tai plugins update <name>` SHALL fetch the latest available version from the same source recorded at install time, write it into the same path overwriting the previous version, wipe the plugin's namespace in each target, and re-copy current assets. State is updated with the new version and a fresh install timestamp.
 
 #### Scenario: Update brings new version
 
-- **WHEN** Triage 0.4.0 is installed and the user runs `tai plugins triage update` with 0.5.0 available
+- **WHEN** Triage 0.4.0 is installed and the user runs `tai plugins update triage` with 0.5.0 available
 - **THEN** the binary at `<TAI_DATA_DIR>/plugins/triage/triage` is replaced
 - **AND** stale namespaced assets in each target are removed and re-written
 - **AND** the state file records version `0.5.0`
 
-### Requirement: `tai plugins <name> remove` keeps plugin data intact
+### Requirement: `tai plugins remove <name>` keeps plugin data intact
 
-`tai plugins <name> remove` SHALL:
+`tai plugins remove <name>` SHALL:
 
 1. Wipe the plugin's namespace in each configured target (skills, agents, commands subdir).
 2. Delete the binary and `assets/` under `<TAI_DATA_DIR>/plugins/<name>/`.
@@ -144,7 +144,7 @@ The plugin's own runtime state (e.g. a SQLite file at `<TAI_DATA_DIR>/plugins/<n
 #### Scenario: Remove preserves runtime state
 
 - **WHEN** the Triage plugin has a SQLite file at `<TAI_DATA_DIR>/plugins/triage/state/triage.db`
-- **AND** the user runs `tai plugins triage remove`
+- **AND** the user runs `tai plugins remove triage`
 - **THEN** the binary, assets/ folder, and namespaced target files are deleted
 - **AND** the SQLite file at the state path remains
 - **AND** stderr names the retained path
@@ -162,7 +162,7 @@ The plugin's own runtime state (e.g. a SQLite file at `<TAI_DATA_DIR>/plugins/<n
 
 At the start of `tai sync`, the system SHALL read `<clone>/plugins.yml` (if it exists). For each entry not currently installed, the system SHALL install it before proceeding with asset sync. Entries already installed are not modified.
 
-`plugins.yml` is additive: removing an entry SHALL NOT uninstall a plugin from the developer's machine. Removal is exclusively the user's gesture via `tai plugins <name> remove`.
+`plugins.yml` is additive: removing an entry SHALL NOT uninstall a plugin from the developer's machine. Removal is exclusively the user's gesture via `tai plugins remove <name>`.
 
 #### Scenario: Auto-install of plugin listed in plugins.yml
 

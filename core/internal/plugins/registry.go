@@ -19,7 +19,7 @@ import (
 // asset-name convention `tai-plugin-<plugin>-<os>-<arch>[.exe]`.
 //
 // Version is set per install: a registry entry leaves it empty
-// ("latest" is implied) and `tai plugins <name> install --version`
+// ("latest" is implied) and `tai plugins install <name> --version`
 // overrides it. Subpath is reserved for monorepo plugins whose
 // release asset lives under a sub-directory; today no first-party
 // plugin uses it.

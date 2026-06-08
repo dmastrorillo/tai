@@ -173,7 +173,7 @@ func TestBanner_TCUB005_names_exact_commands(t *testing.T) {
 	out := stderr.String()
 	for _, want := range []string{
 		"brew upgrade tai", // TAI package-manager command
-		"tai plugins triage update",
+		"tai plugins update triage",
 		"tai sync",
 	} {
 		if !strings.Contains(out, want) {
@@ -282,7 +282,7 @@ func TestBanner_TCREL006_plugin_row_appears_in_stderr(t *testing.T) {
 		"triage",
 		"v0.4.0",
 		"v0.5.0",
-		"tai plugins triage update",
+		"tai plugins update triage",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("banner missing %q\nbanner:\n%s", want, out)
