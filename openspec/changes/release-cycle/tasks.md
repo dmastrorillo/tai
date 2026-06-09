@@ -55,9 +55,9 @@
 
 ## 9. First real release (separate session, not part of this proposal's PR)
 
-- [ ] 9.1 Decide the first core version number (likely `v0.1.0` or `v0.6.0` aligning with the current pivot ordinal — confirm with the maintainer).
-- [ ] 9.2 Decide the first triage version number (likely `v0.1.0`).
-- [ ] 9.3 Run `git tag <vX.Y.Z> && git push origin <vX.Y.Z> && make release-core`. Verify the GitHub Release page, the brew tap commit, and `brew install dmastrorillo/tap/tai` end-to-end.
+- [x] 9.1 Decide the first core version number. Settled on `v0.1.0` (first release on the new pipeline). `v0.1.1` followed immediately to ship the go-install version fallback and the cask postflight quarantine-clear.
+- [x] 9.2 Decide the first triage version number. Settled on `v0.1.0`.
+- [x] 9.3 Run `git tag <vX.Y.Z> && git push origin <vX.Y.Z> && make release-core`. Verify the GitHub Release page, the brew tap commit, and `brew install dmastrorillo/tap/tai` end-to-end. Completed `2026-06-09`: `v0.1.0` shipped + `v0.1.1` followed with the two fixes (`xattr` postflight + ReadBuildInfo fallback). Fresh `brew install dmastrorillo/tap/tai` and `go install github.com/dmastrorillo/tai/core/cmd/tai@v0.1.1` both produce a working `tai --version v0.1.1` with no manual intervention.
 - [x] 9.4 Run `git tag plugins/triage/<vX.Y.Z> && git push origin plugins/triage/<vX.Y.Z> && make release-triage`. Verify the GitHub Release page and `tai plugins install triage` against the new release end-to-end. Completed: triage `v0.1.0` released and `tai plugins install triage` verified end-to-end on `2026-06-08`.
 
 ## 10. Archive
