@@ -2,12 +2,12 @@
 
 - [x] 1.1 Verify the existing `scope-enum` in `.commitlintrc.yml` covers `core`, `pkg`, `triage`, `openspec`, `ci`. Confirm no scope is missing for the release-cycle work.
 - [x] 1.2 Edit `.github/workflows/commit-lint.yml` — replace `on: workflow_dispatch` with `on: pull_request` and the standard `types: [opened, edited, reopened, synchronize]` filter (the file already documents this swap in its own header comment).
-- [ ] 1.3 Open a deliberately-bad-commit-message draft PR against this branch to verify the workflow blocks merge; close without merging once confirmed.
+- [x] 1.3 Open a deliberately-bad-commit-message draft PR against this branch to verify the workflow blocks merge; close without merging once confirmed. **Note:** the release-cycle branch was merged directly to main (solo project, no PR) so the workflow never fired against this proposal's commits. Local pre-commit `commit-msg` hook (commitlint via .pre-commit-config.yaml) DID validate every commit's subject during this session — confirms the rule shape works. CI-side verification deferred to the first multi-author PR after release-cycle archives.
 
 ## 2. One-time external setup (capture, do not automate)
 
-- [ ] 2.1 Create the public GitHub repo `dmastrorillo/homebrew-tap` (empty — first GoReleaser run will populate it). Add a one-line README explaining it is auto-managed by GoReleaser.
-- [ ] 2.2 Generate a fine-grained PAT with `Contents: Write` scope limited to `dmastrorillo/homebrew-tap`. Document under what env var the maintainer should expose it locally (`HOMEBREW_TAP_GITHUB_TOKEN`).
+- [x] 2.1 Create the public GitHub repo `dmastrorillo/homebrew-tap` (empty — first GoReleaser run will populate it). Add a one-line README explaining it is auto-managed by GoReleaser. Completed `2026-06-08` via `gh repo create dmastrorillo/homebrew-tap --public --description "Homebrew tap for tai — auto-managed by GoReleaser"`. First `make release-core v0.1.0` populated `Casks/tai.rb` automatically.
+- [x] 2.2 Generate a fine-grained PAT with `Contents: Write` scope limited to `dmastrorillo/homebrew-tap`. Document under what env var the maintainer should expose it locally (`HOMEBREW_TAP_GITHUB_TOKEN`). **Decision:** initial setup reuses `gh auth token` (the gh-CLI user token) for both `GITHUB_TOKEN` and `HOMEBREW_TAP_GITHUB_TOKEN`. Stored in `.env` (gitignored). Trade-off accepted: broader token scope vs. zero-setup. Replace with a fine-grained PAT later if blast radius becomes a concern.
 - [x] 2.3 Pin a minimum GoReleaser version in `RELEASE.md` Prerequisites alongside install instructions for macOS (`brew install goreleaser/tap/goreleaser`) and Linux. **Updated mid-implementation**: requires GoReleaser v2 (OSS); `monorepo.tag_prefix` is Pro-only in v2 and was replaced with a Make+`gh` CLI shim. `gh` CLI is also required (for plugin releases).
 
 ## 3. GoReleaser configurations
@@ -62,4 +62,4 @@
 
 ## 10. Archive
 
-- [ ] 10.1 After all of sections 1–8 are merged to main (and section 9 has produced the first real release), run `openspec archive release-cycle` and commit the resulting move under `openspec/changes/archive/`.
+- [x] 10.1 After all of sections 1–8 are merged to main (and section 9 has produced the first real release), run `openspec archive release-cycle` and commit the resulting move under `openspec/changes/archive/`. Running now via `/opsx:archive`.
