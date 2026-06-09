@@ -104,12 +104,17 @@ If a future first-party plugin is added, copy `.goreleaser.triage.yaml` to `.gor
 ### After `make release-core`
 
 ```bash
-# 1. Brew install fetches the new version
+# 1. Brew install fetches the new version. The cask's postflight
+#    block clears the Gatekeeper quarantine automatically — no
+#    manual `xattr` step required.
 brew update
 brew install dmastrorillo/tap/tai
-tai --version   # must print v<X.Y.Z>, not "dev"
+tai --version   # must print v<X.Y.Z>
 
-# 2. go install fetches the new version
+# 2. go install. The version package's init() reads
+#    runtime/debug.ReadBuildInfo() to fall back to the module's
+#    tagged version when ldflags injection didn't fire, so the
+#    installed binary reports its real version.
 GOBIN=$(mktemp -d) go install github.com/dmastrorillo/tai/core/cmd/tai@latest
 $GOBIN/tai --version   # must print v<X.Y.Z>
 

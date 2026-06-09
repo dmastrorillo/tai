@@ -128,6 +128,8 @@ These pieces are coupled — change one, change all.
 - **Goreleaser deprecation warnings.** v2.x is a moving target. Address before next cycle. Past migrations: `brews:` → `homebrew_casks:`, `archives.format` → `formats: [...]`, `homebrew_casks.binary` → `binaries`.
 - **First-party plugin install fails with `PLUGIN_FETCH_FAILED` after a release.** Likely the asset filename in the GitHub Release doesn't match `AssetFilename`. Re-check `.goreleaser.<plugin>.yaml::archives.name_template`. TC-REL-001 pins the expected name but the YAML can drift.
 - **Tap repo doesn't exist.** First `make release-core` fails with a confusing 404. Create `dmastrorillo/homebrew-tap` empty first.
+- **Gatekeeper quarantine on macOS.** The unsigned core binary would otherwise be killed silently by Gatekeeper on first run. The cask carries a `postflight` block that runs `xattr -dr com.apple.quarantine ...` so brew install Just Works without an Apple Developer account. The permanent fix is codesign + notarization via goreleaser's `signs:` / `notarize:` blocks — adopt when the project takes an Apple Developer subscription.
+- **`go install ...@vX.Y.Z` version**. Plain `go install` doesn't run ldflags, so the binary's `version.String` default is `"dev"`. Both version packages (`core/internal/version`, `plugins/triage/internal/version`) carry an `init()` that falls back to `runtime/debug.ReadBuildInfo().Main.Version` when ldflags didn't fire — so `go install ...@v0.1.0` produces a binary whose `tai --version` reports `v0.1.0` automatically. Linker injection still wins when present (goreleaser path stays unchanged).
 
 ## Changelog generation
 

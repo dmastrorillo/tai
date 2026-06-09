@@ -99,6 +99,17 @@ homebrew_casks:
     # End-user install command is unchanged:
     # `brew install dmastrorillo/tap/tai`.
     binaries: [tai]
+    # Strip the macOS Gatekeeper quarantine xattr after install.
+    # Without this, the unsigned tai binary fails silently on first
+    # run (Gatekeeper kills the process; stderr is empty; exit 0).
+    # Permanent fix: codesign+notarize via goreleaser's signs:/
+    # notarize: blocks once the project has an Apple Developer account.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tai"]
+          end
     repository:
       owner: dmastrorillo
       name: homebrew-tap
