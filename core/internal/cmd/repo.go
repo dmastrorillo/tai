@@ -12,7 +12,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/dmastrorillo/tai/core/internal/repoinit"
-	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
 func newRepoCommand() *cli.Command {
@@ -40,13 +39,11 @@ func newRepoInitCommand() *cli.Command {
 }
 
 func runRepoInit(ctx context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return errcode.New(errcode.MissingArg,
-			"tai repo init requires exactly one argument: <path>").
-			WithHelp("example: `tai repo init ./my-tai-source-repo`")
+	dst, err := requireOneArg(c, "tai repo init", "<path>",
+		"example: `tai repo init ./my-tai-source-repo`")
+	if err != nil {
+		return err
 	}
-	dst := args[0]
 
 	if err := repoinit.Scaffold(ctx, dst); err != nil {
 		return err

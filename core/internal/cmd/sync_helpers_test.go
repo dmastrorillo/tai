@@ -1,54 +1,49 @@
 package cmd_test
 
 import (
-	"bytes"
 	"context"
-	"strings"
+	"io"
 	"testing"
-
-	"github.com/urfave/cli/v3"
+	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/cmd"
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/sync"
-	"github.com/dmastrorillo/tai/pkg/cliexec"
-	"github.com/dmastrorillo/tai/pkg/cliout"
+	"github.com/dmastrorillo/tai/pkg/clitest"
+	"github.com/dmastrorillo/tai/pkg/datadir"
 )
 
-// runRootStdin drives cmd.NewRoot like runRoot but feeds the supplied
-// string as stdin. Used by sync tests that exercise the overwrite/prune
-// prompt's stdin read.
+// runRootStdin is the single harness body behind runRoot: it drives
+// cmd.NewRoot through the shared pkg/clitest harness (the same one
+// the triage plugin's cmdtest wraps), feeding the supplied string as
+// stdin (sync prompt tests read it; everything else passes "").
 //
-// Not tied to a TC-ID — it's a test helper. Kept in a separate file so
-// the runRoot helper in root_test.go stays minimal.
+// The PreRun hook mirrors main.go's pre-foreground update-banner
+// emission so the banner-in-CLI wiring is exercised by every
+// harness-based test; fixtures that don't seed update-check.json see
+// no banner — EmitBanner silently returns when there is no state.
+// Error rendering and the exit code come from cliexec.Exit inside
+// clitest, the same translation the shipped binary performs, so this
+// harness cannot drift from production behaviour.
+//
+// Not tied to a TC-ID — it's a test helper.
 func runRootStdin(t *testing.T, stdin string, argv ...string) runResult {
 	t.Helper()
 
-	var stdout, stderr bytes.Buffer
-	root := cmd.NewRoot()
-	wireStreamsWithStdin(root, &stdout, &stderr, strings.NewReader(stdin))
+	r := clitest.RunWith(t, cmd.NewRoot(), clitest.Options{
+		Stdin: stdin,
+		PreRun: func(stderr io.Writer) {
+			if dataDir, err := datadir.Resolve(); err == nil {
+				sync.EmitBanner(stderr, dataDir, time.Now())
+			}
+		},
+	}, argv...)
 
-	fullArgs := append([]string{"tai"}, argv...)
-	err := cliexec.Run(context.Background(), root, fullArgs)
-	if err != nil {
-		cliout.WriteError(&stderr, err)
-	}
 	return runResult{
-		stdout:   stdout.String(),
-		stderr:   stderr.String(),
-		exitCode: exitCodeFor(err),
-		err:      err,
-	}
-}
-
-// wireStreamsWithStdin is wireStreams with a configurable stdin
-// reader instead of the empty string the runRoot helper assumes.
-func wireStreamsWithStdin(c *cli.Command, out, errOut *bytes.Buffer, in *strings.Reader) {
-	c.Writer = out
-	c.ErrWriter = errOut
-	c.Reader = in
-	for _, child := range c.Commands {
-		wireStreamsWithStdin(child, out, errOut, in)
+		stdout:   r.Stdout,
+		stderr:   r.Stderr,
+		exitCode: r.ExitCode,
+		err:      r.Err,
 	}
 }
 

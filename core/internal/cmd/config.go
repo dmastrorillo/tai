@@ -91,9 +91,9 @@ func newConfigShowCommand() *cli.Command {
 }
 
 func runConfigShow(_ context.Context, c *cli.Command) error {
-	path, err := config.ResolvePath()
+	path, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 
 	f, err := config.Load(path)
@@ -161,9 +161,9 @@ func runConfigEdit(ctx context.Context, c *cli.Command) error {
 			)
 	}
 
-	path, err := config.ResolvePath()
+	path, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 
 	// Bootstrap the commented template if the file doesn't exist yet.
@@ -217,14 +217,12 @@ func newConfigSetCommand() *cli.Command {
 }
 
 func runConfigSet(_ context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 2 {
-		return errcode.New(errcode.MissingArg,
-			"tai config set requires exactly two arguments: <key> <value>").
-			WithHelp(
-				"example: `tai config set repo-url git@github.com:acme/repo.git`",
-				"run `tai config set --help` to see the supported keys",
-			)
+	args, err := requireArgs(c, "tai config set", "<key> <value>", 2,
+		"example: `tai config set repo-url git@github.com:acme/repo.git`",
+		"run `tai config set --help` to see the supported keys",
+	)
+	if err != nil {
+		return err
 	}
 	key, value := args[0], args[1]
 
@@ -239,9 +237,9 @@ func runConfigSet(_ context.Context, c *cli.Command) error {
 			)
 	}
 
-	path, err := config.ResolvePath()
+	path, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 	f, err := loadOrEmpty(path)
 	if err != nil {
@@ -299,17 +297,15 @@ func newConfigTargetAddCommand() *cli.Command {
 }
 
 func runConfigTargetAdd(_ context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return errcode.New(errcode.MissingArg,
-			"tai config target add requires exactly one argument: <root>").
-			WithHelp("example: `tai config target add ~/.claude`")
-	}
-	root := args[0]
-
-	path, err := config.ResolvePath()
+	root, err := requireOneArg(c, "tai config target add", "<root>",
+		"example: `tai config target add ~/.claude`")
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
+	}
+
+	path, err := resolveConfigPath()
+	if err != nil {
+		return err
 	}
 	f, err := loadOrEmpty(path)
 	if err != nil {
@@ -352,9 +348,9 @@ func newConfigTargetListCommand() *cli.Command {
 }
 
 func runConfigTargetList(_ context.Context, c *cli.Command) error {
-	path, err := config.ResolvePath()
+	path, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 	f, err := config.Load(path)
 	if err != nil {
@@ -407,17 +403,15 @@ func newConfigTargetRemoveCommand() *cli.Command {
 }
 
 func runConfigTargetRemove(_ context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return errcode.New(errcode.MissingArg,
-			"tai config target remove requires exactly one argument: <root>").
-			WithHelp("example: `tai config target remove ~/.claude`")
-	}
-	root := args[0]
-
-	path, err := config.ResolvePath()
+	root, err := requireOneArg(c, "tai config target remove", "<root>",
+		"example: `tai config target remove ~/.claude`")
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
+	}
+
+	path, err := resolveConfigPath()
+	if err != nil {
+		return err
 	}
 	f, err := loadOrEmpty(path)
 	if err != nil {

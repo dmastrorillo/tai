@@ -13,7 +13,6 @@ import (
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/sync"
 	"github.com/dmastrorillo/tai/pkg/datadir"
-	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
 func newSyncCommand() *cli.Command {
@@ -36,9 +35,9 @@ func newSyncCommand() *cli.Command {
 }
 
 func runSync(ctx context.Context, c *cli.Command) error {
-	cfgPath, err := config.ResolvePath()
+	cfgPath, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {

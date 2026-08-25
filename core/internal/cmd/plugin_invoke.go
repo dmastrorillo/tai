@@ -143,24 +143,6 @@ func execPlugin(ctx context.Context, name string, args []string, dataDir string,
 		"exec plugin %s: %s", name, err)
 }
 
-// loadEffectiveConfig loads tai's config, returning a non-nil
-// pointer even when no file exists on disk. Used by execPlugin to
-// build the wire-contract env vars.
-func loadEffectiveConfig() (*config.File, error) {
-	cfgPath, err := config.ResolvePath()
-	if err != nil {
-		return nil, errcode.Wrap(errcode.InternalError, err, err.Error())
-	}
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		return nil, err
-	}
-	if cfg == nil {
-		cfg = &config.File{}
-	}
-	return cfg, nil
-}
-
 // pluginEnv returns the three wire-contract env vars (TAI_DATA_DIR,
 // TAI_CLONE_DIR, TAI_TARGETS) as a KEY=VALUE slice. CloneDir is
 // empty when no repo-url is configured.
