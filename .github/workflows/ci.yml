@@ -64,8 +64,12 @@ jobs:
       # Version is pinned to keep CI reproducible. Bump deliberately in
       # its own PR; CONTRIBUTING.md and the local toolchain should be
       # updated in lockstep.
+      #
+      # golangci-lint v2 requires golangci-lint-action v7+ (v6 rejects
+      # v2 version strings outright). v7 dropped the `args` input; the
+      # old `--timeout=5m` is unnecessary anyway — v2 runs without a
+      # default timeout.
       - name: Golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.12.2
-          args: --timeout=5m
