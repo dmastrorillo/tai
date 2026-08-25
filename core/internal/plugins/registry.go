@@ -2,9 +2,9 @@
 // first-party registry, the on-disk state, the fetch/install/update/
 // remove/list verb implementations, and the asset-namespacing rules.
 //
-// See `openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`
-// for the normative behaviour; the package's exported API surface is
-// shaped by the seven Requirements declared there.
+// See `openspec/specs/plugin-host/spec.md` for the normative
+// behaviour; the package's exported API surface is shaped by the
+// Requirements declared there.
 package plugins
 
 import (

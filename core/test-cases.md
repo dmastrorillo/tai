@@ -1267,6 +1267,28 @@ Exercised by `core/internal/cmd/sync_test.go` →
 Exercised by `core/internal/cmd/sync_test.go` →
 `TestSync_TCPLG016_pluginsyml_removal_is_noop`.
 
+### TC-PLG-017 — Failed asset copy preserves the previously-installed assets (regression)
+
+- **Given** a plugin's assets are installed into a target and a new
+  version's install/update begins syncing assets,
+- **When** copying one of the new version's asset files into the
+  target fails partway (unreadable file, disk full, permissions),
+- **Then** the command fails with a non-zero exit,
+- **And** every asset file the prior install placed in the target is
+  still on disk — the target is never left with the old files wiped
+  and the new set incomplete.
+
+Regression case: the per-target sync used to wipe the plugin's whole
+namespace before copying anything in, so a mid-copy failure destroyed
+the working install. The order is now copy-then-prune — stale entries
+are removed only after every copy succeeded.
+
+Exercised by `core/internal/plugins/assets_test.go` →
+`TestSyncAssets_TCPLG017_failed_copy_preserves_previous_install`
+(engine-level: drives `SyncAssetsToTargets`, the shared asset-sync
+step behind `tai plugins install/update` and the `tai sync`
+auto-install hook, and asserts on the target's on-disk state).
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
