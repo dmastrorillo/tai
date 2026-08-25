@@ -115,6 +115,14 @@ tai --version   # must print v<X.Y.Z>
 #    runtime/debug.ReadBuildInfo() to fall back to the module's
 #    tagged version when ldflags injection didn't fire, so the
 #    installed binary reports its real version.
+#
+#    Carve-out: when `go install` resolves a non-tagged commit
+#    (`@<commit-or-branch>`, or a symlinked-local module), Go
+#    synthesizes a pseudo-version like
+#    `v0.1.2-0.20260609004251-72a773c77386`. The version package
+#    detects that shape and surfaces `dev` instead so locally-built
+#    binaries are visually distinct from real releases. Tagged
+#    installs (`@vX.Y.Z`, `@vX.Y.Z-rc.N`) report the tag normally.
 GOBIN=$(mktemp -d) go install github.com/dmastrorillo/tai/core/cmd/tai@latest
 $GOBIN/tai --version   # must print v<X.Y.Z>
 

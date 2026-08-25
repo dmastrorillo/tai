@@ -174,6 +174,45 @@ func TestRepoInit_TCINIT004_readme_content(t *testing.T) {
 	}
 }
 
+// TestRepoInit_TCINIT009_readme_backlinks_tai exercises TC-INIT-009.
+// The scaffolded top-level README MUST point new readers at the
+// upstream tai project, explain what tai is in one paragraph, and
+// MUST NOT reference the hallucinated `docs.tai.sh` domain that
+// shipped in v0.1.
+func TestRepoInit_TCINIT009_readme_backlinks_tai(t *testing.T) {
+	requireGit(t)
+	scaffoldEnv(t)
+
+	root := filepath.Join(t.TempDir(), "readme")
+	r := runRoot(t, "repo", "init", root)
+	if r.err != nil {
+		t.Fatalf("unexpected error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+
+	body, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	got := string(body)
+
+	const backlink = "https://github.com/dmastrorillo/tai"
+	if !strings.Contains(got, backlink) {
+		t.Errorf("top-level README must contain the tai project backlink %q; got:\n%s", backlink, got)
+	}
+	// Intro paragraph: just assert the README explicitly names tai as
+	// a CLI / distribution tool. The exact wording is owned by the
+	// template; this check is intentionally loose so future template
+	// edits don't bounce the test as long as the orientation paragraph
+	// is still there.
+	lower := strings.ToLower(got)
+	if !strings.Contains(lower, "tai") || !strings.Contains(lower, "cli") {
+		t.Errorf("top-level README must explain what tai is (named `tai` + describes it as a CLI); got:\n%s", got)
+	}
+	if strings.Contains(got, "docs.tai.sh") {
+		t.Errorf("top-level README must NOT reference the hallucinated `docs.tai.sh` domain; got:\n%s", got)
+	}
+}
+
 // TestRepoInit_TCINIT005_git_init_and_commit exercises TC-INIT-005.
 func TestRepoInit_TCINIT005_git_init_and_commit(t *testing.T) {
 	requireGit(t)

@@ -1,0 +1,44 @@
+## Why
+
+Eight bugs surfaced during early daily use are eroding trust in the v0.1 surface: a flashing HTTPS-creds prompt on every `tai` invocation, a hallucinated docs URL in the scaffolded README, plugins invisible in `tai --help`, stale `/tai:` slash-command references inside triage assets, ugly Go pseudo-version strings on locally-built binaries, a legacy triage self-installer that bypasses the plugin host's namespacing, no friction at all when installing third-party plugins, and zero post-install or first-run guidance pointing users at orientation. Each fix is small in isolation; landing them as one change keeps the spec deltas coherent (several capabilities touched by overlapping concerns) and matches the user's preference for bundled commits.
+
+## What Changes
+
+- **Background git poll silently fails on missing creds.** Background `git ls-remote` invocations in `core/internal/sync/poll.go` gain `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=/bin/echo`, `GCM_INTERACTIVE=Never` so they fail fast instead of flashing a credential prompt. Foreground `tai sync` git calls are unchanged.
+- **`tai --help` lists installed plugins under a new `PLUGINS:` section.** Empty section is hidden when no plugins are installed. Plugins also become discoverable via `tai <plugin> help`, which forwards all args verbatim to the plugin subprocess; reverse-order `tai help <plugin>` is NOT supported.
+- **New plugin-host wire verb: `<plugin> --help-summary`.** Captured at install/update and persisted as `description` in `plugins.json`. **BREAKING**: every plugin must implement this verb; the host fails install with a clear error if it doesn't.
+- **Mandatory `assets/` directory in every plugin tarball.** Empty `assets/` is fine. Missing → fail `PLUGIN_ASSET_MISSING` at install time. This catches the failure mode that let triage v0.1.0 ship without any assets and slip through validation.
+- **Third-party plugin install friction.** `tai plugins install --source <...>` (and any `plugins.yml` entry that isn't in the built-in registry) requires interactive `[y/N]` confirmation. `--yes`/`-y` bypasses. Non-TTY without `--yes` fails `PLUGIN_THIRDPARTY_UNCONFIRMED`. `tai sync` shows ONE aggregate prompt when `plugins.yml` contains ≥1 third-party entry, persisting trust as a sha256 hash of `plugins.yml` in `<TAI_DATA_DIR>/state/trust.json` keyed by `repo-url`; the prompt re-fires when the file changes. The plugins.yml `tai sync` flow gains a `--trust-third-party` flag for non-TTY opt-in.
+- **Pseudo-version → `dev` fallback.** When `runtime/debug.ReadBuildInfo()` returns a pseudo-version (`vX.Y.Z-0.YYYYMMDDHHMMSS-shortsha`, the Go-synthesized form for `go install` from non-tagged commits / symlinked local source), surface `dev` instead. Clean tagged releases (`vX.Y.Z`, `vX.Y.Z-rc.1`, etc.) and ldflags-injected builds unchanged.
+- **Triage plugin self-installer removed.** Delete `plugins/triage/internal/cmd/install.go`, the `plugins/triage/internal/installer/` package, and the `install`/`uninstall` wiring in `plugins/triage/internal/cmd/root.go`. Triage commands are placed via the host's existing `SyncAssetsToTargets` flow, which routes them to `<target.commands>/tai-triage/` per spec. **BREAKING for triage users:** `tai triage install` / `tai triage uninstall` no longer exist; `tai plugins install triage` is the only path.
+- **Triage tarball ships `assets/`.** `.goreleaser.triage.yaml` `archives.files` extended to glob `plugins/triage/assets/**/*` into the tarball at `assets/`. Without this the new `PLUGIN_ASSET_MISSING` check rejects every triage install.
+- **Triage asset content cleanup.** The 31 `/tai:{import,triage,verify}` slash-command references inside `plugins/triage/assets/commands/{import,triage,verify}.md` rewritten to `/tai-triage:{import,triage,verify}` to match the directory routing.
+- **First-run onboarding hint.** First `tai` invocation with no `<TAI_DATA_DIR>/state/first-run.json` prints `→ Get started: run \`tai install-commands\` to make tai's commands available in your AI tool.` Then writes the marker; never re-shows. AI-tool-agnostic wording (no "Claude" string in CLI output).
+- **Post-install onboarding hint.** After `tai plugins install <name>` and `tai plugins update <name>` succeed, print `→ Run \`tai <name> help\` to learn how to use <name>.` Plugin owns the AI-specific orientation inside its own help output.
+- **`tai repo init` README rewritten.** Drop hallucinated `docs.tai.sh` link, add a one-paragraph "what is tai" intro, add backlink to `https://github.com/dmastrorillo/tai`.
+- **Doc updates.** `CLAUDE.md` gains a hard rule that plugins MUST place assets via the tarball's `assets/` directory and MUST NOT write directly to target dirs from their own subcommands. `RELEASE.md` and `.claude/skills/tai-release/SKILL.md:132` gain a pseudo-version carve-out paragraph. `CONTEXT.md` already updated with `First-party plugin` / `Third-party plugin` glossary entries (separate commit).
+
+## Capabilities
+
+### New Capabilities
+
+None. All eight bugs map onto existing capabilities.
+
+### Modified Capabilities
+
+- `plugin-host`: adds the `--help-summary` wire verb, the `description` field in `plugins.json`, the `PLUGINS:` block in `tai --help`, the `tai <plugin> help` forwarding rule, `PLUGIN_ASSET_MISSING` validation, the third-party install prompt + `--yes` flag + non-TTY behaviour, and the post-install onboarding hint. Removes the implicit allowance for plugins to ship `install`/`uninstall` subverbs that bypass the host's asset-sync flow.
+- `repo-sync`: adds the silent-fail behaviour for the background update poll when credentials are missing, AND the `tai sync` third-party-plugin aggregate confirmation prompt + `--trust-third-party` flag + sha256(`plugins.yml`) trust cache in `state/trust.json`.
+- `release-cycle`: adds the pseudo-version carve-out — pseudo-version strings collapse to `dev` rather than being surfaced verbatim.
+- `update-banner`: adds the first-run hint emission rule + `state/first-run.json` marker. (Reuses the banner's "after the foreground command but before exit" emission slot — that's the closest existing surface area in the capability map; if reviewers prefer a new `first-run` capability instead, easy to split.)
+- `repo-init`: the README template content is owned here. Bug 2 is template content only — no requirement change beyond "the embedded template no longer references `docs.tai.sh` and now backlinks to the GitHub repo with a short tai introduction paragraph." Marginal spec impact; the delta will be brief but is included for completeness.
+
+## Impact
+
+- **Code**: `core/internal/sync/poll.go` (creds env), `core/internal/cmd/root.go` + new helper (PLUGINS: section, first-run hint, post-install hint), `core/internal/cmd/plugins.go` + `plugin_invoke.go` (forward-to-plugin-help, third-party prompt, `--yes` flag), `core/internal/plugins/{install,update,assets}.go` (`--help-summary` capture, `PLUGIN_ASSET_MISSING`, post-install hint emission), `core/internal/plugins/state.go` (`description` field; append-only), `core/internal/sync/sync.go` (plugins.yml trust hash + aggregate prompt + `--trust-third-party`), `core/internal/version/version.go` (`resolveVersion` pseudo-version detection), `core/internal/repoinit/templates/README.md` (rewrite), `plugins/triage/internal/cmd/{install.go,root.go}` (delete install/uninstall wiring), DELETE `plugins/triage/internal/installer/` package, `plugins/triage/assets/commands/{import,triage,verify}.md` (slash-command refs), `.goreleaser.triage.yaml` (archive files glob).
+- **Wire contract**: NEW verb `<plugin> --help-summary` joining `<plugin> <args...>` over the wire. Documented in `pkg/taiplugin` SDK.
+- **On-disk state**: new keys/files — `plugins.json[*].description` (append-only), `state/first-run.json` (existence marker), `state/trust.json` (`{<repo-url>: <sha256>}` map).
+- **Error codes**: new — `PLUGIN_ASSET_MISSING`, `PLUGIN_THIRDPARTY_UNCONFIRMED`, `PLUGIN_HELP_SUMMARY_FAILED` (for when the new wire verb errors at install time). Append to `pkg/errcode` registry.
+- **Tests**: every TC-ID added/updated in `core/test-cases.md`, `plugins/triage/test-cases.md`, and `pkg/test-cases.md` (for the wire contract change) drives a Go test at the appropriate boundary per CLAUDE.md.
+- **Docs**: `CLAUDE.md`, `RELEASE.md`, `.claude/skills/tai-release/SKILL.md`. `CONTEXT.md` already updated.
+- **BREAKING for users**: `tai triage install` / `tai triage uninstall` removed; users on triage v0.1.0 must `tai plugins update triage` (the new version no longer ships those verbs). Existing installs that placed files under `~/.claude/commands/tai/` need cleanup; the migration task includes a one-shot best-effort cleanup pass at first invocation of the new triage version.
+- **BREAKING for plugin authors**: every plugin must implement `--help-summary` and ship an `assets/` directory (empty is OK).

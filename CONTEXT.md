@@ -44,6 +44,14 @@ A code-bearing extension to TAI. A plugin is a standalone executable plus an `as
 
 Plugins are the opinionated layer of TAI: each plugin owns its own commands and may ship its own runtime state (e.g. a SQLite database).
 
+## First-party plugin
+
+A plugin whose canonical source is registered in `core/internal/plugins/registry.go::builtin`. Resolved by name alone — `tai plugins install <name>` works without a `--source` flag. Today the only first-party plugin is `triage`. First-party plugins are released from this repo via the `release-cycle` capability and trusted by default; no install-time warning is shown.
+
+## Third-party plugin
+
+A plugin not in the built-in registry. Installed by explicit source: `tai plugins install <name> --source <host>/<org>/<repo>`, or declared in a source repo's `plugins.yml` with the same explicit source. Treated as untrusted code by default — `tai` prompts for confirmation before installing one, and a `plugins.yml` carrying any third-party entry triggers an aggregate prompt on `tai sync`. Trust is persisted per source repo via a content-hash of `plugins.yml` in `<TAI_DATA_DIR>/state/trust.json`; the prompt re-fires when the file changes. "External plugin" is informal shorthand for the same thing.
+
 ## plugins.yml
 
 A YAML file at the root of the source repo listing the plugins TAI should auto-install on `tai sync`. It is **additive, not authoritative** — a developer may install additional plugins beyond what plugins.yml declares via `tai plugins install <name>`, and those are not removed when the file changes. Removing a plugin from plugins.yml does not uninstall it from developer machines.

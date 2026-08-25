@@ -246,10 +246,64 @@ func Schedule(ctx context.Context, cfg *config.File, dataDir string) *Waiter {
 	return w
 }
 
+// backgroundGitEnv is the env-var overlay applied to every git
+// invocation made from the background update-check path. The values
+// turn off git's interactive credential-prompt fallback so a stale
+// `tai` invocation never flashes `Username for 'https://...':`
+// across the user's terminal mid-keystroke (TC-SYNC-018). Credential
+// helpers (osxkeychain, gh, GCM cached tokens, .netrc) run BEFORE
+// the interactive fallback and continue to resolve silently; this
+// only suppresses the prompt path.
+//
+// The overlay is NOT applied to foreground `tai sync` git
+// invocations in clone.go, which retain the user's normal
+// interactive auth flow (TC-SYNC-019).
+var backgroundGitEnv = []string{
+	"GIT_TERMINAL_PROMPT=0", // disables git's built-in terminal prompt
+	"GIT_ASKPASS=/bin/echo", // overrides any inherited GIT_ASKPASS to a no-op
+	"GCM_INTERACTIVE=Never", // tells Git Credential Manager to skip interactive flows
+}
+
+// withBackgroundGitEnv returns a copy of the parent process env with
+// the background-poll overlay applied (replacing same-key entries
+// rather than appending). Returning a fresh slice keeps the parent
+// environment untouched across concurrent invocations.
+func withBackgroundGitEnv() []string {
+	base := os.Environ()
+	overrides := map[string]string{}
+	for _, kv := range backgroundGitEnv {
+		i := strings.IndexByte(kv, '=')
+		if i < 0 {
+			continue
+		}
+		overrides[kv[:i]] = kv[i+1:]
+	}
+	out := make([]string, 0, len(base)+len(backgroundGitEnv))
+	for _, kv := range base {
+		i := strings.IndexByte(kv, '=')
+		if i < 0 {
+			out = append(out, kv)
+			continue
+		}
+		if _, replace := overrides[kv[:i]]; replace {
+			continue
+		}
+		out = append(out, kv)
+	}
+	for k, v := range overrides {
+		out = append(out, k+"="+v)
+	}
+	return out
+}
+
 // lsRemote runs `git ls-remote <repo-url> HEAD` to fetch the
 // default-branch SHA without cloning. Returns the SHA on success.
+// Stdin is detached and the non-interactive env overlay is applied
+// so the call cannot prompt for credentials.
 func lsRemote(ctx context.Context, repoURL string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", repoURL, "HEAD")
+	cmd.Stdin = nil
+	cmd.Env = withBackgroundGitEnv()
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -264,9 +318,13 @@ func lsRemote(ctx context.Context, repoURL string) (string, error) {
 
 // localHeadCommit returns the SHA at HEAD of the local clone, or ""
 // when no clone exists. Uses exec.CommandContext so the goroutine can
-// be cancelled if the caller's context expires.
+// be cancelled if the caller's context expires. The non-interactive
+// env overlay is applied for consistency with lsRemote, even though
+// rev-parse on a local clone never prompts.
 func localHeadCommit(ctx context.Context, dataDir string) string {
 	cmd := exec.CommandContext(ctx, "git", "-C", CloneDir(dataDir), "rev-parse", "HEAD")
+	cmd.Stdin = nil
+	cmd.Env = withBackgroundGitEnv()
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
