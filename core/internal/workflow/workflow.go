@@ -14,16 +14,13 @@ package workflow
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/dmastrorillo/tai/core/internal/sourcetree"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -96,84 +93,20 @@ type rawStep struct {
 // the empty result to emit the `(no workflows)` line.
 //
 // The function takes a `warnings` writer rather than logging to
-// stderr directly so tests can capture the diagnostic stream.
+// stderr directly so tests can capture the diagnostic stream. The
+// walk/name/dedupe algorithm lives in core/internal/sourcetree,
+// shared with the standards loader; only the leaf parse step is
+// workflow-specific.
 func Load(cloneDir string, warnings io.Writer) ([]Workflow, error) {
-	root := filepath.Join(cloneDir, "workflows")
-	info, err := os.Stat(root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, errcode.Wrapf(errcode.InternalError, err,
-			"stat workflows tree at %s", root)
-	}
-	if !info.IsDir() {
-		return nil, errcode.Newf(errcode.WorkflowInvalid,
-			"%s exists but is not a directory", root)
-	}
-
-	// Collect candidate files first so we can apply alphabetical
-	// tie-breaking when two paths lowercase to the same name.
-	var paths []string
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(strings.ToLower(d.Name()), ".yml") {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
+	return sourcetree.Load(cloneDir, warnings, sourcetree.Options[Workflow]{
+		Subdir:   "workflows",
+		Ext:      ".yml",
+		Kind:     "workflow",
+		Verb:     "workflow",
+		Code:     errcode.WorkflowInvalid,
+		Reserved: reservedWorkflowNames,
+		Parse:    parseWorkflowFile,
 	})
-	if walkErr != nil {
-		return nil, errcode.Wrapf(errcode.InternalError, walkErr,
-			"walk workflows tree at %s", root)
-	}
-	sort.Strings(paths)
-
-	// byName accumulates loaded workflows keyed by colon-name so the
-	// duplicate-detection loop has O(1) lookup. The first path that
-	// claims a name wins (paths are sorted, so this is the
-	// alphabetically-earlier file).
-	byName := map[string]Workflow{}
-	for _, p := range paths {
-		rel, err := filepath.Rel(root, p)
-		if err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"rel workflows path %s", p)
-		}
-		name, err := workflowName(rel)
-		if err != nil {
-			return nil, err
-		}
-		if reservedWorkflowNames[name] {
-			return nil, errcode.Newf(errcode.WorkflowInvalid,
-				"workflow %s uses reserved name %q (collides with `tai workflow %s`)",
-				p, name, name).
-				WithHelp("rename the file to a non-reserved name")
-		}
-		if _, dupe := byName[name]; dupe {
-			_, _ = fmt.Fprintf(warnings,
-				"[tai] workflow name %q is claimed by both %s and %s — using the first; rename one to disambiguate\n",
-				name, byName[name].SourcePath, p)
-			continue
-		}
-		wf, err := parseWorkflowFile(p, name)
-		if err != nil {
-			return nil, err
-		}
-		byName[name] = wf
-	}
-
-	out := make([]Workflow, 0, len(byName))
-	for _, wf := range byName {
-		out = append(out, wf)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
 }
 
 // Find returns the workflow whose Name equals name, or (Workflow{},
@@ -186,32 +119,6 @@ func Find(workflows []Workflow, name string) (Workflow, bool) {
 		}
 	}
 	return Workflow{}, false
-}
-
-// workflowName converts a forward-slash relative path under
-// `workflows/` into the colon-namespaced lowercased name. Returns
-// WORKFLOW_INVALID when the path is not a `.yml` file or has an
-// empty stem.
-func workflowName(rel string) (string, error) {
-	rel = filepath.ToSlash(rel)
-	if !strings.HasSuffix(strings.ToLower(rel), ".yml") {
-		return "", errcode.Newf(errcode.WorkflowInvalid,
-			"workflow file %s does not end in .yml", rel)
-	}
-	stem := strings.TrimSuffix(rel, filepath.Ext(rel))
-	if stem == "" {
-		return "", errcode.Newf(errcode.WorkflowInvalid,
-			"workflow file %s has an empty name stem", rel)
-	}
-	segments := strings.Split(stem, "/")
-	for i, seg := range segments {
-		if seg == "" {
-			return "", errcode.Newf(errcode.WorkflowInvalid,
-				"workflow file %s has an empty path segment", rel)
-		}
-		segments[i] = strings.ToLower(seg)
-	}
-	return strings.Join(segments, ":"), nil
 }
 
 // parseWorkflowFile reads + validates one YAML file and returns the
