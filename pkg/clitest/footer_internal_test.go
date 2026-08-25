@@ -1,4 +1,4 @@
-package cmdtest
+package clitest
 
 import (
 	"fmt"
@@ -105,8 +105,7 @@ func TestAssertErrorFooter_RegexAndLastLine(t *testing.T) {
 // recordingT records calls to Helper / Fatalf without stopping the goroutine,
 // so a single test function can drive many positive and negative cases.
 //
-// It implements the asserterT interface (Helper, Fatalf) defined in
-// cmdtest.go.
+// It implements the asserterT interface (Helper, Fatalf) // clitest.go.
 type recordingT struct {
 	failed  bool
 	message string
