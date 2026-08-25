@@ -11,7 +11,8 @@ neither of those does: how a change is cut up so it can be reviewed at all.
 **The procedure is a skill, not prose.** This document states the policy and
 the reasoning. To actually plan a split or raise the PRs, invoke the
 `stacked-pr` skill — it carries the commands, the branch topology, and the
-order of operations.
+order of operations. To action a review someone has left on a stack — fix,
+reply, resolve, audit — invoke the `apply-review` skill.
 
 ## The 800-line cap
 
