@@ -3,6 +3,7 @@ package storage_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -786,4 +787,29 @@ func insertCommentBranch(t *testing.T, db *storage.DB, branchID int64) int64 {
 	}
 	id, _ := res.LastInsertId()
 	return id
+}
+
+// MapDBError is the single implementation of the "constraint
+// violation → DB_CONSTRAINT_VIOLATION, anything else → INTERNAL_ERROR"
+// routing every triage query layer applies. It used to be duplicated
+// verbatim in the import and triage packages, which both already
+// import storage.
+func TestMapDBError_routes_constraint_vs_internal(t *testing.T) {
+	if got := storage.MapDBError(nil, "noop"); got != nil {
+		t.Errorf("nil error should map to nil, got %v", got)
+	}
+
+	constraint := errors.New("UNIQUE constraint failed: comments.position")
+	if e, ok := errcode.As(storage.MapDBError(constraint, "insert comment")); !ok || e.Code != errcode.DBConstraintViolation {
+		t.Errorf("constraint error should map to DB_CONSTRAINT_VIOLATION, got %v", e)
+	}
+
+	plain := errors.New("disk I/O error")
+	e, ok := errcode.As(storage.MapDBError(plain, "read comment"))
+	if !ok || e.Code != errcode.InternalError {
+		t.Errorf("plain error should map to INTERNAL_ERROR, got %v", e)
+	}
+	if !errors.Is(e, plain) {
+		t.Error("cause chain must be preserved")
+	}
 }

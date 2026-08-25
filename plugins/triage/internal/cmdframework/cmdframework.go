@@ -16,7 +16,9 @@
 //   - Ledger — the access contract for the cumulative per-command
 //     hash history. The concrete storage and population mechanism
 //     is owned by add-install-command; this package only exposes
-//     `Ledger(verb)` returning the historical hashes, oldest-first.
+//     `LedgerStrict(verb)` returning the historical hashes,
+//     oldest-first, with a corrupt ledger surfacing as
+//     INSTALL_LEDGER_CORRUPT rather than being read as "no history".
 //
 // The hash and ledger machinery exists so `tai install` can classify
 // a target file as missing / up-to-date / stale-but-untouched /

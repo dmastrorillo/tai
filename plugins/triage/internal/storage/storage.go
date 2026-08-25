@@ -205,6 +205,23 @@ func ErrConstraint(err error) error {
 	return err
 }
 
+// MapDBError routes a SQL error through ErrConstraint so constraint
+// violations surface as DB_CONSTRAINT_VIOLATION; anything else is
+// unexpected (the database was already opened and migrated by the
+// time a query layer runs) and surfaces as INTERNAL_ERROR wrapped
+// with ctx. nil maps to nil. The single implementation of the
+// mapping every triage query layer applies.
+func MapDBError(err error, ctx string) error {
+	if err == nil {
+		return nil
+	}
+	wrapped := ErrConstraint(err)
+	if _, ok := errcode.As(wrapped); ok {
+		return wrapped
+	}
+	return errcode.Wrap(errcode.InternalError, err, ctx)
+}
+
 // isConstraintErr returns true when msg looks like a SQLite constraint
 // failure. modernc.org/sqlite's messages always contain the literal
 // "constraint" substring for these conditions (UNIQUE / NOT NULL /

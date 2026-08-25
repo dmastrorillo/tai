@@ -57,12 +57,8 @@ func TestLedger_TCINST001_well_formed_entries(t *testing.T) {
 
 // TestLedger_TCINST002_missing_verb_empty exercises TC-INST-002: a verb
 // with no `<verb>.ledger.json` in the embedded bundle yields an empty
-// slice — Ledger preserves the foundation's "unknown is empty" shape.
+// slice with no error — absence is not corruption.
 func TestLedger_TCINST002_missing_verb_empty(t *testing.T) {
-	if got := cmdframework.Ledger("definitely-not-a-bundled-verb"); len(got) != 0 {
-		t.Fatalf("expected empty ledger for unknown verb, got %v", got)
-	}
-	// LedgerStrict has identical "no data, no error" shape on absence.
 	hashes, err := cmdframework.LedgerStrict("definitely-not-a-bundled-verb")
 	if err != nil {
 		t.Fatalf("LedgerStrict on unknown verb returned error: %v", err)
