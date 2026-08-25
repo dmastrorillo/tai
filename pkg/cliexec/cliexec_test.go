@@ -95,3 +95,62 @@ func TestRun_TCERR006_passes_through_non_panic_errors(t *testing.T) {
 		t.Fatalf("expected errors.Is(err, want), got %v", err)
 	}
 }
+
+// Exit is the single implementation of the error → exit-code
+// translation both binary entry points perform after Run returns.
+// Before it existed the branch ladder was copy-pasted verbatim into
+// core/cmd/tai/main.go and plugins/triage/cmd/triage/main.go; every
+// future plugin main would have copied it again, and an error-shape
+// fix would need to touch every copy.
+func TestExit_maps_error_shapes_to_exit_codes(t *testing.T) {
+	structured := errcode.New(errcode.InternalError, "structured failure")
+
+	cases := []struct {
+		name       string
+		err        error
+		wantCode   int
+		wantFooter bool // error template rendered to w
+	}{
+		{
+			name:       "nil error is success, nothing written",
+			err:        nil,
+			wantCode:   0,
+			wantFooter: false,
+		},
+		{
+			name:       "structured errcode error renders template and maps its exit code",
+			err:        structured,
+			wantCode:   structured.Code.ExitCode(),
+			wantFooter: true,
+		},
+		{
+			name: "plain cli.ExitCoder propagates the child's code without a template",
+			// A plugin subprocess exit: the child already wrote its
+			// own stderr template — rendering another would bury it.
+			err:        cli.Exit("", 7),
+			wantCode:   7,
+			wantFooter: false,
+		},
+		{
+			name:       "unstructured error surfaces as INTERNAL with template",
+			err:        errors.New("third-party leak"),
+			wantCode:   70,
+			wantFooter: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf strings.Builder
+			got := cliexec.Exit(&buf, tc.err)
+			if got != tc.wantCode {
+				t.Errorf("Exit = %d, want %d", got, tc.wantCode)
+			}
+			if tc.wantFooter && !strings.Contains(buf.String(), "[exit") {
+				t.Errorf("want rendered error template, got %q", buf.String())
+			}
+			if !tc.wantFooter && buf.Len() != 0 {
+				t.Errorf("want nothing written, got %q", buf.String())
+			}
+		})
+	}
+}
