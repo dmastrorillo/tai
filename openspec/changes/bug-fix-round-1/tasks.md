@@ -13,16 +13,16 @@
 
 ## 3. Bug 5 — pseudo-version → `dev`
 
-- [ ] 3.1 In `core/internal/version/version.go`, add a `looksLikePseudoVersion(string) bool` helper. Regex: `^v\d+\.\d+\.\d+(-[A-Za-z0-9]+(\.[A-Za-z0-9]+)*)?[.-]\d{14}-[0-9a-f]{12}$`. Add it to the existing `resolveVersion` cascade so a pseudo `Main.Version` returns `linked` (`dev`) instead of being surfaced.
-- [ ] 3.2 Extend the table-driven `TestResolveVersion` in `core/internal/version/version_test.go` with cases for: canonical pre-1.0 pseudo, pseudo with `-0.` prefix, pseudo with prerelease before timestamp, real prerelease (must pass through), build-metadata (`v0.6.0+meta`, must pass through), and a deliberately-malformed pseudo-like string (must pass through verbatim — robustness).
-- [ ] 3.3 Mirror the helper into `plugins/triage/internal/version/version.go` (each binary owns its version package per CLAUDE.md). Mirror the table tests too.
-- [ ] 3.4 Update `RELEASE.md` and `.claude/skills/tai-release/SKILL.md` with a paragraph spelling out the pseudo-version carve-out: tagged installs surface the tag; pseudo-version installs (non-tagged `go install`, symlinked local) surface `dev`.
+- [x] 3.1 In `core/internal/version/version.go`, add a `looksLikePseudoVersion(string) bool` helper. Regex: `^v\d+\.\d+\.\d+(-[A-Za-z0-9]+(\.[A-Za-z0-9]+)*)?[.-]\d{14}-[0-9a-f]{12}$`. Add it to the existing `resolveVersion` cascade so a pseudo `Main.Version` returns `linked` (`dev`) instead of being surfaced.
+- [x] 3.2 Extend the table-driven `TestResolveVersion` in `core/internal/version/version_test.go` with cases for: canonical pre-1.0 pseudo, pseudo with `-0.` prefix, pseudo with prerelease before timestamp, real prerelease (must pass through), build-metadata (`v0.6.0+meta`, must pass through), and a deliberately-malformed pseudo-like string (must pass through verbatim — robustness).
+- [x] 3.3 Mirror the helper into `plugins/triage/internal/version/version.go` (each binary owns its version package per CLAUDE.md). Mirror the table tests too.
+- [x] 3.4 Update `RELEASE.md` and `.claude/skills/tai-release/SKILL.md` with a paragraph spelling out the pseudo-version carve-out: tagged installs surface the tag; pseudo-version installs (non-tagged `go install`, symlinked local) surface `dev`.
 
 ## 4. Bug 1 — background git poll silent-fail
 
-- [ ] 4.1 In `core/internal/sync/poll.go`, set `cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=/bin/echo", "GCM_INTERACTIVE=Never")` on the two background `exec.CommandContext` invocations (`git ls-remote $repoURL HEAD` and `git -C <clone> rev-parse HEAD`). Foreground `clone.go` invocations remain untouched.
-- [ ] 4.2 Add a unit test driving a fake git binary (or a `PATH` shim) that asserts the env vars are present on the background path and absent on the foreground path. Reuse the same test scaffolding as the existing poll tests.
-- [ ] 4.3 Add an e2e test in `core/internal/cmd/sync_test.go` (or a new `poll_e2e_test.go`) that simulates a non-credential-helper HTTPS source and asserts the background poll fails silently — no prompt bytes written to any stream, no read attempted on stdin.
+- [x] 4.1 In `core/internal/sync/poll.go`, set `cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=/bin/echo", "GCM_INTERACTIVE=Never")` on the two background `exec.CommandContext` invocations (`git ls-remote $repoURL HEAD` and `git -C <clone> rev-parse HEAD`). Foreground `clone.go` invocations remain untouched.
+- [x] 4.2 Add a unit test driving a fake git binary (or a `PATH` shim) that asserts the env vars are present on the background path and absent on the foreground path. Reuse the same test scaffolding as the existing poll tests.
+- [x] 4.3 Add an e2e test in `core/internal/cmd/sync_test.go` (or a new `poll_e2e_test.go`) that simulates a non-credential-helper HTTPS source and asserts the background poll fails silently — no prompt bytes written to any stream, no read attempted on stdin.
 
 ## 5. Bug 6 — delete triage self-installer, ship `assets/`, enforce in host
 
@@ -69,8 +69,8 @@
 
 ## 10. Bug 2 — repoinit README template rewrite
 
-- [ ] 10.1 Rewrite `core/internal/repoinit/templates/README.md`. Required elements: heading `# <repo-name> — a tai source repo` (the scaffold step substitutes `<repo-name>` with the directory base name — confirm via the embed-FS loader whether substitution is supported; if not, hard-code a neutral title and add a TODO for the operator to rename), one-paragraph intro describing tai, explicit backlink to `https://github.com/dmastrorillo/tai`, remove `docs.tai.sh` reference, preserve the existing folder-layout table and Next-steps block.
-- [ ] 10.2 Update `core/internal/cmd/repo_init_test.go` (or wherever the scaffold test lives) with assertions matching the new spec scenarios: README contains the backlink substring, contains an intro sentence, does NOT contain `docs.tai.sh`.
+- [x] 10.1 Rewrite `core/internal/repoinit/templates/README.md`. Required elements: heading `# <repo-name> — a tai source repo` (the scaffold step substitutes `<repo-name>` with the directory base name — confirm via the embed-FS loader whether substitution is supported; if not, hard-code a neutral title and add a TODO for the operator to rename), one-paragraph intro describing tai, explicit backlink to `https://github.com/dmastrorillo/tai`, remove `docs.tai.sh` reference, preserve the existing folder-layout table and Next-steps block.
+- [x] 10.2 Update `core/internal/cmd/repo_init_test.go` (or wherever the scaffold test lives) with assertions matching the new spec scenarios: README contains the backlink substring, contains an intro sentence, does NOT contain `docs.tai.sh`.
 
 ## 11. CLAUDE.md and CONTEXT.md updates
 

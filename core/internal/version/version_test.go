@@ -66,6 +66,53 @@ func TestResolveVersion(t *testing.T) {
 			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.2.0-rc.1"}},
 			want:   "v0.2.0-rc.1",
 		},
+		// TC-REL-009 — pseudo-version fallback to "dev".
+		{
+			name:   "pseudo_pre_1_0",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.0.0-20260609004251-72a773c77386"}},
+			want:   "dev",
+		},
+		{
+			name:   "pseudo_post_1_0_with_zero_prefix",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.1.2-0.20260609004251-72a773c77386"}},
+			want:   "dev",
+		},
+		{
+			name:   "pseudo_with_prerelease",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.2.0-rc.0.20260609004251-72a773c77386"}},
+			want:   "dev",
+		},
+		// TC-REL-010 — clean tags pass through; build-metadata + malformed pseudo-like strings too.
+		{
+			name:   "dev_buildinfo_prerelease_clean",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.6.0-rc.1"}},
+			want:   "v0.6.0-rc.1",
+		},
+		{
+			name:   "dev_buildinfo_build_metadata",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.6.0+meta.5"}},
+			want:   "v0.6.0+meta.5",
+		},
+		{
+			name:   "dev_buildinfo_malformed_pseudo_like",
+			linked: "dev",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.1.0-not-a-real-pseudo"}},
+			want:   "v0.1.0-not-a-real-pseudo",
+		},
+		// Linker-injected snapshot string passes through even when it
+		// superficially resembles a pseudo-version — the linker path
+		// short-circuits before the BuildInfo check is consulted.
+		{
+			name:   "linker_snapshot_passes_pseudo_check",
+			linked: "v0.0.0-SNAPSHOT-72a773c",
+			info:   &debug.BuildInfo{Main: debug.Module{Version: "v0.6.0"}},
+			want:   "v0.0.0-SNAPSHOT-72a773c",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

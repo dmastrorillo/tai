@@ -33,7 +33,10 @@
 // the same shape.
 package version
 
-import "runtime/debug"
+import (
+	"regexp"
+	"runtime/debug"
+)
 
 // String is the version string surfaced by the triage plugin's
 // install/uninstall summary banners. Set EITHER via the linker
@@ -49,10 +52,24 @@ func init() {
 	String = resolveVersion(String, info)
 }
 
+// pseudoVersionPattern mirrors core/internal/version's pattern.
+// See that package for the canonical doc; the form matched is
+// `vX.Y.Z(-<prerelease>)?[.-]YYYYMMDDHHMMSS-<12hexsha>`.
+var pseudoVersionPattern = regexp.MustCompile(`^v\d+\.\d+\.\d+(-[A-Za-z0-9]+(\.[A-Za-z0-9]+)*)?[.-]\d{14}-[0-9a-f]{12}$`)
+
+// looksLikePseudoVersion reports whether v is a Go pseudo-version.
+// Mirrors core/internal/version.looksLikePseudoVersion; each binary
+// owns its version package per CLAUDE.md's "no package-level mutable
+// state" exception, so the helper is duplicated rather than shared.
+func looksLikePseudoVersion(v string) bool {
+	return pseudoVersionPattern.MatchString(v)
+}
+
 // resolveVersion picks the right version string given the linked
 // default and the BuildInfo. Mirrors core/internal/version's helper
 // so both packages share the same fallback semantics. See that
-// package's doc comment for the rule table.
+// package's doc comment for the rule table, including the
+// pseudo-version → "dev" carve-out (TC-REL-009).
 func resolveVersion(linked string, info *debug.BuildInfo) string {
 	if linked != "dev" {
 		return linked
@@ -62,6 +79,9 @@ func resolveVersion(linked string, info *debug.BuildInfo) string {
 	}
 	v := info.Main.Version
 	if v == "" || v == "(devel)" {
+		return linked
+	}
+	if looksLikePseudoVersion(v) {
 		return linked
 	}
 	return v

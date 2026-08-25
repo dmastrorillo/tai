@@ -1,8 +1,20 @@
 # tai source repo
 
-This repo is a **tai source repo** — a git-versioned bundle of AI assets
-(Claude Code skills, slash commands, agents, plus workflows and
-standards) that one or more developers' machines pull from via `tai sync`.
+This is a **tai source repo** — a git-versioned bundle of AI assets
+(skills, slash commands, agents, workflows, standards) that
+[tai](https://github.com/dmastrorillo/tai) distributes onto each
+developer's machine via `tai sync`.
+
+## What is tai?
+
+`tai` is a CLI for sharing AI tooling across a team like code. Each
+developer points tai at this repo, runs `tai sync`, and tai copies the
+configured assets into whichever target their AI tool reads from
+(`~/.claude/`, `~/.opencode/`, or any custom path). Skills, slash
+commands, and agents become available wherever they configured the
+target; workflows and standards stay in the clone and are loaded on
+demand. See the [tai repository on GitHub](https://github.com/dmastrorillo/tai)
+for the full project README.
 
 ## Layout
 
@@ -27,5 +39,6 @@ tai config target add ~/.claude
 tai sync
 ```
 
-See [`docs.tai.sh`](https://docs.tai.sh) for the full reference (or the
-README in each subfolder for naming conventions and worked examples).
+For naming conventions and worked examples, see the README in each
+subfolder. For full tai usage, see
+<https://github.com/dmastrorillo/tai>.

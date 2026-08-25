@@ -559,6 +559,29 @@ Exercised by `core/internal/cmd/sync_test.go` →
 Exercised by `core/internal/cmd/sync_test.go` →
 `TestUpdatePoll_TCSYNC017_disabled_skips_poll`.
 
+### TC-SYNC-018 — Background poll does not prompt for credentials
+
+- **Given** the configured `repo-url` is an HTTPS URL pointing at a private repository,
+- **And** no credential helper is configured for that host,
+- **When** the user runs any TAI command and the background poll fires,
+- **Then** no `Username for ...` (or analogous) prompt is written to any output stream,
+- **And** stdin is not read by the background `git` process (the user's keystrokes intended for the foreground command are not consumed),
+- **And** the cache file at `<TAI_DATA_DIR>/state/update-check.json` is left unchanged (the poll fails silently per the existing absorption rule, TC-SYNC-016).
+
+Exercised by `core/internal/sync/poll_creds_test.go` →
+`TestUpdatePoll_TCSYNC018_no_creds_prompt`.
+
+### TC-SYNC-019 — Foreground sync still prompts for credentials when interactive auth is needed
+
+- **Given** the configured `repo-url` is an HTTPS URL pointing at a private repository,
+- **And** no credential helper is configured for that host,
+- **When** the user runs `tai sync` in an interactive TTY,
+- **Then** the foreground `git fetch` (or `git clone` on first sync) MAY prompt for credentials normally,
+- **And** the foreground process does NOT inherit the background poll's non-interactive env vars (`GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `GCM_INTERACTIVE`).
+
+Exercised by `core/internal/sync/poll_creds_test.go` →
+`TestSyncForeground_TCSYNC019_keeps_interactive_creds`.
+
 <!-- Add new SYNC cases here as their proposals land. -->
 
 ---
@@ -653,6 +676,17 @@ Exercised by `core/internal/cmd/repo_init_test.go` →
 
 Exercised by `core/internal/cmd/repo_init_test.go` →
 `TestRepoInit_TCINIT008_local_config_untouched`.
+
+### TC-INIT-009 — Top-level README backlinks tai and explains the product
+
+- **Given** a successful `tai repo init <path>`,
+- **When** `<path>/README.md` is inspected,
+- **Then** the body contains the substring `https://github.com/dmastrorillo/tai` (the upstream-project backlink),
+- **And** the body contains an introductory sentence describing tai (e.g. the word `tai` plus a description like "CLI for sharing AI tooling" or similar),
+- **And** the body does NOT contain the substring `docs.tai.sh` (no hallucinated documentation domain — that URL does not exist).
+
+Exercised by `core/internal/cmd/repo_init_test.go` →
+`TestRepoInit_TCINIT009_readme_backlinks_tai`.
 
 <!-- Add new INIT cases here as their proposals land. -->
 
@@ -1492,5 +1526,25 @@ the rendered stderr is empty).
 
 Exercised by `core/internal/sync/banner_test.go` →
 `TestBanner_TCREL008_core_row_uses_releases_latest`.
+
+### TC-REL-009 — Pseudo-version surfaces as `dev`
+
+- **Given** the binary was built via `go install github.com/dmastrorillo/tai/core/cmd/tai@<commit-or-branch>` or a symlinked-local equivalent that produces a Go pseudo-version in `runtime/debug.ReadBuildInfo().Main.Version` (canonical form: `vX.Y.Z(-<pre>)?[.-]\d{14}-[0-9a-f]{12}`, e.g. `v0.1.2-0.20260609004251-72a773c77386`),
+- **When** the user runs `tai --version`,
+- **Then** stdout contains `tai version dev`,
+- **And** the underlying pseudo-version string is NOT surfaced.
+
+Exercised by `core/internal/version/version_test.go` →
+`TestResolveVersion` table cases `pseudo_pre_1_0`, `pseudo_post_1_0_with_zero_prefix`, `pseudo_with_prerelease`.
+
+### TC-REL-010 — Clean release tag passes through
+
+- **Given** the binary was built via `go install github.com/dmastrorillo/tai/core/cmd/tai@v0.6.0` (or any tagged equivalent) such that `Main.Version` is exactly `v0.6.0` or a SemVer pre-release like `v0.6.0-rc.1`,
+- **When** the user runs `tai --version`,
+- **Then** stdout contains `tai version v0.6.0` (or `v0.6.0-rc.1`),
+- **And** the pseudo-version detection does NOT match (pre-release suffixes that lack a 14-digit timestamp + 12-hex sha pass through).
+
+Exercised by `core/internal/version/version_test.go` →
+`TestResolveVersion` table cases `dev_buildinfo_real_tag` (already present) and a new `dev_buildinfo_prerelease_clean`.
 
 <!-- Add new REL cases here as their proposals land. -->
