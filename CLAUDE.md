@@ -121,6 +121,12 @@ Run `go test ./... && go vet ./... && gofmt -l .` before every commit. CI runs t
 
 ---
 
+## Pull requests (800-line cap)
+
+**No pull request opened for review may exceed 800 countable lines of diff** — additions plus deletions, renames detected, `go.sum` excluded. A change over the cap is split into a stack of reviewable slices plus one merge vehicle (the only PR that merges; slices are drafts, reviewed, then closed unmerged). Policy and reasoning: [`docs/PR_WORKFLOW.md`](docs/PR_WORKFLOW.md). Procedure: the **`stacked-pr`** skill — invoke it before opening any PR.
+
+---
+
 ## Project Structure
 
 (Targets — directories are created as the corresponding OpenSpec proposals land.)
