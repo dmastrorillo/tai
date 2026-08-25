@@ -34,6 +34,14 @@ type Manifest struct {
 // target rooted at root. The filename is a hex sha256 of the root so
 // "~/.claude" and "/Users/dan/.claude" can't accidentally share a
 // manifest after path expansion.
+//
+// The hash is byte-exact over root: the caller MUST pass the target
+// root in its canonical spelling (as stored in config). Two spellings
+// of the same directory — a trailing slash added by a manual YAML
+// edit, "~/.claude" vs its expanded absolute form — hash to two
+// different manifests and silently fork orphan-tracking state. The
+// real fix is normalizing roots where targets enter the system
+// (config load/add); until then this precondition is load-bearing.
 func ManifestPath(dataDir, root string) string {
 	h := sha256.Sum256([]byte(root))
 	return filepath.Join(dataDir, "manifests", hex.EncodeToString(h[:])+".json")
@@ -72,15 +80,12 @@ func LoadManifest(dataDir, root string) (*Manifest, error) {
 // is checked into git (not the default, but supported for review
 // workflows).
 //
-// Write is tempfile-then-rename to match SaveState's pattern: two
-// concurrent `tai sync` runs writing the same target's manifest can
-// no longer leave it half-written.
+// Write goes through writeJSONAtomic (stage-then-rename with a
+// unique staging name) so two concurrent `tai sync` runs writing the
+// same target's manifest can neither leave it half-written nor fail
+// each other's rename.
 func SaveManifest(dataDir, root string, m *Manifest) error {
 	path := ManifestPath(dataDir, root)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return errcode.Wrapf(errcode.InternalError, err,
-			"create manifests directory")
-	}
 	keys := make([]string, 0, len(m.Paths))
 	for k := range m.Paths {
 		keys = append(keys, k)
@@ -89,21 +94,9 @@ func SaveManifest(dataDir, root string, m *Manifest) error {
 	out := struct {
 		Paths []string `json:"paths"`
 	}{Paths: keys}
-	data, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return errcode.Wrapf(errcode.InternalError, err, "marshal manifest")
-	}
-	data = append(data, '\n')
-
-	tmp := path + ".tmp"
-	_ = os.Remove(tmp)
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := writeJSONAtomic(path, out); err != nil {
 		return errcode.Wrapf(errcode.InternalError, err,
-			"write manifest %s", tmp)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return errcode.Wrapf(errcode.InternalError, err,
-			"rename manifest %s -> %s", tmp, path)
+			"write manifest %s", path)
 	}
 	return nil
 }
