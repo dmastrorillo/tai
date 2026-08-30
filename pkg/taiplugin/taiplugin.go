@@ -7,6 +7,15 @@
 // — everything a plugin needs to know about the host's state without
 // re-parsing tai's config.
 //
+// The contract runs in both directions. Inbound, tai sets those env
+// vars. Outbound, tai asks the plugin one question: invoked as
+// `<plugin> --help-summary`, the binary must print a single line
+// saying what it is for and exit zero. The host calls this during
+// install and update, stores the answer as the plugin's description,
+// and refuses to install a plugin that cannot answer. [HelpSummary]
+// implements that verb — call it in main before running the command
+// tree.
+//
 // This package parses that contract into a typed [Context] so plugin
 // authors don't reach for raw os.Getenv. For error output that looks
 // identical to tai's own (footer template, exit-code mapping),

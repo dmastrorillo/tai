@@ -160,6 +160,26 @@ const (
 	// equivalent credential env var).
 	PluginFetchUnauthorized Code = "PLUGIN_FETCH_UNAUTHORIZED"
 
+	// PluginAssetMissing: the downloaded plugin tarball has no
+	// top-level `assets/` directory. The directory is mandatory (an
+	// empty one is valid) because it is the host's guaranteed input
+	// to SyncAssetsToTargets — the only sanctioned writer for target
+	// directories. Its absence signals a plugin that expects to place
+	// its own assets, which the wire contract forbids.
+	PluginAssetMissing Code = "PLUGIN_ASSET_MISSING"
+
+	// PluginHelpSummaryFailed: the plugin's `--help-summary` wire
+	// verb exited non-zero, wrote nothing to stdout, or emitted more
+	// than 1 KB. The host cannot record a description for the plugin,
+	// so install/update aborts rather than storing a blank one.
+	PluginHelpSummaryFailed Code = "PLUGIN_HELP_SUMMARY_FAILED"
+
+	// PluginThirdpartyUnconfirmed: installing a plugin whose source
+	// is not in the built-in first-party registry requires explicit
+	// confirmation, and none was given — the user declined, or the
+	// session is non-interactive without the bypass flag.
+	PluginThirdpartyUnconfirmed Code = "PLUGIN_THIRDPARTY_UNCONFIRMED"
+
 	// PluginFetchFailed: the release-asset fetch failed for a reason
 	// other than auth (5xx, network unreachable, malformed asset).
 	PluginFetchFailed Code = "PLUGIN_FETCH_FAILED"
@@ -273,7 +293,9 @@ func (c Code) ExitCode() int {
 	case PluginUnknown, PluginNameReserved, PluginAssetNaming,
 		PluginFetchUnauthorized:
 		return exitcode.Usage
-	case PluginFetchFailed:
+	case PluginThirdpartyUnconfirmed:
+		return exitcode.Precondition
+	case PluginFetchFailed, PluginAssetMissing, PluginHelpSummaryFailed:
 		return exitcode.Data
 	case DBOpenFailed, DBMigrationFailed, DBConstraintViolation:
 		return exitcode.Data

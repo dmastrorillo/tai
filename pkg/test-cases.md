@@ -34,6 +34,7 @@ components. **Never renumber existing IDs.**
 |------|-------|
 | [`ERR`](#err--error-contract) | Error-message template, error-code taxonomy, exit-code mapping, panic recovery |
 | [`CFG`](#cfg--data-directory-resolution) | `pkg/datadir`: data-directory resolution, env-var precedence, unwritable-dir error |
+| [`SDK`](#sdk--plugin-sdk-wire-contract) | `pkg/taiplugin`: the plugin-author-facing side of the wire contract |
 
 ---
 
@@ -200,3 +201,82 @@ Exercised by `pkg/datadir/datadir_test.go` →
 
 Integration coverage of the real-filesystem read-only path (chmod 555)
 lives in `datadir_integration_test.go` behind the `integration` build tag.
+
+---
+
+## SDK — plugin SDK wire contract
+
+`pkg/taiplugin` is the plugin-author-facing half of the subprocess wire
+contract. Inbound (env vars → [`Context`](../pkg/taiplugin/taiplugin.go))
+is covered by the package's own `Load` tests. This section pins the
+outbound half: the `<plugin> --help-summary` verb every plugin must
+answer, which the SDK supplies so authors do not re-implement the
+argument sniffing or the exact output shape the host parses.
+
+The host's side of the same verb — invoking it at install/update time,
+validating the answer, persisting it, and failing with
+`PLUGIN_HELP_SUMMARY_FAILED` — is specified in
+[`core/test-cases.md`](../core/test-cases.md) under `PLG`.
+
+### TC-SDK-001 — `--help-summary` writes one line and reports handled
+
+- **Given** a plugin whose main calls
+  `taiplugin.HelpSummary(stdout, os.Args, "Walk through pending PR review comments interactively.")`,
+- **When** the binary is invoked as `<plugin> --help-summary`,
+- **Then** stdout is exactly the description followed by a single
+  newline,
+- **And** the call reports `handled = true` so the caller exits without
+  running its command tree,
+- **And** no error is returned.
+
+Exercised by `pkg/taiplugin/helpsummary_test.go` →
+`TestHelpSummary_TCSDK001_answers_the_wire_verb`.
+
+### TC-SDK-002 — every other invocation falls through untouched
+
+- **Given** the same plugin,
+- **When** the binary is invoked with any argument list that does not
+  contain the exact token `--help-summary` (including a bare
+  invocation, a real verb, `--help`, or a verb literally named
+  `help-summary`),
+- **Then** the call reports `handled = false`,
+- **And** nothing is written to stdout,
+
+so the plugin's own command tree runs normally. A false positive here
+would swallow a real verb.
+
+Exercised by `pkg/taiplugin/helpsummary_test.go` →
+`TestHelpSummary_TCSDK002_ignores_other_invocations`.
+
+### TC-SDK-003 — the emitted summary is normalised to a single line
+
+- **Given** a description carrying surrounding whitespace, a trailing
+  newline, or more than one line,
+- **When** `--help-summary` is handled,
+- **Then** stdout carries only the first line, trimmed, followed by a
+  single newline.
+
+The host reads the first line and trims it anyway; normalising here
+means what the author sees locally is byte-identical to what the host
+stores.
+
+Exercised by `pkg/taiplugin/helpsummary_test.go` →
+`TestHelpSummary_TCSDK003_normalises_and_rejects_bad_descriptions`.
+
+### TC-SDK-004 — an empty description is an author error
+
+- **Given** a description that is empty or only whitespace,
+- **When** `--help-summary` is handled,
+- **Then** the returned error is a `*errcode.Error` with
+  `Code = PLUGIN_HELP_SUMMARY_FAILED`,
+- **And** nothing is written to stdout,
+- **And** the call still reports `handled = true` — the verb was
+  requested, so the caller must not fall through to its command tree.
+
+The host rejects an empty summary at install time; failing in the SDK
+means the author hits it when running their own plugin instead of a
+user hitting it on install.
+
+Exercised by `pkg/taiplugin/helpsummary_test.go` →
+`TestHelpSummary_TCSDK003_normalises_and_rejects_bad_descriptions`
+(subtest `empty description is an author error`).
