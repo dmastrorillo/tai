@@ -46,57 +46,11 @@ IDs preserved by component remain globally unique — never renumbered.)
 
 ## CMD — command wiring & meta-verbs
 
-### TC-CMD-003 — bundled slash-command frontmatter parses into a populated `Frontmatter`
-
-- **Given** a well-formed bundled command markdown with the six required
-  frontmatter keys and a body,
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned `Frontmatter` has all fields populated,
-- **And** the returned body is everything after the closing `---\n`
-  with any trailing newline preserved.
-
-Exercised by `plugins/triage/internal/cmdframework/cmdframework_test.go` →
-`TestParse_TCCMD003_golden_good_frontmatter`.
-### TC-CMD-004 — frontmatter missing `content_hash` is rejected
-
-- **Given** a frontmatter that omits the `content_hash` field,
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned error names `content_hash` as missing.
-
-Exercised by `TestParse_TCCMD004_missing_content_hash`.
-### TC-CMD-005 — unknown frontmatter field is rejected
-
-- **Given** a frontmatter that contains a key not in the known six
-  (e.g. `priority`),
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned error names the unknown key.
-
-Exercised by `TestParse_TCCMD005_unknown_field`.
-### TC-CMD-006 — `HashBody` is deterministic and trailing-newline sensitive
-
-- **Given** identical input bytes,
-- **When** `cmdframework.HashBody` is called twice,
-- **Then** the two return values are equal.
-- **And** the hash of `hello\n` differs from the hash of `hello`.
-
-Exercised by `TestHashBody_TCCMD006_determinism`.
-### TC-CMD-007 — `Ledger("any-verb")` returns an empty slice in the foundation stub
-
-- **Given** no install-time ledger has been populated yet,
-- **When** `cmdframework.Ledger(verb)` is called for any verb,
-- **Then** the returned slice is empty.
-
-Exercised by `TestLedger_TCCMD007_unknown_verb_returns_empty`.
-<!-- Add new CMD cases here as their proposals land. -->
-
----
-
-<!-- TC-CFG-001..004 moved to pkg/test-cases.md in Phase 2 of
-pivot-to-ai-as-code, when the `datadir` package was promoted out of
-plugins/triage/internal/ to pkg/datadir. The TC-IDs are preserved
-verbatim per the never-renumber rule. -->
-
----
+<!-- TC-CMD-003 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-004 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-005 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-006 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-007 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
 
 ## REPO — repo-context detection
 
