@@ -18,7 +18,6 @@ import (
 
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/installcmd"
-	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
 func newInstallCommandsCommand() *cli.Command {
@@ -30,9 +29,9 @@ func newInstallCommandsCommand() *cli.Command {
 }
 
 func runInstallCommands(_ context.Context, c *cli.Command) error {
-	path, err := config.ResolvePath()
+	path, err := resolveConfigPath()
 	if err != nil {
-		return errcode.Wrap(errcode.InternalError, err, err.Error())
+		return err
 	}
 	f, err := config.Load(path)
 	if err != nil {

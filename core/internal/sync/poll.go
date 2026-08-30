@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/config"
@@ -111,31 +112,12 @@ func LoadState(dataDir string) (PollState, error) {
 	return s, nil
 }
 
-// SaveState writes the poll state file atomically (rename-over to
-// avoid torn writes when two TAI invocations race).
-//
-// We pre-clean any stale `<path>.tmp` left over by a previously-killed
-// goroutine — without this, repeated invocations where the goroutine
-// is reaped mid-write would slowly accumulate orphaned tmp files in
-// the state directory.
+// SaveState writes the poll state file atomically via
+// writeJSONAtomic (stage-then-rename with a unique staging name) so
+// two TAI invocations racing their background polls can neither tear
+// the file nor fail each other's rename.
 func SaveState(dataDir string, s PollState) error {
-	path := StatePath(dataDir)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	// Best-effort cleanup of any stale tmp from a prior killed run.
-	_ = os.Remove(tmp)
-
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	data = append(data, '\n')
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return writeJSONAtomic(StatePath(dataDir), s)
 }
 
 // IsStale reports whether the cache's last-check is older than
@@ -218,8 +200,12 @@ type Waiter struct {
 
 // Wait blocks for up to timeout for the goroutine to finish. If the
 // goroutine hasn't finished by then, the function returns and the
-// goroutine continues in the background (the OS reaps it at process
-// exit). Returns true iff the goroutine completed within timeout.
+// goroutine simply dies with the process. Note that any git
+// subprocess the goroutine spawned is NOT killed at process exit —
+// an orphaned child is reparented to init/launchd and keeps running
+// — which is why lsRemote/localHeadCommit bound their subprocesses
+// with backgroundGitTimeout. Returns true iff the goroutine
+// completed within timeout.
 func (w *Waiter) Wait(timeout time.Duration) bool {
 	done := make(chan struct{})
 	go func() {
@@ -244,6 +230,49 @@ func Schedule(ctx context.Context, cfg *config.File, dataDir string) *Waiter {
 		_ = Poll(ctx, cfg, dataDir)
 	}()
 	return w
+}
+
+// backgroundGitTimeout bounds each git subprocess spawned from the
+// background update-check path. The poll goroutine runs with main's
+// never-cancelled context and main only waits briefly at exit — it
+// never kills the child. An orphaned subprocess is reparented to
+// init/launchd and keeps running, so without this bound a stalled
+// network (unreachable host, silent packet drop) leaves hung
+// `git ls-remote` processes behind after tai exits — one more per
+// invocation, since a failed poll never refreshes LastCheck. Mirrors
+// releaseHTTPClient's 10s bound on the HTTP layers.
+//
+// backgroundGitTimeoutMu guards the var for `go test -race`; swap it
+// in tests via BackgroundGitTimeoutForTesting only.
+var (
+	backgroundGitTimeoutMu sync.RWMutex
+	backgroundGitTimeout   = 10 * time.Second
+)
+
+// boundBackgroundGit derives a deadline-bounded context for one
+// background git subprocess. Production code MUST use this rather
+// than reading the package var directly.
+func boundBackgroundGit(ctx context.Context) (context.Context, context.CancelFunc) {
+	backgroundGitTimeoutMu.RLock()
+	d := backgroundGitTimeout
+	backgroundGitTimeoutMu.RUnlock()
+	return context.WithTimeout(ctx, d)
+}
+
+// BackgroundGitTimeoutForTesting swaps the background-git timeout for
+// the lifetime of t. Mirrors the testing-bypass pattern used by
+// LatestTagForTesting and config.AllowFileURLsForTesting.
+func BackgroundGitTimeoutForTesting(t testing.TB, d time.Duration) {
+	t.Helper()
+	backgroundGitTimeoutMu.Lock()
+	prev := backgroundGitTimeout
+	backgroundGitTimeout = d
+	backgroundGitTimeoutMu.Unlock()
+	t.Cleanup(func() {
+		backgroundGitTimeoutMu.Lock()
+		backgroundGitTimeout = prev
+		backgroundGitTimeoutMu.Unlock()
+	})
 }
 
 // backgroundGitEnv is the env-var overlay applied to every git
@@ -298,12 +327,21 @@ func withBackgroundGitEnv() []string {
 
 // lsRemote runs `git ls-remote <repo-url> HEAD` to fetch the
 // default-branch SHA without cloning. Returns the SHA on success.
-// Stdin is detached and the non-interactive env overlay is applied
-// so the call cannot prompt for credentials.
+// Stdin is detached, the non-interactive env overlay is applied so
+// the call cannot prompt for credentials, and the subprocess is
+// killed at backgroundGitTimeout so a stalled network can't leave an
+// orphaned git behind.
 func lsRemote(ctx context.Context, repoURL string) (string, error) {
+	ctx, cancel := boundBackgroundGit(ctx)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", repoURL, "HEAD")
 	cmd.Stdin = nil
 	cmd.Env = withBackgroundGitEnv()
+	// The deadline kills only the direct child. If git spawned a
+	// helper that inherited stdout and outlives it, Output() would
+	// keep blocking on the open pipe; WaitDelay forcibly unblocks the
+	// wait shortly after cancellation.
+	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -317,14 +355,18 @@ func lsRemote(ctx context.Context, repoURL string) (string, error) {
 }
 
 // localHeadCommit returns the SHA at HEAD of the local clone, or ""
-// when no clone exists. Uses exec.CommandContext so the goroutine can
-// be cancelled if the caller's context expires. The non-interactive
-// env overlay is applied for consistency with lsRemote, even though
-// rev-parse on a local clone never prompts.
+// when no clone exists. The subprocess is bounded by
+// backgroundGitTimeout like lsRemote, and the non-interactive env
+// overlay is applied for consistency, even though rev-parse on a
+// local clone never prompts.
 func localHeadCommit(ctx context.Context, dataDir string) string {
+	ctx, cancel := boundBackgroundGit(ctx)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "-C", CloneDir(dataDir), "rev-parse", "HEAD")
 	cmd.Stdin = nil
 	cmd.Env = withBackgroundGitEnv()
+	// Same pipe-holder guard as lsRemote.
+	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

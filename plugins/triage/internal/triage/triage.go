@@ -127,15 +127,8 @@ func Show(ctx context.Context, db *storage.DB, s scope.Scope, position int) (Com
 // buildListQuery returns the SELECT and the args for the scope's
 // comments.
 func buildListQuery(s scope.Scope, statusFilter []string) (string, []any) {
-	var parent string
-	var args []any
-	if s.Kind == scope.KindPR {
-		parent = "c.pr_id"
-		args = append(args, s.TargetID)
-	} else {
-		parent = "c.branch_id"
-		args = append(args, s.TargetID)
-	}
+	parent := "c." + s.ParentColumn()
+	args := []any{s.TargetID}
 	q := fmt.Sprintf(listSQL, parent, parent)
 	if len(statusFilter) > 0 {
 		placeholders := ""
@@ -291,7 +284,7 @@ func Apply(ctx context.Context, tx *sql.Tx, commentIDs []int64, t Transition, no
 					       updated_at = ?
 					   WHERE id = ?`,
 					t.Status, *t.Resolution, now, id); err != nil {
-					return 0, mapDBError(err, "update comment")
+					return 0, storage.MapDBError(err, "update comment")
 				}
 			} else {
 				if _, err := tx.ExecContext(ctx,
@@ -301,7 +294,7 @@ func Apply(ctx context.Context, tx *sql.Tx, commentIDs []int64, t Transition, no
 					       updated_at = ?
 					   WHERE id = ?`,
 					t.Status, now, id); err != nil {
-					return 0, mapDBError(err, "update comment")
+					return 0, storage.MapDBError(err, "update comment")
 				}
 			}
 		case "dismissed":
@@ -313,7 +306,7 @@ func Apply(ctx context.Context, tx *sql.Tx, commentIDs []int64, t Transition, no
 				       updated_at = ?
 				   WHERE id = ?`,
 				t.DismissReason, t.DismissedBy, now, id); err != nil {
-				return 0, mapDBError(err, "update comment")
+				return 0, storage.MapDBError(err, "update comment")
 			}
 		default:
 			return 0, errcode.Newf(errcode.InternalError,
@@ -355,8 +348,15 @@ func RecomputeBatch(ctx context.Context, tx *sql.Tx, batchID int64) (string, err
 	case 0:
 		// No members left (e.g. all deleted). Leave the batch at its
 		// existing status — no useful information about the new state.
+		// A missing batch row is tolerated (empty status returned);
+		// any other lookup failure is a real error and MUST surface
+		// rather than masquerade as a clean recompute.
 		var cur string
-		_ = tx.QueryRowContext(ctx, `SELECT status FROM batches WHERE id = ?`, batchID).Scan(&cur)
+		err := tx.QueryRowContext(ctx,
+			`SELECT status FROM batches WHERE id = ?`, batchID).Scan(&cur)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "", storage.MapDBError(err, "read batch status")
+		}
 		return cur, nil
 	case 1:
 		for s := range seen {
@@ -368,7 +368,7 @@ func RecomputeBatch(ctx context.Context, tx *sql.Tx, batchID int64) (string, err
 
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE batches SET status = ? WHERE id = ?`, newStatus, batchID); err != nil {
-		return "", mapDBError(err, "update batch status")
+		return "", storage.MapDBError(err, "update batch status")
 	}
 	return newStatus, nil
 }
@@ -404,16 +404,6 @@ func BatchesAffected(ctx context.Context, tx *sql.Tx, commentIDs []int64) ([]int
 		out = append(out, id)
 	}
 	return out, rows.Err()
-}
-
-// mapDBError mirrors importer.mapDBError: constraint violations →
-// DBConstraintViolation, anything else → INTERNAL_ERROR.
-func mapDBError(err error, ctx string) error {
-	wrapped := storage.ErrConstraint(err)
-	if _, ok := errcode.As(wrapped); ok {
-		return wrapped
-	}
-	return errcode.Wrap(errcode.InternalError, err, ctx)
 }
 
 // validStatuses is the set of comment statuses accept/dismiss/

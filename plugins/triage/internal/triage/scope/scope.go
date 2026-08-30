@@ -62,6 +62,27 @@ func (s Scope) LongLabel() string {
 	return fmt.Sprintf("branch %s", s.BranchName)
 }
 
+// ParentColumn returns the comments/batches foreign-key column that
+// points at this scope's parent row: `pr_id` for PR scope, `branch_id`
+// for branch scope. The single source of the Kind → column mapping —
+// SQL builders MUST use this rather than re-deriving it.
+func (s Scope) ParentColumn() string {
+	if s.Kind == KindBranch {
+		return "branch_id"
+	}
+	return "pr_id"
+}
+
+// ParentTable returns the table the scope's TargetID row lives in:
+// `prs` for PR scope, `branches` for branch scope. Companion to
+// ParentColumn.
+func (s Scope) ParentTable() string {
+	if s.Kind == KindBranch {
+		return "branches"
+	}
+	return "prs"
+}
+
 // Flags carries the per-invocation overrides — exactly one of PR /
 // Branch may be non-zero (mutex is enforced by Resolve).
 type Flags struct {
@@ -172,7 +193,7 @@ func autoDetect(ctx context.Context, db *storage.DB, repoID int64, ownerName str
 			WithHelp("pass --pr <number> or --branch <name> to identify the scope")
 	}
 
-	prID, prTitle, prHead, prFound, err := findPRByHead(ctx, db, repoID, current)
+	pr, prFound, err := findPRByHead(ctx, db, repoID, current)
 	if err != nil {
 		return Scope{}, err
 	}
@@ -193,8 +214,8 @@ func autoDetect(ctx context.Context, db *storage.DB, repoID int64, ownerName str
 	case prFound:
 		return Scope{
 			Kind: KindPR, RepoID: repoID, OwnerName: ownerName,
-			TargetID: prID, PRNumber: detectPRNumber(ctx, db, prID),
-			Title: prTitle, HeadBranch: prHead,
+			TargetID: pr.id, PRNumber: pr.number,
+			Title: pr.title, HeadBranch: pr.headBranch,
 		}, nil
 	case brFound:
 		return Scope{
@@ -212,25 +233,29 @@ func autoDetect(ctx context.Context, db *storage.DB, repoID int64, ownerName str
 	}
 }
 
-func detectPRNumber(ctx context.Context, db *storage.DB, prID int64) int {
-	var n int
-	_ = db.QueryRowContext(ctx, `SELECT number FROM prs WHERE id = ?`, prID).Scan(&n)
-	return n
+// prByHead is the row findPRByHead selects. The PR number is part of
+// the same SELECT rather than a second round-trip — a follow-up query
+// whose failure could only be swallowed or mislabel the scope as
+// "PR #0".
+type prByHead struct {
+	id         int64
+	number     int
+	title      string
+	headBranch string
 }
 
-func findPRByHead(ctx context.Context, db *storage.DB, repoID int64, head string) (int64, string, string, bool, error) {
-	var id int64
-	var title, headBranch string
+func findPRByHead(ctx context.Context, db *storage.DB, repoID int64, head string) (prByHead, bool, error) {
+	var pr prByHead
 	err := db.QueryRowContext(ctx,
-		`SELECT id, title, head_branch FROM prs WHERE repo_id = ? AND head_branch = ?`,
-		repoID, head).Scan(&id, &title, &headBranch)
+		`SELECT id, number, title, head_branch FROM prs WHERE repo_id = ? AND head_branch = ?`,
+		repoID, head).Scan(&pr.id, &pr.number, &pr.title, &pr.headBranch)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, "", "", false, nil
+		return prByHead{}, false, nil
 	}
 	if err != nil {
-		return 0, "", "", false, errcode.Wrap(errcode.InternalError, err, "look up pr by head_branch")
+		return prByHead{}, false, errcode.Wrap(errcode.InternalError, err, "look up pr by head_branch")
 	}
-	return id, title, headBranch, true, nil
+	return pr, true, nil
 }
 
 func findBranchByName(ctx context.Context, db *storage.DB, repoID int64, name string) (int64, bool, error) {

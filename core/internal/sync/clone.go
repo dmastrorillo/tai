@@ -5,8 +5,7 @@
 // background update-poll goroutine consumed by the update-banner
 // capability lives in poll.go in the same package.
 //
-// Normative spec:
-// openspec/changes/pivot-to-ai-as-code/specs/repo-sync/spec.md.
+// Normative spec: openspec/specs/repo-sync/spec.md.
 package sync
 
 import (
@@ -17,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dmastrorillo/tai/pkg/errcode"
@@ -57,7 +57,7 @@ func EnsureClone(ctx context.Context, dataDir, repoURL string) (string, error) {
 		// Tidy up: a partial clone shouldn't poison subsequent runs.
 		_ = os.RemoveAll(dst)
 		return "", errcode.Wrapf(errcode.RepoFetchFailed, err,
-			"git clone of %s failed: %s", repoURL, trimSpace(string(out))).
+			"git clone of %s failed: %s", repoURL, trimGitOutput(string(out))).
 			WithHelp(
 				"check that the repo-url is reachable and your git credentials are configured",
 				"`git clone "+repoURL+" <some-local-dir>` reproduces the call tai makes",
@@ -149,7 +149,7 @@ func runGit(ctx context.Context, dir string, args ...string) error {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git %v in %s: %w\n%s", args, dir, err, trimSpace(string(out)))
+		return fmt.Errorf("git %v in %s: %w\n%s", args, dir, err, trimGitOutput(string(out)))
 	}
 	return nil
 }
@@ -166,7 +166,7 @@ func defaultBranch(ctx context.Context, dir string) (string, error) {
 		return "", fmt.Errorf("git symbolic-ref: %w", err)
 	}
 	// Output is `refs/remotes/origin/<branch>\n` — extract the branch.
-	s := trimSpace(string(out))
+	s := trimGitOutput(string(out))
 	const prefix = "refs/remotes/origin/"
 	if len(s) <= len(prefix) || s[:len(prefix)] != prefix {
 		return "", fmt.Errorf("unexpected symbolic-ref output: %q", s)
@@ -174,9 +174,9 @@ func defaultBranch(ctx context.Context, dir string) (string, error) {
 	return s[len(prefix):], nil
 }
 
-func trimSpace(s string) string {
-	for len(s) > 0 && (s[len(s)-1] == '\n' || s[len(s)-1] == ' ' || s[len(s)-1] == '\t' || s[len(s)-1] == '\r') {
-		s = s[:len(s)-1]
-	}
-	return s
+// trimGitOutput strips the trailing newline/whitespace git appends to
+// its output. Deliberately trailing-only: leading bytes in git error
+// output are part of the message and must survive.
+func trimGitOutput(s string) string {
+	return strings.TrimRight(s, " \t\r\n")
 }

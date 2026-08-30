@@ -142,12 +142,12 @@ func upsertRepo(ctx context.Context, tx *sql.Tx, ownerName string, now int64) (i
 	if _, err := tx.ExecContext(ctx,
 		`INSERT OR IGNORE INTO repos (owner_name, created_at) VALUES (?, ?)`,
 		ownerName, now); err != nil {
-		return 0, mapDBError(err, "upsert repo")
+		return 0, storage.MapDBError(err, "upsert repo")
 	}
 	var id int64
 	if err := tx.QueryRowContext(ctx,
 		`SELECT id FROM repos WHERE owner_name = ?`, ownerName).Scan(&id); err != nil {
-		return 0, mapDBError(err, "look up repo id")
+		return 0, storage.MapDBError(err, "look up repo id")
 	}
 	return id, nil
 }
@@ -171,13 +171,13 @@ func upsertTarget(ctx context.Context, tx *sql.Tx, repoID int64, t pkgpayload.Ta
 			   (repo_id, number, title, url, head_branch, created_at)
 			   VALUES (?, ?, ?, ?, ?, ?)`,
 			repoID, t.PR.Number, t.PR.Title, t.PR.URL, t.PR.HeadBranch, now); err != nil {
-			return 0, 0, "", mapDBError(err, "upsert pr")
+			return 0, 0, "", storage.MapDBError(err, "upsert pr")
 		}
 		var id int64
 		if err := tx.QueryRowContext(ctx,
 			`SELECT id FROM prs WHERE repo_id = ? AND number = ?`,
 			repoID, t.PR.Number).Scan(&id); err != nil {
-			return 0, 0, "", mapDBError(err, "look up pr id")
+			return 0, 0, "", storage.MapDBError(err, "look up pr id")
 		}
 		return id, 0, fmt.Sprintf("PR #%d", t.PR.Number), nil
 
@@ -189,13 +189,13 @@ func upsertTarget(ctx context.Context, tx *sql.Tx, repoID int64, t pkgpayload.Ta
 		if _, err := tx.ExecContext(ctx,
 			`INSERT OR IGNORE INTO branches (repo_id, name, created_at) VALUES (?, ?, ?)`,
 			repoID, t.Branch.Name, now); err != nil {
-			return 0, 0, "", mapDBError(err, "upsert branch")
+			return 0, 0, "", storage.MapDBError(err, "upsert branch")
 		}
 		var id int64
 		if err := tx.QueryRowContext(ctx,
 			`SELECT id FROM branches WHERE repo_id = ? AND name = ?`,
 			repoID, t.Branch.Name).Scan(&id); err != nil {
-			return 0, 0, "", mapDBError(err, "look up branch id")
+			return 0, 0, "", storage.MapDBError(err, "look up branch id")
 		}
 		return 0, id, fmt.Sprintf("branch %s", t.Branch.Name), nil
 
@@ -243,7 +243,7 @@ func upsertOneBatch(ctx context.Context, tx *sql.Tx, prID, branchID int64, b pkg
 		// Existing batch: update title, leave status alone.
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE batches SET title = ? WHERE id = ?`, b.Title, existing); err != nil {
-			return 0, false, mapDBError(err, "update batch")
+			return 0, false, storage.MapDBError(err, "update batch")
 		}
 		return existing, false, nil
 	case errors.Is(lookupErr, sql.ErrNoRows):
@@ -260,12 +260,12 @@ func upsertOneBatch(ctx context.Context, tx *sql.Tx, prID, branchID int64, b pkg
 				branchID, b.BatchKey, b.Title, now)
 		}
 		if err != nil {
-			return 0, false, mapDBError(err, "insert batch")
+			return 0, false, storage.MapDBError(err, "insert batch")
 		}
 		id, _ := res.LastInsertId()
 		return id, true, nil
 	default:
-		return 0, false, mapDBError(lookupErr, "look up batch")
+		return 0, false, storage.MapDBError(lookupErr, "look up batch")
 	}
 }
 
@@ -349,7 +349,7 @@ func resolveRefs(ctx context.Context, tx *sql.Tx, refs []pkgpayload.ExternalRef)
 			continue
 		}
 		if err != nil {
-			return nil, mapDBError(err, "resolve external_refs")
+			return nil, storage.MapDBError(err, "resolve external_refs")
 		}
 		seen[cid] = struct{}{}
 	}
@@ -387,7 +387,7 @@ func insertNewComment(
 		c.Title, c.Description, c.WhyFix, c.SuggestedFix, c.Consequences,
 		now, now)
 	if err != nil {
-		return mapDBError(err, "insert comment")
+		return storage.MapDBError(err, "insert comment")
 	}
 	commentID, _ := res.LastInsertId()
 	for _, r := range c.ExternalRefs {
@@ -399,7 +399,7 @@ func insertNewComment(
 			`INSERT INTO comment_external_refs (comment_id, source_kind, external_id, reviewer)
 			   VALUES (?, ?, ?, ?)`,
 			commentID, r.Kind, r.ID, reviewer); err != nil {
-			return mapDBError(err, "insert external_ref")
+			return storage.MapDBError(err, "insert external_ref")
 		}
 	}
 	return nil
@@ -421,7 +421,7 @@ func attachNewRefs(ctx context.Context, tx *sql.Tx, commentID int64, refs []pkgp
 			continue
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			return 0, mapDBError(err, "look up existing ref")
+			return 0, storage.MapDBError(err, "look up existing ref")
 		}
 		var reviewer any
 		if r.Reviewer != "" {
@@ -431,7 +431,7 @@ func attachNewRefs(ctx context.Context, tx *sql.Tx, commentID int64, refs []pkgp
 			`INSERT INTO comment_external_refs (comment_id, source_kind, external_id, reviewer)
 			   VALUES (?, ?, ?, ?)`,
 			commentID, r.Kind, r.ID, reviewer); err != nil {
-			return 0, mapDBError(err, "insert external_ref")
+			return 0, storage.MapDBError(err, "insert external_ref")
 		}
 		added++
 	}
@@ -457,7 +457,7 @@ func refreshEnrichment(
 		c.Title, c.Description, c.WhyFix, c.SuggestedFix, c.Consequences,
 		nullIfZero(batchID), now, commentID)
 	if err != nil {
-		return mapDBError(err, "refresh comment")
+		return storage.MapDBError(err, "refresh comment")
 	}
 	return nil
 }
@@ -466,7 +466,7 @@ func readCommentStatus(ctx context.Context, tx *sql.Tx, commentID int64) (string
 	var status string
 	if err := tx.QueryRowContext(ctx,
 		`SELECT status FROM comments WHERE id = ?`, commentID).Scan(&status); err != nil {
-		return "", mapDBError(err, "read comment status")
+		return "", storage.MapDBError(err, "read comment status")
 	}
 	return status, nil
 }
@@ -476,16 +476,4 @@ func nullIfZero(n sql.NullInt64) any {
 		return nil
 	}
 	return n.Int64
-}
-
-// mapDBError routes a SQL error through storage.ErrConstraint so
-// constraint violations surface as DB_CONSTRAINT_VIOLATION. Anything
-// else is unexpected (the database was already opened and migrated by
-// the time we reach the importer) and surfaces as INTERNAL_ERROR.
-func mapDBError(err error, ctx string) error {
-	wrapped := storage.ErrConstraint(err)
-	if _, ok := errcode.As(wrapped); ok {
-		return wrapped
-	}
-	return errcode.Wrap(errcode.InternalError, err, ctx)
 }

@@ -24,7 +24,7 @@ import (
 
 // BundleFS is the embedded view of internal/cmdframework/commands/. The
 // install command, the build-time hash invariant test, and the
-// `Ledger` reader all walk through this single seam so production
+// `LedgerStrict` reader all walk through this single seam so production
 // behaviour and the test suite exercise the same byte sequences.
 //
 // The `all:` prefix is necessary so the directory is embedded even
@@ -142,19 +142,7 @@ func ledgerFromFS(fsys fs.FS, verb string) ([]string, error) {
 	return hashes, nil
 }
 
-// Ledger returns the cumulative history of content_hash values ever
-// shipped for the named verb's slash-command markdown. Order is
-// oldest-first; the LAST element is the hash of the current build's
-// commands/<verb>.md body (a property the build-time test enforces).
-//
-// Unknown verbs and corrupt ledgers return an empty slice — this
-// preserves the foundation's pre-bundle API for callers that don't
-// need diagnostic detail. Callers that need to surface a corrupt
-// ledger to the user MUST call LedgerStrict.
-func Ledger(verb string) []string {
-	hashes, err := LedgerStrict(verb)
-	if err != nil {
-		return nil
-	}
-	return hashes
-}
+// Deliberately no error-swallowing convenience wrapper around
+// LedgerStrict: treating a corrupt ledger as "no history" makes the
+// install classifier read every on-disk file as user-modified, a
+// silent behavioural regression. Callers handle LedgerStrict's error.

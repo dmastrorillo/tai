@@ -81,21 +81,23 @@ func TestIsStale_boundary_cases(t *testing.T) {
 	}
 }
 
-// TestSaveState_cleans_stale_tmp confirms a leftover .tmp from a
-// previously-killed goroutine doesn't block the next SaveState. The
-// atomic rename pattern leaves the canonical state file intact even
-// when the writer is interrupted; the cleanup-on-entry ensures the
-// directory doesn't accrete stale .tmp files indefinitely.
+// TestSaveState_survives_stale_tmp confirms a leftover staging file
+// from a previously-killed writer neither blocks the next SaveState
+// nor gets clobbered by it. SaveState used to pre-clean a fixed
+// "<path>.tmp" name — that unconditional remove was itself a race
+// (writer B deleted writer A's in-flight staging file, failing A's
+// rename), so the contract is now "unique staging names, never touch
+// anyone else's file"; see writeJSONAtomic.
 //
 // Not tied to a TC-ID; this is a maintenance-burden invariant.
-func TestSaveState_cleans_stale_tmp(t *testing.T) {
+func TestSaveState_survives_stale_tmp(t *testing.T) {
 	dataDir := t.TempDir()
 	statePath := StatePath(dataDir)
-	tmpPath := statePath + ".tmp"
+	stale := statePath + ".tmp"
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(tmpPath, []byte("stale leftover"), 0o644); err != nil {
+	if err := os.WriteFile(stale, []byte("in-flight bytes from another writer"), 0o644); err != nil {
 		t.Fatalf("seed stale tmp: %v", err)
 	}
 
@@ -106,16 +108,17 @@ func TestSaveState_cleans_stale_tmp(t *testing.T) {
 	if _, err := os.Stat(statePath); err != nil {
 		t.Fatalf("state file not written: %v", err)
 	}
-	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
-		t.Errorf("stale tmp should be removed after SaveState, stat returned: %v", err)
+	got, err := os.ReadFile(stale)
+	if err != nil || string(got) != "in-flight bytes from another writer" {
+		t.Errorf("another writer's staging file must be left untouched, got (%q, %v)", got, err)
 	}
 
 	body, err := os.ReadFile(statePath)
 	if err != nil {
 		t.Fatalf("read state: %v", err)
 	}
-	var got PollState
-	if err := json.Unmarshal(body, &got); err != nil {
+	var state PollState
+	if err := json.Unmarshal(body, &state); err != nil {
 		t.Errorf("state file is not valid JSON: %v\n%s", err, body)
 	}
 }

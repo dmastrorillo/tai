@@ -1,45 +1,17 @@
 package cmd_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
-// standardsEnv stages a clone at <dataDir>/source/ pre-seeded with
-// the given standard files (rel-under-standards/ → body), plus a
-// config file that survives strict validation.
-//
-// Not tied to a TC-ID — test fixture helper.
+// standardsEnv stages standard files (rel-under-standards/ → body)
+// via the shared sourceTreeEnv fixture.
 func standardsEnv(t *testing.T, stds map[string]string) string {
 	t.Helper()
-
-	dataDir := t.TempDir()
-	t.Setenv("TAI_DATA_DIR", dataDir)
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", "")
-
-	cfgPath := filepath.Join(t.TempDir(), "config.yml")
-	t.Setenv("TAI_CONFIG", cfgPath)
-	body := "repo-url: git@github.com:acme/repo.git\nupdate-check-interval: 0\n"
-	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
-		t.Fatalf("seed config: %v", err)
-	}
-
-	for rel, content := range stds {
-		full := filepath.Join(dataDir, "source", "standards", rel)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", rel, err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-	}
-	return dataDir
+	return sourceTreeEnv(t, "standards", stds)
 }
 
 // TestStandardsList_TCSTD007_prints_alphabetical exercises TC-STD-007.

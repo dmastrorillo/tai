@@ -75,13 +75,11 @@ func newStandardsLoadCommand() *cli.Command {
 }
 
 func runStandardsLoad(_ context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return errcode.New(errcode.MissingArg,
-			"tai standards load requires exactly one argument: <name>").
-			WithHelp("example: `tai standards load sdlc`")
+	name, err := requireOneArg(c, "tai standards load", "<name>",
+		"example: `tai standards load sdlc`")
+	if err != nil {
+		return err
 	}
-	name := args[0]
 
 	stds, err := loadStandards(c.ErrWriter)
 	if err != nil {

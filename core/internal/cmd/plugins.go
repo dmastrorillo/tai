@@ -16,7 +16,6 @@ import (
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/plugins"
 	"github.com/dmastrorillo/tai/pkg/datadir"
-	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
 func newPluginsCommand() *cli.Command {
@@ -168,13 +167,8 @@ func runPluginsRemove(_ context.Context, c *cli.Command) error {
 // pluginsRequireName extracts the plugin name from the command's
 // first positional argument; emits MISSING_ARG when absent.
 func pluginsRequireName(c *cli.Command, verb string) (string, error) {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return "", errcode.Newf(errcode.MissingArg,
-			"tai plugins %s requires exactly one argument: <name>", verb).
-			WithHelp("example: `tai plugins " + verb + " triage`")
-	}
-	return args[0], nil
+	return requireOneArg(c, "tai plugins "+verb, "<name>",
+		"example: `tai plugins "+verb+" triage`")
 }
 
 // loadPluginsContext resolves config + data dir for the plugin verbs.
@@ -185,16 +179,9 @@ func loadPluginsContext() (*config.File, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	cfgPath, err := config.ResolvePath()
-	if err != nil {
-		return nil, "", errcode.Wrap(errcode.InternalError, err, err.Error())
-	}
-	cfg, err := config.Load(cfgPath)
+	cfg, err := loadEffectiveConfig()
 	if err != nil {
 		return nil, "", err
-	}
-	if cfg == nil {
-		cfg = &config.File{}
 	}
 	return cfg, dataDir, nil
 }

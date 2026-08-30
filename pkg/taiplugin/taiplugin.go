@@ -1,17 +1,21 @@
 // Package taiplugin is the Go SDK for tai plugin authors.
 //
 // A plugin is a subprocess executable invoked by tai (see
-// `openspec/changes/pivot-to-ai-as-code/specs/plugin-host/spec.md`).
-// At invocation time, tai sets a small contract of environment
-// variables that name the data directory, the source-repo clone
-// path, and the configured targets — everything a plugin needs to
-// know about the host's state without re-parsing tai's config.
+// `openspec/specs/plugin-host/spec.md`). At invocation time, tai
+// sets a small contract of environment variables that name the data
+// directory, the source-repo clone path, and the configured targets
+// — everything a plugin needs to know about the host's state without
+// re-parsing tai's config.
 //
 // This package parses that contract into a typed [Context] so plugin
-// authors don't reach for raw os.Getenv. It also re-exports the
-// foundation error code and CLI-output packages so a plugin can
-// produce errors that look identical to tai's own output (footer
-// regex, exit-code mapping).
+// authors don't reach for raw os.Getenv. For error output that looks
+// identical to tai's own (footer template, exit-code mapping),
+// plugins additionally import the sibling foundation packages
+// directly: pkg/errcode to construct coded errors, pkg/cliexec to
+// run the command tree and translate the result in main
+// (`os.Exit(cliexec.Exit(os.Stderr, err))`), and pkg/cliout for any
+// direct template rendering — the same wiring tai's own binaries
+// use.
 //
 // Stability contract: every exported symbol in this package is on
 // the same append-only stability contract as the rest of `pkg/`.

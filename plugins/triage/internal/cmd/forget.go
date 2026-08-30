@@ -3,8 +3,6 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -43,6 +41,10 @@ func newForgetCommand() *cli.Command {
 }
 
 // runForget implements the spec's selector / consent / delete flow.
+// The cmd layer owns flag parsing, selector precedence, the consent
+// prompt, and the transaction; the counting and delete SQL lives in
+// internal/triage's PlanXxxForget functions, the same split the
+// mutate verbs use.
 //
 // Selector counting:
 //
@@ -121,7 +123,7 @@ func runForget(ctx context.Context, c *cli.Command) error {
 	}
 
 	// Print summary and gate on consent.
-	_, _ = io.WriteString(c.Writer, plan.summary())
+	_, _ = io.WriteString(c.Writer, forgetSummary(plan))
 	if !consentGranted(c) {
 		_, _ = io.WriteString(c.Writer, "Aborted (no consent).\n")
 		return errcode.New(errcode.TriageConfirmationRequired,
@@ -138,7 +140,7 @@ func runForget(ctx context.Context, c *cli.Command) error {
 		return errcode.Wrap(errcode.InternalError, err, "begin forget transaction")
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := plan.execute(ctx, tx); err != nil {
+	if err := plan.Execute(ctx, tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -149,355 +151,85 @@ func runForget(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// forgetPlan is the resolved selector + cascade counts + executor.
-type forgetPlan struct {
-	description  string
-	commentCount int
-	batchCount   int
-	refCount     int
-
-	exec func(ctx context.Context, tx *sql.Tx) error
-}
-
-func (p *forgetPlan) summary() string {
+// forgetSummary renders the consent prompt for a plan. Presentation
+// only — the counts come from the plan.
+func forgetSummary(p *triage.ForgetPlan) string {
 	var b strings.Builder
 	b.WriteString("You're about to delete:\n")
-	b.WriteString("  • " + p.description + "\n")
-	b.WriteString(fmt.Sprintf("  • %d comments\n", p.commentCount))
-	b.WriteString(fmt.Sprintf("  • %d batches\n", p.batchCount))
-	b.WriteString(fmt.Sprintf("  • %d external references\n", p.refCount))
+	b.WriteString("  • " + p.Description + "\n")
+	b.WriteString(fmt.Sprintf("  • %d comments\n", p.CommentCount))
+	b.WriteString(fmt.Sprintf("  • %d batches\n", p.BatchCount))
+	b.WriteString(fmt.Sprintf("  • %d external references\n", p.RefCount))
 	b.WriteString("This cannot be undone. Continue? [y/N] ")
 	return b.String()
-}
-
-func (p *forgetPlan) execute(ctx context.Context, tx *sql.Tx) error {
-	return p.exec(ctx, tx)
 }
 
 // buildForgetPlan dispatches by selector + status modifier. Comment
 // and batch selectors win precedence over --pr/--branch (which become
 // scope overrides). Whole-repo only fires when no other selector is
 // set.
-func buildForgetPlan(ctx context.Context, c *cli.Command, db *storage.DB, statuses []string, wholeRepo bool) (*forgetPlan, error) {
+func buildForgetPlan(ctx context.Context, c *cli.Command, db *storage.DB, statuses []string, wholeRepo bool) (*triage.ForgetPlan, error) {
 	switch {
 	case c.IsSet(commentFlag):
-		return planCommentForget(ctx, c, db)
+		pos, s, err := resolveCommentSelector(ctx, c, db)
+		if err != nil {
+			return nil, err
+		}
+		return triage.PlanCommentForget(ctx, db, s, pos)
 	case c.IsSet(batchFlag):
-		return planBatchForget(ctx, c, db, statuses)
+		s, err := resolveOverrideScope(ctx, c, db)
+		if err != nil {
+			return nil, err
+		}
+		return triage.PlanBatchForget(ctx, db, s, c.String(batchFlag), statuses)
 	case wholeRepo:
-		return planRepoForget(ctx, c, db, statuses)
+		owner := c.String(RepoFlag)
+		// Repo mode does NOT require git context (it carries identity).
+		if _, err := repoctx.ParseIdentity(owner); err != nil {
+			return nil, err
+		}
+		return triage.PlanRepoForget(ctx, db, owner, statuses)
 	case c.IsSet(prFlag):
-		return planScopedForget(ctx, c, db, statuses, true)
+		s, err := scope.Resolve(ctx, db, c.String(RepoFlag), scope.Flags{PR: int(c.Int(prFlag))})
+		if err != nil {
+			return nil, err
+		}
+		return triage.PlanScopedForget(ctx, db, s, statuses)
 	case c.IsSet(branchFlag):
-		return planScopedForget(ctx, c, db, statuses, false)
+		s, err := scope.Resolve(ctx, db, c.String(RepoFlag), scope.Flags{Branch: c.String(branchFlag)})
+		if err != nil {
+			return nil, err
+		}
+		return triage.PlanScopedForget(ctx, db, s, statuses)
 	}
 	return nil, errcode.New(errcode.InternalError, "unreachable: no selector matched")
 }
 
-// planRepoForget handles `tai forget --repo <owner/name> [--status ...]`.
-// Repo mode does NOT require git context (it carries identity).
-func planRepoForget(ctx context.Context, c *cli.Command, db *storage.DB, statuses []string) (*forgetPlan, error) {
-	owner := c.String(RepoFlag)
-	if _, err := repoctx.ParseIdentity(owner); err != nil {
-		return nil, err
-	}
-	var repoID int64
-	if err := db.QueryRowContext(ctx,
-		`SELECT id FROM repos WHERE owner_name = ?`, owner).Scan(&repoID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errcode.Newf(errcode.TriageNotFound,
-				"no triage data for repo %q", owner)
-		}
-		return nil, errcode.Wrap(errcode.InternalError, err, "look up repo")
-	}
-
-	if len(statuses) > 0 {
-		// Prune comments only across the repo; preserve parent rows.
-		n, refs, err := countCommentsRepo(ctx, db, repoID, statuses)
-		if err != nil {
-			return nil, err
-		}
-		return &forgetPlan{
-			description:  fmt.Sprintf("%s comments matching status (%s)", owner, strings.Join(statuses, ", ")),
-			commentCount: n, refCount: refs,
-			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteRepoComments(ctx, tx, repoID, statuses)
-			},
-		}, nil
-	}
-
-	// Whole-repo delete: rely on CASCADE for everything.
-	var nComments, nBatches, nRefs int
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comments c
-		 LEFT JOIN prs p ON c.pr_id = p.id
-		 LEFT JOIN branches b ON c.branch_id = b.id
-		 WHERE p.repo_id = ? OR b.repo_id = ?`, repoID, repoID).Scan(&nComments)
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM batches ba
-		 LEFT JOIN prs p ON ba.pr_id = p.id
-		 LEFT JOIN branches b ON ba.branch_id = b.id
-		 WHERE p.repo_id = ? OR b.repo_id = ?`, repoID, repoID).Scan(&nBatches)
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comment_external_refs r
-		 JOIN comments c ON r.comment_id = c.id
-		 LEFT JOIN prs p ON c.pr_id = p.id
-		 LEFT JOIN branches b ON c.branch_id = b.id
-		 WHERE p.repo_id = ? OR b.repo_id = ?`, repoID, repoID).Scan(&nRefs)
-	return &forgetPlan{
-		description:  owner,
-		commentCount: nComments, batchCount: nBatches, refCount: nRefs,
-		exec: func(ctx context.Context, tx *sql.Tx) error {
-			_, err := tx.ExecContext(ctx, `DELETE FROM repos WHERE id = ?`, repoID)
-			return err
-		},
-	}, nil
-}
-
-// planScopedForget handles --pr / --branch with or without --status.
-func planScopedForget(ctx context.Context, c *cli.Command, db *storage.DB, statuses []string, isPR bool) (*forgetPlan, error) {
-	flags := scope.Flags{}
-	if isPR {
-		flags.PR = int(c.Int(prFlag))
-	} else {
-		flags.Branch = c.String(branchFlag)
-	}
-	s, err := scope.Resolve(ctx, db, c.String(RepoFlag), flags)
-	if err != nil {
-		return nil, err
-	}
-
-	parentCol := "pr_id"
-	if !isPR {
-		parentCol = "branch_id"
-	}
-
-	if len(statuses) > 0 {
-		n, refs, err := countCommentsScope(ctx, db, parentCol, s.TargetID, statuses)
-		if err != nil {
-			return nil, err
-		}
-		return &forgetPlan{
-			description: fmt.Sprintf("%s comments matching status (%s)",
-				s.OwnerName+" "+s.TargetLabel(), strings.Join(statuses, ", ")),
-			commentCount: n, refCount: refs,
-			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteScopeComments(ctx, tx, parentCol, s.TargetID, statuses)
-			},
-		}, nil
-	}
-
-	// Whole-target delete (CASCADE picks up comments + batches).
-	var nComments, nBatches, nRefs int
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comments WHERE `+parentCol+` = ?`, s.TargetID).Scan(&nComments)
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM batches WHERE `+parentCol+` = ?`, s.TargetID).Scan(&nBatches)
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comment_external_refs r
-		 JOIN comments c ON r.comment_id = c.id
-		 WHERE c.`+parentCol+` = ?`, s.TargetID).Scan(&nRefs)
-	parentTable := "prs"
-	if !isPR {
-		parentTable = "branches"
-	}
-	return &forgetPlan{
-		description:  s.OwnerName + " " + s.TargetLabel(),
-		commentCount: nComments, batchCount: nBatches, refCount: nRefs,
-		exec: func(ctx context.Context, tx *sql.Tx) error {
-			_, err := tx.ExecContext(ctx,
-				fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, parentTable), s.TargetID)
-			return err
-		},
-	}, nil
-}
-
-// planCommentForget handles --comment <position>.
-func planCommentForget(ctx context.Context, c *cli.Command, db *storage.DB) (*forgetPlan, error) {
+// resolveCommentSelector parses --comment's positive-integer position
+// and resolves the (possibly --pr/--branch-overridden) scope it is
+// looked up in.
+func resolveCommentSelector(ctx context.Context, c *cli.Command, db *storage.DB) (int, scope.Scope, error) {
 	posStr := c.String(commentFlag)
 	pos, err := strconv.Atoi(posStr)
 	if err != nil || pos <= 0 {
-		return nil, errcode.Newf(errcode.TriageInvalidFlags,
+		return 0, scope.Scope{}, errcode.Newf(errcode.TriageInvalidFlags,
 			"--comment %q is not a positive integer", posStr)
 	}
-	flags := scope.Flags{
+	s, err := resolveOverrideScope(ctx, c, db)
+	if err != nil {
+		return 0, scope.Scope{}, err
+	}
+	return pos, s, nil
+}
+
+// resolveOverrideScope resolves scope for the scope-local selectors
+// (--comment / --batch), where --pr/--branch act as overrides for the
+// resolver rather than as selectors.
+func resolveOverrideScope(ctx context.Context, c *cli.Command, db *storage.DB) (scope.Scope, error) {
+	return scope.Resolve(ctx, db, c.String(RepoFlag), scope.Flags{
 		PR:     int(c.Int(prFlag)),
 		Branch: c.String(branchFlag),
-	}
-	s, err := scope.Resolve(ctx, db, c.String(RepoFlag), flags)
-	if err != nil {
-		return nil, err
-	}
-	id, err := triage.LookupByPosition(ctx, db, s, pos)
-	if err != nil {
-		return nil, err
-	}
-	var nRefs int
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comment_external_refs WHERE comment_id = ?`, id).Scan(&nRefs)
-	return &forgetPlan{
-		description:  fmt.Sprintf("%s %s comment %d", s.OwnerName, s.TargetLabel(), pos),
-		commentCount: 1, refCount: nRefs,
-		exec: func(ctx context.Context, tx *sql.Tx) error {
-			_, err := tx.ExecContext(ctx, `DELETE FROM comments WHERE id = ?`, id)
-			return err
-		},
-	}, nil
-}
-
-// planBatchForget handles --batch <key> with optional --status.
-func planBatchForget(ctx context.Context, c *cli.Command, db *storage.DB, statuses []string) (*forgetPlan, error) {
-	flags := scope.Flags{
-		PR:     int(c.Int(prFlag)),
-		Branch: c.String(branchFlag),
-	}
-	s, err := scope.Resolve(ctx, db, c.String(RepoFlag), flags)
-	if err != nil {
-		return nil, err
-	}
-	key := c.String(batchFlag)
-	batchID, err := triage.LookupBatchID(ctx, db, s, key)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(statuses) > 0 {
-		// Delete only matching member comments; preserve batch row,
-		// recompute its status after.
-		n, refs, err := countBatchComments(ctx, db, batchID, statuses)
-		if err != nil {
-			return nil, err
-		}
-		return &forgetPlan{
-			description:  fmt.Sprintf("batch %s members matching status (%s)", key, strings.Join(statuses, ", ")),
-			commentCount: n, refCount: refs,
-			exec: func(ctx context.Context, tx *sql.Tx) error {
-				if err := deleteBatchComments(ctx, tx, batchID, statuses); err != nil {
-					return err
-				}
-				_, err := triage.RecomputeBatch(ctx, tx, batchID)
-				return err
-			},
-		}, nil
-	}
-
-	// Delete the batch row only; member comments survive (cascade
-	// set-null per storage schema).
-	var nMembers int
-	_ = db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM comments WHERE batch_id = ?`, batchID).Scan(&nMembers)
-	return &forgetPlan{
-		description: fmt.Sprintf("batch %s (%d member comments survive)", key, nMembers),
-		batchCount:  1,
-		exec: func(ctx context.Context, tx *sql.Tx) error {
-			_, err := tx.ExecContext(ctx, `DELETE FROM batches WHERE id = ?`, batchID)
-			return err
-		},
-	}, nil
-}
-
-// countCommentsRepo / countCommentsScope / countBatchComments return
-// (#comments, #refs) for the matching subset.
-
-func countCommentsRepo(ctx context.Context, db *storage.DB, repoID int64, statuses []string) (int, int, error) {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{repoID, repoID}, args...)
-	q := `SELECT COUNT(*) FROM comments c
-	      LEFT JOIN prs p ON c.pr_id = p.id
-	      LEFT JOIN branches b ON c.branch_id = b.id
-	      WHERE (p.repo_id = ? OR b.repo_id = ?) AND c.status IN (` + statusList + `)`
-	var n int
-	if err := db.QueryRowContext(ctx, q, args...).Scan(&n); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count repo comments")
-	}
-	qr := `SELECT COUNT(*) FROM comment_external_refs r
-	       JOIN comments c ON r.comment_id = c.id
-	       LEFT JOIN prs p ON c.pr_id = p.id
-	       LEFT JOIN branches b ON c.branch_id = b.id
-	       WHERE (p.repo_id = ? OR b.repo_id = ?) AND c.status IN (` + statusList + `)`
-	var refs int
-	if err := db.QueryRowContext(ctx, qr, args...).Scan(&refs); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count repo refs")
-	}
-	return n, refs, nil
-}
-
-func deleteRepoComments(ctx context.Context, tx *sql.Tx, repoID int64, statuses []string) error {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{repoID, repoID}, args...)
-	_, err := tx.ExecContext(ctx,
-		`DELETE FROM comments WHERE id IN (
-		   SELECT c.id FROM comments c
-		   LEFT JOIN prs p ON c.pr_id = p.id
-		   LEFT JOIN branches b ON c.branch_id = b.id
-		   WHERE (p.repo_id = ? OR b.repo_id = ?) AND c.status IN (`+statusList+`)
-		 )`, args...)
-	return err
-}
-
-func countCommentsScope(ctx context.Context, db *storage.DB, col string, targetID int64, statuses []string) (int, int, error) {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{targetID}, args...)
-	q := `SELECT COUNT(*) FROM comments WHERE ` + col + ` = ? AND status IN (` + statusList + `)`
-	var n int
-	if err := db.QueryRowContext(ctx, q, args...).Scan(&n); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count scoped comments")
-	}
-	qr := `SELECT COUNT(*) FROM comment_external_refs r
-	       JOIN comments c ON r.comment_id = c.id
-	       WHERE c.` + col + ` = ? AND c.status IN (` + statusList + `)`
-	var refs int
-	if err := db.QueryRowContext(ctx, qr, args...).Scan(&refs); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count scoped refs")
-	}
-	return n, refs, nil
-}
-
-func deleteScopeComments(ctx context.Context, tx *sql.Tx, col string, targetID int64, statuses []string) error {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{targetID}, args...)
-	_, err := tx.ExecContext(ctx,
-		`DELETE FROM comments WHERE `+col+` = ? AND status IN (`+statusList+`)`, args...)
-	return err
-}
-
-func countBatchComments(ctx context.Context, db *storage.DB, batchID int64, statuses []string) (int, int, error) {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{batchID}, args...)
-	q := `SELECT COUNT(*) FROM comments WHERE batch_id = ? AND status IN (` + statusList + `)`
-	var n int
-	if err := db.QueryRowContext(ctx, q, args...).Scan(&n); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count batch comments")
-	}
-	qr := `SELECT COUNT(*) FROM comment_external_refs r
-	       JOIN comments c ON r.comment_id = c.id
-	       WHERE c.batch_id = ? AND c.status IN (` + statusList + `)`
-	var refs int
-	if err := db.QueryRowContext(ctx, qr, args...).Scan(&refs); err != nil {
-		return 0, 0, errcode.Wrap(errcode.InternalError, err, "count batch refs")
-	}
-	return n, refs, nil
-}
-
-func deleteBatchComments(ctx context.Context, tx *sql.Tx, batchID int64, statuses []string) error {
-	statusList, args := inPlaceholders(statuses)
-	args = append([]any{batchID}, args...)
-	_, err := tx.ExecContext(ctx,
-		`DELETE FROM comments WHERE batch_id = ? AND status IN (`+statusList+`)`, args...)
-	return err
-}
-
-func inPlaceholders(values []string) (string, []any) {
-	if len(values) == 0 {
-		return "''", nil
-	}
-	parts := make([]string, len(values))
-	args := make([]any, len(values))
-	for i, v := range values {
-		parts[i] = "?"
-		args[i] = v
-	}
-	return strings.Join(parts, ","), args
+	})
 }
 
 // consentGranted returns true when the user has signalled OK to

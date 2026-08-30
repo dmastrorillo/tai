@@ -1,49 +1,17 @@
 package cmd_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
-// workflowEnv stages a clone at <dataDir>/source/ pre-seeded with the
-// given workflow files (rel-under-workflows/ → body), plus a config
-// file that survives strict validation. update-check-interval is 0 so
-// the background poll stays out of these tests.
-//
-// Not tied to a TC-ID — test fixture helper.
+// workflowEnv stages workflow files (rel-under-workflows/ → body) via
+// the shared sourceTreeEnv fixture.
 func workflowEnv(t *testing.T, workflows map[string]string) string {
 	t.Helper()
-
-	dataDir := t.TempDir()
-	t.Setenv("TAI_DATA_DIR", dataDir)
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", "")
-
-	cfgPath := filepath.Join(t.TempDir(), "config.yml")
-	t.Setenv("TAI_CONFIG", cfgPath)
-	body := "repo-url: git@github.com:acme/repo.git\nupdate-check-interval: 0\n"
-	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
-		t.Fatalf("seed config: %v", err)
-	}
-
-	// Stage the workflows tree under <dataDir>/source/workflows/. The
-	// loader resolves this path via sync.CloneDir(dataDir), so the
-	// fixture mirrors a post-sync state.
-	for rel, content := range workflows {
-		full := filepath.Join(dataDir, "source", "workflows", rel)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", rel, err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-	}
-	return dataDir
+	return sourceTreeEnv(t, "workflows", workflows)
 }
 
 // TestWorkflowList_TCWF009_prints_alphabetical exercises TC-WF-009.

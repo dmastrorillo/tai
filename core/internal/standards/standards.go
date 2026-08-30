@@ -14,16 +14,13 @@ package standards
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/dmastrorillo/tai/core/internal/sourcetree"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -73,77 +70,20 @@ var reservedStandardNames = map[string]bool{
 // An absent or empty `standards/` directory is not an error — Load
 // returns an empty slice. Callers driving `tai standards list` use
 // the empty result to emit the `(no standards)` line.
+//
+// The walk/name/dedupe algorithm lives in core/internal/sourcetree,
+// shared with the workflow loader; only the leaf parse step is
+// standards-specific.
 func Load(cloneDir string, warnings io.Writer) ([]Standard, error) {
-	root := filepath.Join(cloneDir, "standards")
-	info, err := os.Stat(root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, errcode.Wrapf(errcode.InternalError, err,
-			"stat standards tree at %s", root)
-	}
-	if !info.IsDir() {
-		return nil, errcode.Newf(errcode.StandardInvalid,
-			"%s exists but is not a directory", root)
-	}
-
-	var paths []string
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
+	return sourcetree.Load(cloneDir, warnings, sourcetree.Options[Standard]{
+		Subdir:   "standards",
+		Ext:      ".md",
+		Kind:     "standard",
+		Verb:     "standards",
+		Code:     errcode.StandardInvalid,
+		Reserved: reservedStandardNames,
+		Parse:    parseStandardFile,
 	})
-	if walkErr != nil {
-		return nil, errcode.Wrapf(errcode.InternalError, walkErr,
-			"walk standards tree at %s", root)
-	}
-	sort.Strings(paths)
-
-	byName := map[string]Standard{}
-	for _, p := range paths {
-		rel, err := filepath.Rel(root, p)
-		if err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"rel standards path %s", p)
-		}
-		name, err := standardName(rel)
-		if err != nil {
-			return nil, err
-		}
-		if reservedStandardNames[name] {
-			return nil, errcode.Newf(errcode.StandardInvalid,
-				"standard %s uses reserved name %q (collides with `tai standards %s`)",
-				p, name, name).
-				WithHelp("rename the file to a non-reserved name")
-		}
-		if _, dupe := byName[name]; dupe {
-			_, _ = fmt.Fprintf(warnings,
-				"[tai] standard name %q is claimed by both %s and %s — using the first; rename one to disambiguate\n",
-				name, byName[name].SourcePath, p)
-			continue
-		}
-		s, err := parseStandardFile(p, name)
-		if err != nil {
-			return nil, err
-		}
-		byName[name] = s
-	}
-
-	out := make([]Standard, 0, len(byName))
-	for _, s := range byName {
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
 }
 
 // Find returns the standard whose Name equals name, or (Standard{},
@@ -155,32 +95,6 @@ func Find(standards []Standard, name string) (Standard, bool) {
 		}
 	}
 	return Standard{}, false
-}
-
-// standardName converts a forward-slash relative path under
-// `standards/` into the colon-namespaced lowercased name. Returns
-// STANDARD_INVALID when the path is not a `.md` file or has an empty
-// stem.
-func standardName(rel string) (string, error) {
-	rel = filepath.ToSlash(rel)
-	if !strings.HasSuffix(strings.ToLower(rel), ".md") {
-		return "", errcode.Newf(errcode.StandardInvalid,
-			"standard file %s does not end in .md", rel)
-	}
-	stem := strings.TrimSuffix(rel, filepath.Ext(rel))
-	if stem == "" {
-		return "", errcode.Newf(errcode.StandardInvalid,
-			"standard file %s has an empty name stem", rel)
-	}
-	segments := strings.Split(stem, "/")
-	for i, seg := range segments {
-		if seg == "" {
-			return "", errcode.Newf(errcode.StandardInvalid,
-				"standard file %s has an empty path segment", rel)
-		}
-		segments[i] = strings.ToLower(seg)
-	}
-	return strings.Join(segments, ":"), nil
 }
 
 // parseStandardFile reads `path`, separates the optional frontmatter

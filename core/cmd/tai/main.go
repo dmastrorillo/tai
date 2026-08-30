@@ -24,8 +24,8 @@
 //
 // main is the single place that calls os.Exit. Subcommands and
 // library code under core/internal/ and plugins/<name>/internal/
-// MUST return errors; main maps them via errcode.Code.ExitCode() or
-// — for plugin subprocess exits — via cli.ExitCoder.ExitCode().
+// MUST return errors; main maps them to exit codes via
+// cliexec.Exit, the translation shared with every plugin binary.
 package main
 
 import (
@@ -33,16 +33,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/urfave/cli/v3"
-
 	"github.com/dmastrorillo/tai/core/internal/cmd"
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/sync"
 	"github.com/dmastrorillo/tai/pkg/cliexec"
-	"github.com/dmastrorillo/tai/pkg/cliout"
 	"github.com/dmastrorillo/tai/pkg/datadir"
-	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/pkg/exitcode"
 )
 
 // pollWaitOnExit is the per-invocation budget we give the background
@@ -83,31 +78,10 @@ func main() {
 		_ = waiter.Wait(pollWaitOnExit)
 	}
 
-	if err == nil {
-		os.Exit(exitcode.Success)
-	}
-
-	// Structured *errcode.Error: render the template and exit with
-	// the code's mapped exit.
-	if e, ok := errcode.As(err); ok {
-		cliout.WriteError(os.Stderr, err)
-		os.Exit(e.Code.ExitCode())
-	}
-
-	// Plugin subprocess exit: the child process has already written
-	// its own stderr template. The error here is a cli.ExitCoder
-	// (e.g. core/internal/cmd.pluginExitError) carrying only the
-	// child's exit code. Don't render an INTERNAL_ERROR template
-	// over the plugin's real output — just propagate the code.
-	if ec, ok := err.(cli.ExitCoder); ok {
-		os.Exit(ec.ExitCode())
-	}
-
-	// Truly unstructured error (unwrapped panic, third-party leak).
-	// Surface as INTERNAL_ERROR so the OS exit and the rendered
-	// footer agree.
-	cliout.WriteError(os.Stderr, err)
-	os.Exit(exitcode.Internal)
+	// cliexec.Exit owns the error → exit-code translation (structured
+	// template rendering, plugin-subprocess passthrough, INTERNAL
+	// fallback) so the rules can't drift between binary entry points.
+	os.Exit(cliexec.Exit(os.Stderr, err))
 }
 
 // schedulePoll loads the config best-effort and starts the background

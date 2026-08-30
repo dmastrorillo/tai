@@ -14,14 +14,9 @@
 // read TAI_TARGETS to know which target directories receive bundled
 // command files.
 //
-// The error-rendering rules mirror core/cmd/tai/main.go:
-//
-//   - *errcode.Error: render via cliout.WriteError, exit with the
-//     code's mapped exit.
-//   - cli.ExitCoder that ISN'T *errcode.Error: exit with the
-//     reported code, no template (the child plugin — none today, but
-//     reserved — has already written its own output).
-//   - Anything else: surface as INTERNAL_ERROR.
+// Error rendering and exit-code mapping go through cliexec.Exit —
+// the exact translation core/cmd/tai/main.go uses, shared via
+// pkg/cliexec so the rules cannot drift between binaries.
 //
 // Like the core binary, this is the single place in the triage
 // plugin that calls os.Exit.
@@ -31,12 +26,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/urfave/cli/v3"
-
 	"github.com/dmastrorillo/tai/pkg/cliexec"
-	"github.com/dmastrorillo/tai/pkg/cliout"
-	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/pkg/exitcode"
 	"github.com/dmastrorillo/tai/pkg/taiplugin"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/cmd"
 )
@@ -55,26 +45,12 @@ func main() {
 	// (e.g. directly by a developer), and downstream commands either
 	// work standalone or fail with their own structured errors.
 	if _, err := taiplugin.Load(); err != nil {
-		cliout.WriteError(os.Stderr, err)
-		if e, ok := errcode.As(err); ok {
-			os.Exit(e.Code.ExitCode())
-		}
-		os.Exit(exitcode.Internal)
+		os.Exit(cliexec.Exit(os.Stderr, err))
 	}
 
+	// cliexec.Exit owns the error → exit-code translation, shared
+	// with core/cmd/tai/main.go so the rules can't drift between
+	// binary entry points.
 	err := cliexec.Run(ctx, cmd.NewRoot(), os.Args)
-	if err == nil {
-		os.Exit(exitcode.Success)
-	}
-
-	if e, ok := errcode.As(err); ok {
-		cliout.WriteError(os.Stderr, err)
-		os.Exit(e.Code.ExitCode())
-	}
-	if ec, ok := err.(cli.ExitCoder); ok {
-		os.Exit(ec.ExitCode())
-	}
-
-	cliout.WriteError(os.Stderr, err)
-	os.Exit(exitcode.Internal)
+	os.Exit(cliexec.Exit(os.Stderr, err))
 }

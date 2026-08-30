@@ -85,13 +85,11 @@ func newWorkflowRunCommand() *cli.Command {
 }
 
 func runWorkflowRun(_ context.Context, c *cli.Command) error {
-	args := c.Args().Slice()
-	if len(args) != 1 {
-		return errcode.New(errcode.MissingArg,
-			"tai workflow run requires exactly one argument: <name>").
-			WithHelp("example: `tai workflow run propose`")
+	name, err := requireOneArg(c, "tai workflow run", "<name>",
+		"example: `tai workflow run propose`")
+	if err != nil {
+		return err
 	}
-	name := args[0]
 
 	workflows, err := loadWorkflows(c.ErrWriter)
 	if err != nil {

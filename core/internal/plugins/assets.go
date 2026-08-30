@@ -57,9 +57,14 @@ func ValidateAssetNamespace(pluginDir, pluginName string) error {
 }
 
 // SyncAssetsToTargets copies the plugin's `assets/` content into
-// every configured target, applying the namespacing rules. Before
-// each copy it removes the plugin's existing namespace in that
-// target so stale entries from prior installs are cleaned up.
+// every configured target, applying the namespacing rules. The order
+// per category is copy-then-prune: new files are copied in first
+// (overwriting same-name entries in place), and only after every
+// copy succeeded are namespace entries the new version no longer
+// ships removed. A copy failure partway therefore leaves the
+// previously-installed files on disk instead of a wiped, half-copied
+// namespace — the same partial-failure discipline atomicReplaceDir
+// applies to the plugin's own install directory.
 //
 // Falsy sub-paths (`skills: ""` / `commands: ""` / `agents: ""` in
 // config) skip that category for that target, with a one-line
@@ -70,13 +75,7 @@ func ValidateAssetNamespace(pluginDir, pluginName string) error {
 // prompts, no manifest — the namespace IS the manifest).
 func SyncAssetsToTargets(pluginDir, pluginName string, targets []config.Target, stderr io.Writer) error {
 	for _, t := range targets {
-		skills, commands, agents := t.EffectiveSubpaths()
-		categories := []assetCategory{
-			{sub: "skills", target: skills, plugin: pluginName, root: t.Root, isCommands: false},
-			{sub: "agents", target: agents, plugin: pluginName, root: t.Root, isCommands: false},
-			{sub: "commands", target: commands, plugin: pluginName, root: t.Root, isCommands: true},
-		}
-		for _, c := range categories {
+		for _, c := range categoriesFor(pluginName, t) {
 			if c.target == "" {
 				// Falsy → only warn when the plugin actually has
 				// content for this category. Avoids noise on the
@@ -89,10 +88,11 @@ func SyncAssetsToTargets(pluginDir, pluginName string, targets []config.Target, 
 				}
 				continue
 			}
-			if err := wipePluginNamespace(c); err != nil {
+			shipped, err := copyPluginCategory(pluginDir, c)
+			if err != nil {
 				return err
 			}
-			if err := copyPluginCategory(pluginDir, c); err != nil {
+			if err := prunePluginNamespace(c, shipped); err != nil {
 				return err
 			}
 		}
@@ -105,12 +105,7 @@ func SyncAssetsToTargets(pluginDir, pluginName string, targets []config.Target, 
 // remove` and by the update flow before the new assets are copied.
 func WipePluginFromTargets(pluginName string, targets []config.Target) error {
 	for _, t := range targets {
-		skills, commands, agents := t.EffectiveSubpaths()
-		for _, c := range []assetCategory{
-			{sub: "skills", target: skills, plugin: pluginName, root: t.Root, isCommands: false},
-			{sub: "agents", target: agents, plugin: pluginName, root: t.Root, isCommands: false},
-			{sub: "commands", target: commands, plugin: pluginName, root: t.Root, isCommands: true},
-		} {
+		for _, c := range categoriesFor(pluginName, t) {
 			if c.target == "" {
 				continue
 			}
@@ -120,6 +115,18 @@ func WipePluginFromTargets(pluginName string, targets []config.Target) error {
 		}
 	}
 	return nil
+}
+
+// categoriesFor builds the three assetCategory rows for one target —
+// the single source of truth for the category/sub-path wiring shared
+// by SyncAssetsToTargets and WipePluginFromTargets.
+func categoriesFor(pluginName string, t config.Target) []assetCategory {
+	skills, commands, agents := t.EffectiveSubpaths()
+	return []assetCategory{
+		{sub: "skills", target: skills, plugin: pluginName, root: t.Root, isCommands: false},
+		{sub: "agents", target: agents, plugin: pluginName, root: t.Root, isCommands: false},
+		{sub: "commands", target: commands, plugin: pluginName, root: t.Root, isCommands: true},
+	}
 }
 
 // assetCategory carries the (source category, target absolute path,
@@ -150,7 +157,7 @@ func categoryHasContent(pluginDir, sub string) bool {
 // `tai-<plugin>-`.
 func wipePluginNamespace(c assetCategory) error {
 	if c.isCommands {
-		dir := filepath.Join(c.target, "tai-"+c.plugin)
+		dir := c.namespaceBase()
 		if err := os.RemoveAll(dir); err != nil {
 			return errcode.Wrapf(errcode.InternalError, err,
 				"remove %s", dir)
@@ -182,39 +189,96 @@ func wipePluginNamespace(c assetCategory) error {
 // copyPluginCategory copies every entry in `<pluginDir>/assets/<sub>/`
 // into the appropriate place under c.target. For commands the
 // destination is `c.target/tai-<plugin>/`; for skills/agents the
-// destination is `c.target/` directly.
-func copyPluginCategory(pluginDir string, c assetCategory) error {
+// destination is `c.target/` directly. Existing same-name entries
+// are overwritten in place; nothing outside the shipped set is
+// touched (pruning is the caller's separate, after-success step).
+//
+// Returns the set of entry names shipped by this version, for the
+// prune step. A missing source category returns an empty (non-nil)
+// set — every previously-shipped entry is then stale.
+func copyPluginCategory(pluginDir string, c assetCategory) (map[string]bool, error) {
+	shipped := map[string]bool{}
 	src := filepath.Join(pluginDir, "assets", c.sub)
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+			return shipped, nil
 		}
-		return errcode.Wrapf(errcode.InternalError, err, "read %s", src)
+		return nil, errcode.Wrapf(errcode.InternalError, err, "read %s", src)
 	}
-	var dstBase string
-	if c.isCommands {
-		dstBase = filepath.Join(c.target, "tai-"+c.plugin)
-	} else {
-		dstBase = c.target
-	}
-	if err := os.MkdirAll(dstBase, 0o755); err != nil {
-		return errcode.Wrapf(errcode.InternalError, err, "mkdir %s", dstBase)
+	dstBase := c.namespaceBase()
+	if len(entries) > 0 {
+		if err := os.MkdirAll(dstBase, 0o755); err != nil {
+			return nil, errcode.Wrapf(errcode.InternalError, err, "mkdir %s", dstBase)
+		}
 	}
 	for _, e := range entries {
 		s := filepath.Join(src, e.Name())
 		d := filepath.Join(dstBase, e.Name())
 		if e.IsDir() {
-			if err := copyDir(s, d); err != nil {
-				return err
+			// Replace directory entries wholesale so files a prior
+			// version nested inside the same-named folder don't
+			// linger. Blast radius on failure is this one entry.
+			if err := os.RemoveAll(d); err != nil {
+				return nil, errcode.Wrapf(errcode.InternalError, err, "remove %s", d)
 			}
+			if err := copyDir(s, d); err != nil {
+				return nil, err
+			}
+		} else if err := copyFile(s, d); err != nil {
+			return nil, err
+		}
+		shipped[e.Name()] = true
+	}
+	return shipped, nil
+}
+
+// prunePluginNamespace removes entries in the plugin's namespace that
+// the just-copied version no longer ships. Runs only after every copy
+// succeeded, so a failed sync never deletes anything.
+func prunePluginNamespace(c assetCategory, shipped map[string]bool) error {
+	base := c.namespaceBase()
+	if c.isCommands && len(shipped) == 0 {
+		// The version ships no commands — the wholly-owned
+		// `tai-<plugin>/` dir is stale in its entirety.
+		if err := os.RemoveAll(base); err != nil {
+			return errcode.Wrapf(errcode.InternalError, err, "remove %s", base)
+		}
+		return nil
+	}
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return errcode.Wrapf(errcode.InternalError, err, "read %s", base)
+	}
+	prefix := "tai-" + c.plugin + "-"
+	for _, e := range entries {
+		if shipped[e.Name()] {
 			continue
 		}
-		if err := copyFile(s, d); err != nil {
-			return err
+		// Inside `tai-<plugin>/` every entry is plugin-owned; in the
+		// shared skills/agents dir only prefixed entries are.
+		if !c.isCommands && !strings.HasPrefix(e.Name(), prefix) {
+			continue
+		}
+		p := filepath.Join(base, e.Name())
+		if err := os.RemoveAll(p); err != nil {
+			return errcode.Wrapf(errcode.InternalError, err, "remove %s", p)
 		}
 	}
 	return nil
+}
+
+// namespaceBase returns the directory the plugin's namespace lives
+// in for this category: `<target>/tai-<plugin>/` for commands, the
+// shared category dir itself for skills/agents.
+func (c assetCategory) namespaceBase() string {
+	if c.isCommands {
+		return filepath.Join(c.target, "tai-"+c.plugin)
+	}
+	return c.target
 }
 
 // copyFile reads src bytes and writes them to dst, preserving the
