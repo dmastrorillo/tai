@@ -95,7 +95,17 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 		return nil, err
 	}
 
+	// Contract checks run against the staging directory, before
+	// anything is promoted: a bundle that fails either one leaves no
+	// trace, and any prior install of the same plugin stays intact.
+	if err := RequireAssetsDir(stagingDir, name); err != nil {
+		return nil, err
+	}
 	if err := ValidateAssetNamespace(stagingDir, name); err != nil {
+		return nil, err
+	}
+	description, err := ReadHelpSummary(ctx, stagingDir, name)
+	if err != nil {
 		return nil, err
 	}
 
@@ -135,6 +145,7 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 		Source:      src,
 		Version:     resolvedTag,
 		InstalledAt: installedAt,
+		Description: description,
 	}
 	state, err := LoadState(dataDir)
 	if err != nil {

@@ -30,6 +30,17 @@ type Entry struct {
 	Source      Source    `json:"source"`
 	Version     string    `json:"version"`
 	InstalledAt time.Time `json:"installed-at"`
+
+	// Description is the single line the plugin printed for the
+	// `--help-summary` wire verb at install or update time, and the
+	// text `tai --help` shows beside the plugin's name. Captured once
+	// rather than exec'd at help-render time, so rendering help never
+	// spawns a subprocess per installed plugin.
+	//
+	// Append-only, like every field here: entries written before this
+	// field existed omit it and read back as empty, which is why the
+	// help renderer must tolerate a blank description.
+	Description string `json:"description,omitempty"`
 }
 
 // statePath returns the canonical state-file path for a given data

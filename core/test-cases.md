@@ -1289,6 +1289,85 @@ Exercised by `core/internal/plugins/assets_test.go` →
 step behind `tai plugins install/update` and the `tai sync`
 auto-install hook, and asserts on the target's on-disk state).
 
+### TC-PLG-018 — Tarball with no `assets/` directory is rejected
+
+- **Given** a plugin tarball containing only the binary and `LICENSE`,
+- **When** the user installs it,
+- **Then** the command fails with `PLUGIN_ASSET_MISSING`,
+- **And** the help bullets explain that an `assets/` directory is
+  required and that an empty one is valid,
+- **And** nothing is written under `<TAI_DATA_DIR>/plugins/<name>/`.
+
+`assets/` is the host's guaranteed input to `SyncAssetsToTargets`, the
+only sanctioned writer for target directories. A tarball without one
+is a plugin that expects to place its own assets — the trust boundary
+this check defends.
+
+Exercised by `core/internal/plugins/contract_test.go` →
+`TestInstall_TCPLG018_missing_assets_dir_rejected`.
+
+### TC-PLG-019 — Empty `assets/` directory is accepted
+
+- **Given** a plugin tarball containing the binary and an empty
+  `assets/` directory,
+- **When** the user installs it,
+- **Then** install succeeds with no errors,
+- **And** the asset sync runs vacuously — no categories to copy.
+
+A pure-binary plugin ships no skills, commands, or agents and still
+declares that the host owns placement.
+
+Exercised by `core/internal/plugins/contract_test.go` →
+`TestInstall_TCPLG019_empty_assets_dir_accepted`.
+
+### TC-PLG-020 — Install captures the plugin's `--help-summary`
+
+- **Given** a plugin whose `--help-summary` prints
+  `Walk through pending PR review comments interactively.` and exits
+  zero,
+- **When** the user installs it,
+- **Then** install succeeds,
+- **And** the plugin's entry in `<TAI_DATA_DIR>/state/plugins.json`
+  carries that string as its `description`.
+
+Captured once at install/update time rather than exec'd when help is
+rendered, so `tai --help` never spawns a subprocess per plugin.
+
+Exercised by `core/internal/plugins/contract_test.go` →
+`TestInstall_TCPLG020_captures_description`.
+
+### TC-PLG-021 — A plugin that cannot answer `--help-summary` is not installed
+
+- **Given** a plugin whose `--help-summary` exits non-zero, writes
+  nothing, writes only whitespace, or writes more than 1024 bytes,
+- **When** the user installs it,
+- **Then** the command fails with `PLUGIN_HELP_SUMMARY_FAILED`,
+- **And** the help bullets name the wire verb the plugin must
+  implement,
+- **And** nothing is written under `<TAI_DATA_DIR>/plugins/<name>/` —
+  any prior install of the same plugin is left intact.
+
+The check runs against the staging directory before promotion, which
+is what makes the prior install safe.
+
+Exercised by `core/internal/plugins/contract_test.go` →
+`TestInstall_TCPLG021_help_summary_failure_aborts` (one subtest per
+failure shape).
+
+### TC-PLG-022 — A multi-line summary is reduced to its first line
+
+- **Given** a plugin whose `--help-summary` prints a headline followed
+  by further lines,
+- **When** the user installs it,
+- **Then** install succeeds,
+- **And** the stored `description` is the first line only, trimmed.
+
+The host stores one line; a plugin that prints a paragraph gets its
+headline rather than a rejection.
+
+Exercised by `core/internal/plugins/contract_test.go` →
+`TestInstall_TCPLG022_multiline_summary_truncated_to_first_line`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
