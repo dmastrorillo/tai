@@ -68,6 +68,23 @@ archives:
     formats: [tar.gz]
     files:
       - LICENSE
+      # The host requires a top-level `assets/` directory in every
+      # plugin tarball and rejects one without it
+      # (PLUGIN_ASSET_MISSING) — it is the guaranteed input to
+      # SyncAssetsToTargets, the only sanctioned writer for target
+      # directories.
+      #
+      # One entry per asset category, because the category directory
+      # names are what the host routes on: `assets/commands/` lands at
+      # `<target>/commands/tai-triage/`. strip_parent keeps only the
+      # basename, so dst must name the category explicitly — a single
+      # recursive glob would either flatten the categories away or
+      # carry the whole `plugins/triage/assets/` prefix into the
+      # tarball. Add a sibling entry if triage ever ships
+      # `assets/skills/` or `assets/agents/`.
+      - src: plugins/triage/assets/commands/*.md
+        dst: assets/commands
+        strip_parent: true
 
 checksum:
   name_template: "checksums.txt"

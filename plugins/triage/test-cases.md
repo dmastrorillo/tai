@@ -28,6 +28,7 @@ short, stable codes; numbers increment within each category starting at
 | [`REPO`](#repo--repo-context-detection) | `origin` URL parsing, `--repo` flag, scope auto-detect |
 | [`STG`](#stg--storage-layer) | SQLite schema, migrations, constraint enforcement |
 | [`INST`](#inst--install--uninstall-retired) | Retired — triage no longer self-installs; the host owns asset placement |
+| [`AST`](#ast--shipped-assets) | The markdown the plugin tarball ships for the host to install |
 | [`IMP`](#imp--import) | `tai triage import -`, JSON validation, upsert semantics |
 | [`TRG`](#trg--triage-state) | list / show / accept / dismiss / complete / status / forget |
 | [`MIG`](#mig--phase-6-migration) | Phase-6 plugin-host migration: binary identity, DB path under `<TAI_DATA_DIR>/plugins/triage/state/`, wire-contract consumption |
@@ -378,6 +379,42 @@ never existed, and never reused.
 <!-- TC-INST-044 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
 <!-- TC-INST-045 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
 <!-- TC-INST-046 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+
+## AST — shipped assets
+
+`assets/` is the tree the plugin tarball carries and the host copies
+into every configured target. The host copies bytes without reading
+them, so nothing else in the pipeline can catch a file that describes
+itself wrongly.
+
+### TC-AST-001 — bundled commands address themselves by their installed name
+
+- **Given** the markdown files under `plugins/triage/assets/commands/`,
+- **When** their contents are scanned,
+- **Then** no file contains a `/tai:<verb>` reference.
+
+The host routes `assets/commands/*.md` into
+`<target>/commands/tai-triage/`, which makes them reachable as
+`/tai-triage:<verb>`. A file telling the reader to run `/tai:triage`
+sends them to a command that does not exist.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestBundledCommands_TCAST001_use_the_plugin_namespace`.
+
+### TC-AST-002 — the release tarball ships the assets tree
+
+- **Given** a triage release archive built by `.goreleaser.triage.yaml`,
+- **When** the tarball is listed,
+- **Then** it contains `assets/commands/<verb>.md` for every bundled
+  command, at that exact path,
+- **And** the host's `PLUGIN_ASSET_MISSING` check therefore passes on
+  install.
+
+Verified by `make release-snapshot` plus inspection of
+`dist/triage/tai-plugin-triage-*.tar.gz`; the category directory name
+is load-bearing, since the host routes on it.
+
+---
 
 ## IMP — import
 
