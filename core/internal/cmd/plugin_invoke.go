@@ -74,11 +74,7 @@ func dispatchPluginOrUnknown(ctx context.Context, c *cli.Command) error {
 		return unknownSubcommandWithPluginHelp(name)
 	}
 
-	cfg, cfgErr := loadEffectiveConfig()
-	if cfgErr != nil {
-		return cfgErr
-	}
-	return execPlugin(ctx, name, rest, dataDir, cfg, c.Reader, c.Writer, c.ErrWriter)
+	return execInstalledPlugin(ctx, c, name, rest)
 }
 
 // unknownSubcommandWithPluginHelp constructs the UNKNOWN_SUBCOMMAND
@@ -206,4 +202,70 @@ func mergeEnv(base, over []string) []string {
 		out = append(out, k+"="+v)
 	}
 	return out
+}
+
+// pluginPassthroughCommands returns one subcommand per installed
+// plugin, each of which forwards its entire argument list to the
+// plugin's binary untouched.
+//
+// Registering plugins as real subcommands — rather than relying only
+// on the root Action's catch-all — is what makes plugin flags work.
+// urfave/cli parses the root's flag set before any Action runs, so a
+// plugin flag the host does not define (`--pr`, `--repo`) became a
+// usage error and never reached the subprocess. Since nearly every
+// plugin verb takes a flag, the plugin was effectively unreachable.
+// SkipFlagParsing hands the whole tail over verbatim, which is the
+// only correct policy: a plugin owns its argument surface and the
+// host cannot know its flags.
+//
+// State is read best-effort. A plugin that cannot be listed here
+// (unresolvable data dir, unreadable state file) still reaches the
+// root Action's catch-all, which loads the same state and surfaces
+// the real error rather than a bare "unknown command".
+func pluginPassthroughCommands() []*cli.Command {
+	dataDir, err := datadir.Resolve()
+	if err != nil {
+		return nil
+	}
+	state, err := plugins.LoadState(dataDir)
+	if err != nil {
+		return nil
+	}
+
+	out := make([]*cli.Command, 0, len(state.Plugins))
+	for _, p := range state.Plugins {
+		out = append(out, &cli.Command{
+			Name:  p.Name,
+			Usage: "Run the " + p.Name + " plugin (arguments are passed through)",
+
+			// The plugin owns every argument after its name.
+			SkipFlagParsing: true,
+			// Without this urfave/cli appends its own --help to the
+			// command's flag set and intercepts it, so `tai <plugin>
+			// --help` would print the host's help for a command that
+			// has none instead of the plugin's own.
+			HideHelp: true,
+
+			Action: func(ctx context.Context, c *cli.Command) error {
+				return execInstalledPlugin(ctx, c, p.Name, c.Args().Slice())
+			},
+		})
+	}
+	return out
+}
+
+// execInstalledPlugin resolves the host state a plugin subprocess
+// needs and executes it. Shared by the passthrough subcommands above
+// and the root Action's catch-all so both paths build the identical
+// wire-contract environment.
+func execInstalledPlugin(ctx context.Context, c *cli.Command, name string, args []string) error {
+	dataDir, err := datadir.Resolve()
+	if err != nil {
+		return err
+	}
+	cfg, err := loadEffectiveConfig()
+	if err != nil {
+		return err
+	}
+	return execPlugin(ctx, name, args, dataDir, cfg, c.Reader, c.Writer, c.ErrWriter)
 }
