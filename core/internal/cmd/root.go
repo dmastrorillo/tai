@@ -47,7 +47,7 @@ func NewRoot() *cli.Command {
 		Usage:   "AI-as-code CLI: distribute Claude Code assets and run AI plugins",
 		Version: version.String,
 
-		Commands: []*cli.Command{
+		Commands: append([]*cli.Command{
 			newConfigCommand(),
 			newRepoCommand(),
 			newSyncCommand(),
@@ -55,7 +55,7 @@ func NewRoot() *cli.Command {
 			newStandardsCommand(),
 			newInstallCommandsCommand(),
 			newPluginsCommand(),
-		},
+		}, pluginPassthroughCommands()...),
 
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Positional args that didn't match a reserved verb may

@@ -1367,6 +1367,32 @@ headline rather than a rejection.
 
 Exercised by `core/internal/plugins/contract_test.go` →
 `TestInstall_TCPLG022_multiline_summary_truncated_to_first_line`.
+### TC-PLG-023 — Plugin arguments and flags pass through the host verbatim
+
+- **Given** a plugin `triage` is installed,
+- **When** the user runs `tai triage list --pr 99`, or
+  `tai triage --repo acme/demo list`, or `tai triage --help`,
+- **Then** the plugin subprocess receives exactly the arguments that
+  followed its name, in order, including every flag,
+- **And** the host does not attempt to parse them against its own flag
+  set.
+
+Regression case. urfave/cli parses the root command's flags before any
+Action runs, so a flag the host does not define — `--pr`, `--repo`,
+and every other plugin flag — surfaced as
+`flag provided but not defined` / `UNKNOWN_SUBCOMMAND` and never
+reached the subprocess. Because nearly every plugin verb takes a flag,
+the plugin was reachable only for bare verbs, and `tai <plugin>
+--help` printed nothing at all.
+
+Installed plugins are therefore registered as real subcommands with
+`SkipFlagParsing`, which is the only correct policy: a plugin owns its
+entire argument surface and the host cannot know its flags. Host verbs
+keep their own flag parsing — the passthrough is scoped to plugins.
+
+Exercised by `core/internal/cmd/plugin_flags_test.go` →
+`TestPluginInvoke_TCPLG023_flags_pass_through_verbatim` and
+`TestPluginInvoke_TCPLG023_host_verbs_still_parse_flags`.
 
 <!-- Add new PLG cases here as their proposals land. -->
 
