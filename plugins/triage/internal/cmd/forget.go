@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/plugins/triage/internal/installer"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/repoctx"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/storage"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/triage"
@@ -18,8 +17,8 @@ import (
 )
 
 // forgetEnv is the env-var name that, when truthy, treats the
-// destructive prompt as accepted. Mirrors installer.AcceptEnv but
-// applies to the triage forget verb only.
+// destructive prompt as accepted. Scoped to the forget verb — it is
+// the only destructive one.
 const forgetEnv = "TAI_ACCEPT_DESTRUCTIVE"
 
 func newForgetCommand() *cli.Command {
@@ -240,7 +239,7 @@ func consentGranted(c *cli.Command) bool {
 	if c.Bool(yesFlag) {
 		return true
 	}
-	if installer.IsTruthyEnv(forgetEnv) {
+	if isTruthyEnv(forgetEnv) {
 		return true
 	}
 	if !stdinIsTTY(c.Reader) {

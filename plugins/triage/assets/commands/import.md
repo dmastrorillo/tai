@@ -4,13 +4,12 @@ description: "Pull review comments from GitHub or a manual source, enrich them, 
 category: "Workflow"
 tags: [tai, import, review]
 version: 1
-content_hash: "sha256:ee07faa7e6847a080d43542bfcc0c274a7ef2865d9325c2e34d06349e93335bc"
 ---
-# /tai:import — capture review comments into tai's database
+# /tai-triage:import — capture review comments into tai's database
 
 You are running as Claude inside Anthropic's Claude Code (or an
 equivalent agent harness). This slash-command body is your instructions
-for one invocation of `/tai:import`.
+for one invocation of `/tai-triage:import`.
 
 Your job: turn an outside-world review (GitHub PR comments, an AI
 review, a teammate's pasted notes, a linter report) into a strict JSON
@@ -29,10 +28,10 @@ arguments the user passed:
 
 | Invocation                                          | Scope                                    | Collection mode |
 |-----------------------------------------------------|------------------------------------------|-----------------|
-| `/tai:import`                                       | current PR                               | remote          |
-| `/tai:import <pr-number-or-url>`                    | that PR                                  | remote          |
-| `/tai:import stack`                                 | every PR trunk → current, ancestor first | remote          |
-| `/tai:import branch <name> [--from <path>]`         | that branch                              | manual          |
+| `/tai-triage:import`                                       | current PR                               | remote          |
+| `/tai-triage:import <pr-number-or-url>`                    | that PR                                  | remote          |
+| `/tai-triage:import stack`                                 | every PR trunk → current, ancestor first | remote          |
+| `/tai-triage:import branch <name> [--from <path>]`         | that branch                              | manual          |
 
 The collection mode determines where the raw review content comes from:
 
@@ -127,7 +126,7 @@ entry. The shape of each ref depends on the collection mode:
 - **Manual mode** — use `kind = "manual"`. The `id` is a deterministic
   hash of the comment content: SHA-256 of `file + lines + title`,
   truncated to the first 16 hex chars. Deterministic IDs make
-  re-running `/tai:import branch <name> --from ./review.md` idempotent
+  re-running `/tai-triage:import branch <name> --from ./review.md` idempotent
   — the CLI sees the same refs and updates the existing comment
   instead of duplicating. When the source JSON already supplies
   refs, pass them through verbatim instead of recomputing.

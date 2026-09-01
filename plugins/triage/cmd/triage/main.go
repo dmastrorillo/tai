@@ -31,12 +31,26 @@ import (
 	"github.com/dmastrorillo/tai/plugins/triage/internal/cmd"
 )
 
+// helpSummary is what `triage --help-summary` prints and what the
+// host stores as the plugin's description in plugins.json — the line
+// `tai --help` shows beside the plugin's name. One line, 80 characters
+// or fewer, per the wire contract.
+const helpSummary = "Walk through pending PR review comments interactively."
+
 func main() {
 	ctx := context.Background()
 
+	// The host asks `triage --help-summary` at install and update time
+	// and refuses to install a plugin that cannot answer. Handled
+	// before the command tree so no urfave/cli output can reach the
+	// stdout the host is parsing.
+	if handled, err := taiplugin.HelpSummary(os.Stdout, os.Args, helpSummary); handled {
+		os.Exit(cliexec.Exit(os.Stderr, err))
+	}
+
 	// taiplugin.Load() parses the wire-contract env vars. The values
 	// are not used directly by this main — downstream packages
-	// (storage, installer) read TAI_DATA_DIR via pkg/datadir which
+	// (storage) read TAI_DATA_DIR via pkg/datadir which
 	// also honours the contract — but we call Load() up front so a
 	// malformed TAI_TARGETS surfaces with the spec'd INTERNAL_ERROR
 	// rather than as a cryptic crash later. Errors are non-fatal at

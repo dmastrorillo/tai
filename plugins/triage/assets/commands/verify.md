@@ -4,19 +4,18 @@ description: "Check whether accepted comments have been addressed; mark complete
 category: "Workflow"
 tags: [tai, triage, verify]
 version: 1
-content_hash: "sha256:00aff165b5a105b280011b8488e7da8a1e0090ff5c7c1743640c046b56421bcb"
 ---
-# /tai:verify — check that accepted comments are actually fixed
+# /tai-triage:verify — check that accepted comments are actually fixed
 
 You are running as Claude inside Anthropic's Claude Code (or an
 equivalent agent harness). This slash-command body is your
-instructions for one invocation of `/tai:verify`.
+instructions for one invocation of `/tai-triage:verify`.
 
 Your job: walk every `accepted` review comment in a scope, gather
 concrete evidence the fix is in place, surface that evidence to the
 user, and — only on explicit confirmation — mark the comment
 `completed` via `tai complete`. Verify is the post-fix counterpart to
-`/tai:triage`'s investigation phase: there it auto-completed before
+`/tai-triage:triage`'s investigation phase: there it auto-completed before
 asking; here it MUST always ask.
 
 You MUST follow this contract. Anything not specified here is left to
@@ -28,10 +27,10 @@ Each invocation maps to one of exactly four shapes:
 
 | Invocation                            | Scope                                          |
 |---------------------------------------|------------------------------------------------|
-| `/tai:verify`                         | auto-detect current scope                      |
-| `/tai:verify --pr <number-or-url>`    | a single PR by number or full GitHub URL       |
-| `/tai:verify --branch <name>`         | a branch-scoped review                         |
-| `/tai:verify stack`                   | every PR from trunk to current, ancestor-first |
+| `/tai-triage:verify`                         | auto-detect current scope                      |
+| `/tai-triage:verify --pr <number-or-url>`    | a single PR by number or full GitHub URL       |
+| `/tai-triage:verify --branch <name>`         | a branch-scoped review                         |
+| `/tai-triage:verify stack`                   | every PR from trunk to current, ancestor-first |
 
 Any other argument shape is a usage error. Surface the four forms
 above and stop — do not invoke `tai` at all.
@@ -51,11 +50,11 @@ For `stack`: see section 9.
 **Scope resolution.** Your first action is `tai status [--pr X |
 --branch Y]` (with whatever the user supplied). You MUST NOT implement
 your own scope detection. Handle the failure modes identically to
-`/tai:triage`:
+`/tai-triage:triage`:
 
 - **`TRIAGE_NO_SCOPE`** (exit `2`): tell the user the current
   directory cannot be matched to any imported scope, offer
-  `/tai:import` or re-invocation with `--pr` / `--branch`, then STOP.
+  `/tai-triage:import` or re-invocation with `--pr` / `--branch`, then STOP.
 - **`TRIAGE_AMBIGUOUS_SCOPE`** (exit `2`): surface the
   disambiguation hint from stderr, ask the user to re-invoke with the
   explicit flag, then STOP.
@@ -291,7 +290,7 @@ it if the user asks a follow-up question.
 
 ## 9. Stack mode
 
-`/tai:verify stack` runs the three-phase loop once per PR in the
+`/tai-triage:verify stack` runs the three-phase loop once per PR in the
 current staccato stack (or `gh`-derived stack), ancestor-first.
 
 1. **Enumerate the stack.** Preferred backend:
@@ -357,7 +356,7 @@ it, then continue to the next PR.
   gather is the canonical input for that iteration.
 - Do NOT change the loop order based on user drift. Process the
   accepted comments in severity order, then file order — same
-  ordering rules `/tai:triage` Phase 2 uses.
+  ordering rules `/tai-triage:triage` Phase 2 uses.
 - Do NOT emit the recap (section 8) more than once per loop, and do
   NOT emit it when the loop was bypassed due to an empty accepted
   queue (use the one-line announcement from section 1 instead).

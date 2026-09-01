@@ -1,4 +1,4 @@
-.PHONY: help build test test-race vet fmt-check lint check ledger-update release-snapshot release-core release-triage
+.PHONY: help build test test-race vet fmt-check lint check release-snapshot release-core release-triage
 
 # Default target prints the available recipes.
 help:
@@ -9,7 +9,6 @@ help:
 	@echo "  vet                go vet ./..."
 	@echo "  fmt-check          fail if any file needs gofmt"
 	@echo "  check              the full pre-merge sweep: fmt-check, vet, test, test-race"
-	@echo "  ledger-update      recompute body hashes and append to commands/*.ledger.json"
 	@echo "  release-snapshot   dry-run both goreleaser configs (no publish, no push); produces dist/"
 	@echo "  release-core       publish a tai core release from the current vX.Y.Z tag"
 	@echo "  release-triage     publish a triage plugin release from the current plugins/triage/vX.Y.Z tag"
@@ -35,13 +34,6 @@ fmt-check:
 	fi
 
 check: fmt-check vet test test-race
-
-# Recomputes each bundled command's body hash and appends it to the
-# matching commands/<verb>.ledger.json. Idempotent — running it on an
-# already-up-to-date tree is a no-op. Invoke this after editing any
-# command markdown body, before committing.
-ledger-update:
-	go run ./cmd/tai-ledger
 
 # Dry-run both goreleaser configs. Produces archives in dist/ without
 # publishing to GitHub Releases or pushing the brew formula. Run this

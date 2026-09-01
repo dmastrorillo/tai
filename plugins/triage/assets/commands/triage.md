@@ -4,18 +4,17 @@ description: "Walk through pending PR review comments interactively, batches-fir
 category: "Workflow"
 tags: [tai, triage, review]
 version: 2
-content_hash: "sha256:b2ebfd5afe77d9348e27ae7043f3a232fab157f574df73b696c4554212efb774"
 ---
-# /tai:triage — walk pending review comments to a decision
+# /tai-triage:triage — walk pending review comments to a decision
 
 You are running as Claude inside Anthropic's Claude Code (or an
 equivalent agent harness). This slash-command body is your instructions
-for one invocation of `/tai:triage`.
+for one invocation of `/tai-triage:triage`.
 
 Your job: walk the user through every `pending` review comment in a
 scope, one item at a time, and persist each decision via the `tai` CLI
 (`tai accept`, `tai dismiss`, `tai complete`). The CLI is impartial —
-all opinion lives in this conversation. The previous `/tai:import` step
+all opinion lives in this conversation. The previous `/tai-triage:import` step
 already pulled and enriched the comments; you operate on the rows
 already in the DB.
 
@@ -28,10 +27,10 @@ Each invocation maps to one of exactly four shapes:
 
 | Invocation                           | Scope                                                |
 |--------------------------------------|------------------------------------------------------|
-| `/tai:triage`                        | auto-detect current scope                            |
-| `/tai:triage --pr <number-or-url>`   | a single PR by number or full GitHub URL             |
-| `/tai:triage --branch <name>`        | a branch-scoped review                               |
-| `/tai:triage stack`                  | every PR from trunk to current, ancestor-first       |
+| `/tai-triage:triage`                        | auto-detect current scope                            |
+| `/tai-triage:triage --pr <number-or-url>`   | a single PR by number or full GitHub URL             |
+| `/tai-triage:triage --branch <name>`        | a branch-scoped review                               |
+| `/tai-triage:triage stack`                  | every PR from trunk to current, ancestor-first       |
 
 Any other argument shape is a usage error. Surface the four forms above
 and stop — do not call `tai` at all in that case.
@@ -62,7 +61,7 @@ Handle the three failure modes:
 
 - **`TRIAGE_NO_SCOPE`** (CLI exits `2` with this code). Tell the user
   the current directory cannot be matched to any imported scope. Offer
-  two paths: run `/tai:import` first (to seed a target), or re-invoke
+  two paths: run `/tai-triage:import` first (to seed a target), or re-invoke
   with `--pr <N>` or `--branch <name>`. Then STOP — do not call any
   further `tai` verb in this conversation.
 - **`TRIAGE_AMBIGUOUS_SCOPE`** (CLI exits `2`). The current branch
@@ -83,7 +82,7 @@ to phase 1.
 Before you ask the user about a single comment, walk every `pending`
 comment in scope and look for evidence the comment has already been
 addressed. The point is to spare the user a conversation about issues
-they already fixed since `/tai:import` ran.
+they already fixed since `/tai-triage:import` ran.
 
 Evidence sources, in order of trust:
 
@@ -350,7 +349,7 @@ it if the user asks a follow-up question.
 
 ## 8. Stack mode
 
-`/tai:triage stack` runs the four-phase loop once per PR in the
+`/tai-triage:triage stack` runs the four-phase loop once per PR in the
 current staccato stack (or `gh`-derived stack), ancestor-first.
 
 1. **Enumerate the stack.** Preferred backend:
@@ -397,14 +396,14 @@ say so.)
   Every state change goes through `tai accept` / `tai dismiss` / `tai
   complete`. If you find yourself reaching for `sqlite3` or for the
   data-directory path, STOP — the CLI is the only persistence seam.
-- Do NOT make network calls during triage. `/tai:import` pulls
-  comments from GitHub; `/tai:triage` operates on the rows already in
+- Do NOT make network calls during triage. `/tai-triage:import` pulls
+  comments from GitHub; `/tai-triage:triage` operates on the rows already in
   the DB. No `gh`, no `st_reviews`, no `curl`. (The one exception is
   stack-mode enumeration in section 8, which calls
   `st_reviews`/`gh pr list` once to discover the stack — no per-PR
   network calls beyond that.)
 - Do NOT re-import comments mid-loop. If the user says "there are
-  more comments to look at", tell them to run `/tai:import` again
+  more comments to look at", tell them to run `/tai-triage:import` again
   after this loop finishes.
 - Do NOT skip the dismissal-debate contract on `critical` comments,
   even when the user is insistent on the first pass. Insistence after

@@ -1,99 +1,74 @@
-// Package assets_test owns the divergence guard between the
-// transitional dual bundle trees. Phase 6 of pivot-to-ai-as-code
-// COPIED the triage plugin's bundled slash-command markdowns into
-// `plugins/triage/assets/commands/` so the new plugin-host install
-// path could pick them up. The original tree at
-// `plugins/triage/internal/cmdframework/commands/` still serves the
-// pre-pivot in-process `tai triage install` path until that flow
-// retires (tracked for Phase 7+).
+// Package assets_test pins the content contract of the markdown the
+// triage plugin ships for installation into target directories.
 //
-// While both trees ship the same payload, this test enforces
-// byte-identical parity for every `<verb>.md` file. A developer
-// editing one copy and not the other surfaces a hard CI failure
-// rather than silently diverging install paths.
+// The host copies `assets/commands/*.md` into
+// `<target>/commands/tai-triage/`, which is what makes them reachable
+// as `/tai-triage:<verb>`. A file that tells the reader to invoke
+// itself under any other name sends them to a command that does not
+// exist, and nothing else in the pipeline would catch it — the host
+// copies bytes without reading them.
 package assets_test
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-// TestAssetsMirrorCmdframework byte-compares every `<verb>.md` file
-// under plugins/triage/assets/commands/ against its counterpart under
-// plugins/triage/internal/cmdframework/commands/. Files missing on
-// either side fail the test.
-//
-// The .ledger.json files live only in cmdframework/commands/ — they
-// are pre-pivot bookkeeping irrelevant to the plugin-host flow — and
-// are deliberately NOT mirrored.
-func TestAssetsMirrorCmdframework(t *testing.T) {
-	assetsDir := "commands"
-	cmdframeworkDir := filepath.Join("..", "internal", "cmdframework", "commands")
+// commandsDir is the tree the plugin tarball ships and the host
+// copies from.
+const commandsDir = "commands"
 
-	assetEntries, err := os.ReadDir(assetsDir)
+// staleRef matches a slash-command reference in the pre-plugin-host
+// namespace: `/tai:<verb>`. The host now routes these files into a
+// `tai-triage/` subdirectory, so `/tai-triage:<verb>` is the only
+// name that resolves.
+var staleRef = regexp.MustCompile(`/tai:[a-z-]+`)
+
+// TC-AST-001 — every bundled command addresses itself by its
+// installed slash-command name.
+func TestBundledCommands_TCAST001_use_the_plugin_namespace(t *testing.T) {
+	entries, err := os.ReadDir(commandsDir)
 	if err != nil {
-		t.Fatalf("read assets dir: %v", err)
-	}
-	cmdEntries, err := os.ReadDir(cmdframeworkDir)
-	if err != nil {
-		t.Fatalf("read cmdframework dir: %v", err)
+		t.Fatal(err)
 	}
 
-	assetMD := mdFiles(assetEntries)
-	cmdMD := mdFiles(cmdEntries)
-
-	for name := range assetMD {
-		if !cmdMD[name] {
-			t.Errorf("%s exists in assets/commands/ but not in cmdframework/commands/", name)
+	checked := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
 		}
+		checked++
+		t.Run(e.Name(), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(commandsDir, e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found := staleRef.FindAllString(string(data), -1); len(found) > 0 {
+				t.Errorf("%d stale reference(s) in the pre-plugin-host namespace: %v\n"+
+					"the host installs these under `tai-triage/`, so they must read `/tai-triage:<verb>`",
+					len(found), unique(found))
+			}
+		})
 	}
-	for name := range cmdMD {
-		if !assetMD[name] {
-			t.Errorf("%s exists in cmdframework/commands/ but not in assets/commands/", name)
-		}
-	}
 
-	for name := range assetMD {
-		if !cmdMD[name] {
-			continue
-		}
-		assetBody, err := os.ReadFile(filepath.Join(assetsDir, name))
-		if err != nil {
-			t.Errorf("read %s in assets: %v", name, err)
-			continue
-		}
-		cmdBody, err := os.ReadFile(filepath.Join(cmdframeworkDir, name))
-		if err != nil {
-			t.Errorf("read %s in cmdframework: %v", name, err)
-			continue
-		}
-		if !bytes.Equal(assetBody, cmdBody) {
-			t.Errorf("%s bytes differ between assets/ and cmdframework/ — both trees must ship identical payload until the cmdframework duplicate retires (Phase 7+)",
-				name)
-		}
+	// A rename or a move that empties the tree would otherwise let
+	// this test pass by checking nothing.
+	if checked == 0 {
+		t.Fatalf("no command markdown found in %s/ — the tarball ships this tree", commandsDir)
 	}
 }
 
-// mdFiles returns the set of `.md` file basenames in entries,
-// excluding README.md (which is documentation, not a bundled
-// command).
-func mdFiles(entries []os.DirEntry) map[string]bool {
-	out := map[string]bool{}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+func unique(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
 		}
-		name := e.Name()
-		if name == "README.md" {
-			continue
-		}
-		if !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		out[name] = true
 	}
 	return out
 }

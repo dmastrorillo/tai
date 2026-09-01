@@ -27,7 +27,8 @@ short, stable codes; numbers increment within each category starting at
 | [`CMD`](#cmd--command-wiring--meta-verbs) | Bundled-command-framework parser used by the triage plugin |
 | [`REPO`](#repo--repo-context-detection) | `origin` URL parsing, `--repo` flag, scope auto-detect |
 | [`STG`](#stg--storage-layer) | SQLite schema, migrations, constraint enforcement |
-| [`INST`](#inst--install--uninstall) | `tai triage install` / `uninstall`, hash-ledger reconciliation |
+| [`INST`](#inst--install--uninstall-retired) | Retired — triage no longer self-installs; the host owns asset placement |
+| [`AST`](#ast--shipped-assets) | The markdown the plugin tarball ships for the host to install |
 | [`IMP`](#imp--import) | `tai triage import -`, JSON validation, upsert semantics |
 | [`TRG`](#trg--triage-state) | list / show / accept / dismiss / complete / status / forget |
 | [`MIG`](#mig--phase-6-migration) | Phase-6 plugin-host migration: binary identity, DB path under `<TAI_DATA_DIR>/plugins/triage/state/`, wire-contract consumption |
@@ -35,8 +36,8 @@ short, stable codes; numbers increment within each category starting at
 (`/tai:import`, `/tai:triage`, and `/tai:verify` slash commands are
 exercised manually — they have no TC-IDs because their conversational
 prompt-flow contracts aren't unit-testable from Go. Their bundled
-markdowns ARE covered at the install boundary by TC-INST-043,
-TC-INST-044, and TC-INST-045.)
+markdowns ARE covered by TC-AST-001, which asserts they address
+themselves by their installed slash-command names.)
 
 (Cases TC-CMD-001, TC-CMD-002, and TC-CMD-008 cover core-CLI behaviours
 and live in [`core/test-cases.md`](../../core/test-cases.md). The TC-CMD
@@ -46,57 +47,11 @@ IDs preserved by component remain globally unique — never renumbered.)
 
 ## CMD — command wiring & meta-verbs
 
-### TC-CMD-003 — bundled slash-command frontmatter parses into a populated `Frontmatter`
-
-- **Given** a well-formed bundled command markdown with the six required
-  frontmatter keys and a body,
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned `Frontmatter` has all fields populated,
-- **And** the returned body is everything after the closing `---\n`
-  with any trailing newline preserved.
-
-Exercised by `plugins/triage/internal/cmdframework/cmdframework_test.go` →
-`TestParse_TCCMD003_golden_good_frontmatter`.
-### TC-CMD-004 — frontmatter missing `content_hash` is rejected
-
-- **Given** a frontmatter that omits the `content_hash` field,
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned error names `content_hash` as missing.
-
-Exercised by `TestParse_TCCMD004_missing_content_hash`.
-### TC-CMD-005 — unknown frontmatter field is rejected
-
-- **Given** a frontmatter that contains a key not in the known six
-  (e.g. `priority`),
-- **When** `cmdframework.Parse` is called,
-- **Then** the returned error names the unknown key.
-
-Exercised by `TestParse_TCCMD005_unknown_field`.
-### TC-CMD-006 — `HashBody` is deterministic and trailing-newline sensitive
-
-- **Given** identical input bytes,
-- **When** `cmdframework.HashBody` is called twice,
-- **Then** the two return values are equal.
-- **And** the hash of `hello\n` differs from the hash of `hello`.
-
-Exercised by `TestHashBody_TCCMD006_determinism`.
-### TC-CMD-007 — `Ledger("any-verb")` returns an empty slice in the foundation stub
-
-- **Given** no install-time ledger has been populated yet,
-- **When** `cmdframework.Ledger(verb)` is called for any verb,
-- **Then** the returned slice is empty.
-
-Exercised by `TestLedger_TCCMD007_unknown_verb_returns_empty`.
-<!-- Add new CMD cases here as their proposals land. -->
-
----
-
-<!-- TC-CFG-001..004 moved to pkg/test-cases.md in Phase 2 of
-pivot-to-ai-as-code, when the `datadir` package was promoted out of
-plugins/triage/internal/ to pkg/datadir. The TC-IDs are preserved
-verbatim per the never-renumber rule. -->
-
----
+<!-- TC-CMD-003 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-004 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-005 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-006 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
+<!-- TC-CMD-007 retired 2026-08-30: cmdframework's frontmatter parser, body hashing and ledger reader were deleted with the triage self-installer; nothing reads a bundled command's frontmatter now that the host copies assets verbatim (bug-fix-round-1) -->
 
 ## REPO — repo-context detection
 
@@ -379,366 +334,85 @@ code at the storage-layer boundary.
 
 ---
 
-## INST — install / uninstall
-
-### TC-INST-001 — ledger files are JSON arrays of `sha256:<hex>` strings, oldest-first
-
-- **Given** any bundled `commands/<verb>.ledger.json` file is read,
-- **When** the file is parsed,
-- **Then** every entry matches `^sha256:[0-9a-f]{64}$`,
-- **And** the array order is oldest-first (the current build's body hash
-  is the last element).
-
-Exercised by `plugins/triage/internal/cmdframework/ledger_test.go` →
-`TestLedger_TCINST001_well_formed_entries`.
-
-### TC-INST-002 — `Ledger(unknown)` returns an empty slice
-
-- **Given** a verb name with no matching `commands/<verb>.ledger.json`
-  in the embedded bundle,
-- **When** `cmdframework.Ledger(verb)` is called,
-- **Then** the returned slice is empty.
-
-Exercised by `TestLedger_TCINST002_missing_verb_empty`.
-
-### TC-INST-003 — the current build's body hash is the last entry in each ledger
-
-- **Given** every bundled `commands/<verb>.md` shipped in this build,
-- **When** the body hash is computed via `cmdframework.HashBody`,
-- **Then** the resulting hash equals the last element of
-  `commands/<verb>.ledger.json`.
-
-Exercised by `TestBundle_TCINST003_current_hash_is_last_entry`.
-
-### TC-INST-010 — classifier returns `missing` when the target file does not exist
-
-- **Given** the target path does not exist on disk,
-- **When** `installer.Classify(targetPath, ledger)` runs,
-- **Then** the returned classification is `missing`.
-
-Exercised by `plugins/triage/internal/installer/classifier_test.go` →
-`TestClassify_TCINST010_missing`.
-
-### TC-INST-011 — classifier returns `up-to-date` when the body hash matches the current build's hash
-
-- **Given** the target file on disk has the same body bytes as the
-  bundled command,
-- **When** `installer.Classify(targetPath, ledger)` runs,
-- **Then** the returned classification is `up-to-date`.
-
-Exercised by `TestClassify_TCINST011_up_to_date`.
-
-### TC-INST-012 — classifier returns `stale-but-untouched` when the body hash is in the ledger but not current
-
-- **Given** the target file on disk has a body whose hash appears in
-  the ledger but is not the last (current) entry,
-- **When** `installer.Classify(targetPath, ledger)` runs,
-- **Then** the returned classification is `stale-but-untouched`.
-
-Exercised by `TestClassify_TCINST012_stale_but_untouched`.
-
-### TC-INST-013 — classifier returns `user-modified` when the body hash is absent from the ledger
-
-- **Given** the target file's body hash does not appear in the ledger,
-- **When** `installer.Classify(targetPath, ledger)` runs,
-- **Then** the returned classification is `user-modified`.
-
-Exercised by `TestClassify_TCINST013_user_modified`.
-
-### TC-INST-014 — classifier treats an unparseable target file as `user-modified`
-
-- **Given** the target file exists but cannot be parsed as
-  frontmatter+body (no leading `---`, garbage content, …),
-- **When** `installer.Classify(targetPath, ledger)` runs,
-- **Then** the returned classification is `user-modified` (the most
-  conservative label — we never assume ownership of something we
-  cannot recognise).
-
-Exercised by `TestClassify_TCINST014_unparseable_file_is_user_modified`.
-
-### TC-INST-020 — `tai install` writes every bundled command on a fresh target
-
-- **Given** the target directory does not yet contain any tai command,
-- **When** the user runs `tai install`,
-- **Then** every bundled command's markdown is written under the target
-  directory,
-- **And** stdout contains an `Installed: N command(s)` summary line,
-- **And** the exit code is `0`.
-
-Exercised by `plugins/triage/internal/cmd/install_test.go` →
-`TestInstall_TCINST020_fresh_install`.
-
-### TC-INST-021 — `tai install` re-run on an up-to-date target is a no-op
-
-- **Given** every bundled command has been installed already,
-- **When** the user runs `tai install` again,
-- **Then** the summary reports `Installed: 0` and the rest under
-  `Skipped (up to date)`,
-- **And** no file modification times change.
-
-Exercised by `TestInstall_TCINST021_idempotent_rerun`.
-
-### TC-INST-022 — `tai install` overwrites `stale-but-untouched` silently
-
-- **Given** a target file's body hash matches an older ledger entry
-  (not the current one),
-- **When** `tai install` runs without `--force`,
-- **Then** the file is overwritten without a prompt,
-- **And** the summary reports it under `Updated`.
-
-Exercised by `TestInstall_TCINST022_stale_overwritten`.
-
-### TC-INST-023 — `tai install --force` overwrites `user-modified` without prompting
-
-- **Given** a target file's body hash is absent from the ledger,
-- **When** the user runs `tai install --force`,
-- **Then** the file is overwritten with no prompt,
-- **And** the summary reports it under `Updated`.
-
-Exercised by `TestInstall_TCINST023_force_overwrites_modified`.
-
-### TC-INST-024 — `TAI_ACCEPT_COMMAND_UPDATES=1` overwrites `user-modified` without prompting
-
-- **Given** a target file's body hash is absent from the ledger,
-- **And** `TAI_ACCEPT_COMMAND_UPDATES=1` is set in the environment,
-- **When** the user runs `tai install`,
-- **Then** the file is overwritten with no prompt,
-- **And** the summary reports it under `Updated`.
-
-Exercised by `TestInstall_TCINST024_env_overwrites_modified`.
-
-### TC-INST-025 — `TAI_ACCEPT_COMMAND_UPDATES` set to a non-truthy value is ignored
-
-- **Given** a target file's body hash is absent from the ledger,
-- **And** `TAI_ACCEPT_COMMAND_UPDATES=0` (or `false`, `no`, `off`, or an
-  unrecognised string) is set in the environment,
-- **And** stdin is not a TTY,
-- **When** the user runs `tai install`,
-- **Then** the file is left unchanged,
-- **And** the summary reports it under `Prompted-skipped`,
-- **And** the exit code is `0`.
-
-Exercised by `TestInstall_TCINST025_env_non_truthy_ignored`.
-
-### TC-INST-026 — `--commands-dir` overrides the default target
-
-- **Given** the user provides `--commands-dir /tmp/cmds` to a writable
-  directory,
-- **When** `tai install --commands-dir /tmp/cmds` runs,
-- **Then** the bundled commands are written under `/tmp/cmds/`.
-
-Exercised by `TestInstall_TCINST026_commands_dir_override`.
-
-### TC-INST-027 — unwritable target surfaces `INSTALL_TARGET_UNWRITABLE`
-
-- **Given** the target directory is on a read-only filesystem or cannot
-  be created,
-- **When** `tai install` runs,
-- **Then** the CLI exits with code `3`,
-- **And** the stderr footer is `[exit 3: INSTALL_TARGET_UNWRITABLE]`.
-
-Exercised by `TestInstall_TCINST027_unwritable_target`.
-
-### TC-INST-028 — malformed `--commands-dir` surfaces `INSTALL_INVALID_TARGET`
-
-- **Given** the user runs `tai install --commands-dir ""`,
-- **When** the CLI parses the flag,
-- **Then** the CLI exits with code `1`,
-- **And** the stderr footer is `[exit 1: INSTALL_INVALID_TARGET]`.
-
-Exercised by `TestInstall_TCINST028_invalid_commands_dir`.
-
-### TC-INST-029 — non-interactive stdin without override skips `user-modified` files
-
-- **Given** a target file's body hash is absent from the ledger,
-- **And** stdin is not a TTY,
-- **And** neither `--force` nor `TAI_ACCEPT_COMMAND_UPDATES=1` is set,
-- **When** `tai install` runs,
-- **Then** the file is left in place,
-- **And** the summary reports it under `Prompted-skipped`,
-- **And** the exit code is `0`.
-
-Exercised by `TestInstall_TCINST029_non_interactive_skip`.
-
-### TC-INST-030 — `tai uninstall` removes every recognised tai command
-
-- **Given** the target directory contains only files whose body hash
-  is in the corresponding verb's ledger,
-- **When** `tai uninstall` runs,
-- **Then** every file is removed,
-- **And** the now-empty directory is removed,
-- **And** the summary reports each verb under `Removed`,
-- **And** the exit code is `0`.
-
-Exercised by `plugins/triage/internal/cmd/uninstall_test.go` →
-`TestUninstall_TCINST030_clean_uninstall`.
-
-### TC-INST-031 — `tai uninstall` leaves user-modified files in place
-
-- **Given** the target directory contains `<verb>.md` whose body hash
-  is not in the ledger,
-- **When** `tai uninstall` runs without `--force` and without
-  `TAI_ACCEPT_COMMAND_UPDATES=1`,
-- **Then** the file is preserved,
-- **And** the summary reports it under `Prompted-skipped`.
-
-Exercised by `TestUninstall_TCINST031_leaves_modified_in_place`.
-
-### TC-INST-032 — `tai uninstall --force` removes user-modified files
-
-- **Given** the target directory contains `<verb>.md` whose body hash
-  is not in the ledger,
-- **When** `tai uninstall --force` runs,
-- **Then** the file is removed,
-- **And** the summary reports it under `Removed`.
-
-Exercised by `TestUninstall_TCINST032_force_removes_modified`.
-
-### TC-INST-033 — `TAI_ACCEPT_COMMAND_UPDATES=1` removes user-modified files on uninstall
-
-- **Given** a target file whose body hash is not in the ledger,
-- **And** `TAI_ACCEPT_COMMAND_UPDATES=1` is set in the environment,
-- **When** `tai uninstall` runs without `--force`,
-- **Then** the file is removed.
-
-Exercised by `TestUninstall_TCINST033_env_removes_modified`.
-
-### TC-INST-034 — `tai uninstall` preserves files unrelated to known verbs
-
-- **Given** the target directory contains a file whose filename does
-  not match any bundled verb,
-- **When** `tai uninstall` runs,
-- **Then** the file is preserved untouched.
-
-Exercised by `TestUninstall_TCINST034_unrelated_preserved`.
-
-### TC-INST-035 — uninstall preserves the directory when non-empty after processing
-
-- **Given** the target directory still contains unrelated files after
-  the known verb files have been removed,
-- **When** `tai uninstall` runs,
-- **Then** the directory itself is preserved.
-
-Exercised by `TestUninstall_TCINST035_dir_preserved_when_non_empty`.
-
-### TC-INST-036 — uninstall removes the empty directory
-
-- **Given** the target directory contains only bundled tai command
-  files (all in their ledgers),
-- **When** `tai uninstall` runs,
-- **Then** the now-empty directory is removed.
-
-Exercised by `TestUninstall_TCINST036_empty_dir_removed`.
-
-### TC-INST-040 — `tai install` runs outside a git repository
-
-- **Given** the working directory is not inside any git repository,
-- **When** `tai install` runs,
-- **Then** the command succeeds with no `REPO_NOT_FOUND` footer,
-- **And** the exit code is `0`.
-
-Exercised by `TestInstall_TCINST040_outside_git_repo`.
-
-### TC-INST-041 — `tai install` does not touch the data directory
-
-- **Given** `TAI_DATA_DIR=/some/foreign/dir` is set,
-- **When** `tai install` runs,
-- **Then** no SQLite database is created under `TAI_DATA_DIR`,
-- **And** the data directory tree is unchanged.
-
-Exercised by `TestInstall_TCINST041_does_not_touch_data_dir`.
-
-### TC-INST-042 — `tai uninstall` runs outside a git repository
-
-- **Given** the working directory is not inside any git repository,
-- **When** `tai uninstall` runs,
-- **Then** the command succeeds with no `REPO_NOT_FOUND` footer,
-- **And** the exit code is `0`.
-
-Exercised by `plugins/triage/internal/cmd/uninstall_test.go` →
-`TestUninstall_TCINST042_outside_git_repo`.
-
-### TC-INST-043 — bundled `import.md` flows through `tai install` and classifies up-to-date
-
-- **Given** the production bundle (real `plugins/triage/internal/cmdframework/commands/import.md` + its ledger),
-- **And** an empty target directory (`installer.Classify(<dir>/import.md, ledger)` returns `missing`),
-- **When** `tai install --commands-dir <fresh-dir>` runs,
-- **Then** the run exits `0` and the summary mentions `import`,
-- **And** immediately afterwards `installer.Classify(<dir>/import.md, ledger)` returns `up-to-date`.
-
-This is the production-bundle counterpart to the fake-bundle install
-tests (TC-INST-020..029) — it pins the round-trip from the embedded
-`commands/import.md` body through the install writer back to the
-classifier. Exercised by `plugins/triage/internal/cmd/install_import_smoke_test.go` →
-`TestInstall_TCINST043_import_command_bundled` (which delegates the
-`missing → install → up-to-date` chain to `runBundledInstallSmoke`,
-the helper shared with TC-INST-044).
-
-### TC-INST-044 — bundled `triage.md` flows through `tai install` and tracks classifier transitions
-
-- **Given** the production bundle (real `plugins/triage/internal/cmdframework/commands/triage.md` + its ledger),
-- **And** an empty target directory (`installer.Classify(<dir>/triage.md, ledger)` returns `missing`),
-- **When** `tai install --commands-dir <fresh-dir>` runs,
-- **Then** the run exits `0` and the summary mentions `triage`,
-- **And** `installer.Classify(<dir>/triage.md, ledger)` is `up-to-date`,
-- **And** appending one byte to the installed file flips the classifier to `user-modified`.
-
-The triage counterpart to TC-INST-043 — pins the same `missing →
-up-to-date` round-trip for the second bundled verb via the shared
-`runBundledInstallSmoke` helper, and additionally exercises the
-`up-to-date → user-modified` transition that drives the on-rerun
-prompt. Exercised by `plugins/triage/internal/cmd/install_triage_smoke_test.go` →
-`TestInstall_TCINST044_triage_command_bundled`.
-
-### TC-INST-045 — bundled `verify.md` flows through `tai install` and classifies up-to-date
-
-- **Given** the production bundle (real `plugins/triage/internal/cmdframework/commands/verify.md` + its ledger),
-- **And** an empty target directory (`installer.Classify(<dir>/verify.md, ledger)` returns `missing`),
-- **When** `tai install --commands-dir <fresh-dir>` runs,
-- **Then** the run exits `0` and the summary mentions `verify`,
-- **And** immediately afterwards `installer.Classify(<dir>/verify.md, ledger)` returns `up-to-date`.
-
-The third bundled-verb install round-trip; uses the same shared
-`runBundledInstallSmoke` helper as TC-INST-043 and TC-INST-044. The
-post-install `user-modified` flip is already pinned by TC-INST-044
-and does not need a third copy here. Exercised by
-`plugins/triage/internal/cmd/install_verify_smoke_test.go` →
-`TestInstall_TCINST045_verify_command_bundled`.
-
-### TC-INST-046 — one `tai install` run lands every bundled verb as `up-to-date`
-
-- **Given** the production bundle (every verb returned by `cmdframework.Verbs()` with its ledger),
-- **And** an empty target directory,
-- **When** `tai install --commands-dir <fresh-dir>` runs ONCE,
-- **Then** for EVERY verb `cmdframework.Verbs()` reports, `installer.Classify(<dir>/<verb>.md, ledger)` returns `up-to-date` afterwards.
-
-The cross-verb companion to TC-INST-043/044/045: those three tests
-each run an install but only classify their own verb. A regression
-that wrote some verbs correctly and broke others would slip past the
-per-verb tests; this test catches that by classifying every bundled
-verb after a single install run. Exercised by
-`plugins/triage/internal/cmd/install_all_bundled_test.go` →
-`TestInstall_TCINST046_all_bundled_verbs_up_to_date`.
-
-<!-- Coverage notes:
-
-- TC-INST-025 verifies the env-var wiring at the CLI boundary using a
-  single representative non-truthy value (`0`). The full truthy/falsy
-  table is exercised exhaustively by the unit test
-  `TestIsTruthyEnv` in `plugins/triage/internal/installer/env_test.go`. The split
-  exists because the CLI-boundary surface is the wiring, not the
-  parsing.
-
-- The interactive `[y/N]` prompt path (`IsTTY=true`) is exercised at
-  the engine boundary by `TestInstall_interactive_prompt_accept` and
-  `TestInstall_interactive_prompt_decline` in
-  `plugins/triage/internal/installer/run_test.go`. There is no E2E variant via
-  `cmdtest.Run` because the harness wires a `strings.Reader` for stdin
-  (which is non-TTY); a real terminal cannot be synthesised inside
-  `go test` without an OS-level pty. The wiring from `c.Reader` →
-  `opts.IsTTY` is covered indirectly by TC-INST-029 (non-TTY skip).
--->
-
+## INST — install / uninstall (retired)
+
+The triage plugin no longer installs its own assets. Asset placement
+is owned by the host's `SyncAssetsToTargets` flow, which reads the
+`assets/` directory shipped in the plugin tarball; a plugin that
+writes to target directories from its own subcommands violates the
+plugin-host wire contract (see `openspec/specs/plugin-host/spec.md`).
+
+`tai triage install` / `uninstall`, the content-hash ledger, and the
+overwrite classifier were deleted with them. Every ID below is
+tombstoned rather than removed so it is never mistaken for one that
+never existed, and never reused.
+
+<!-- TC-INST-001 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-002 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-003 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-010 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-011 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-012 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-013 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-014 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-020 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-021 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-022 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-023 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-024 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-025 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-026 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-027 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-028 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-029 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-030 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-031 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-032 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-033 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-034 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-035 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-036 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-040 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-041 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-042 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-043 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-044 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-045 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+<!-- TC-INST-046 retired 2026-08-30: triage no longer ships its own installer; assets are routed by the host's SyncAssetsToTargets per bug-fix-round-1 -->
+
+## AST — shipped assets
+
+`assets/` is the tree the plugin tarball carries and the host copies
+into every configured target. The host copies bytes without reading
+them, so nothing else in the pipeline can catch a file that describes
+itself wrongly.
+
+### TC-AST-001 — bundled commands address themselves by their installed name
+
+- **Given** the markdown files under `plugins/triage/assets/commands/`,
+- **When** their contents are scanned,
+- **Then** no file contains a `/tai:<verb>` reference.
+
+The host routes `assets/commands/*.md` into
+`<target>/commands/tai-triage/`, which makes them reachable as
+`/tai-triage:<verb>`. A file telling the reader to run `/tai:triage`
+sends them to a command that does not exist.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestBundledCommands_TCAST001_use_the_plugin_namespace`.
+
+### TC-AST-002 — the release tarball ships the assets tree
+
+- **Given** a triage release archive built by `.goreleaser.triage.yaml`,
+- **When** the tarball is listed,
+- **Then** it contains `assets/commands/<verb>.md` for every bundled
+  command, at that exact path,
+- **And** the host's `PLUGIN_ASSET_MISSING` check therefore passes on
+  install.
+
+Verified by `make release-snapshot` plus inspection of
+`dist/triage/tai-plugin-triage-*.tar.gz`; the category directory name
+is load-bearing, since the host routes on it.
 
 ---
 

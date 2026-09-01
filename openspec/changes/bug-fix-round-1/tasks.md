@@ -1,15 +1,15 @@
 ## 1. BDD cases — add TC-IDs to test-cases.md before any code
 
 - [ ] 1.1 In `core/test-cases.md`, add a new category if needed and pin TC-IDs for the following scenarios: background git poll silent-fail on missing creds (HTTPS prompt suppressed), `PLUGINS:` block rendering in `tai --help` with and without installed plugins, `tai <plugin> help` forwards to plugin subprocess, `tai help <plugin>` ignores the plugin arg, first-run hint + marker file lifecycle, post-install hint emission/suppression, third-party install prompt (interactive yes/no, `--yes` bypass, non-TTY failure), `tai sync` third-party trust cache (skip/prompt/match/mismatch/`--trust-third-party`), pseudo-version → `dev`, clean tag passthrough, scaffolded README backlink + intro + no `docs.tai.sh`.
-- [ ] 1.2 In `pkg/test-cases.md`, add TC-IDs pinning the new wire-contract verb `<plugin> --help-summary` (success, non-zero, empty stdout, >1 KB) and the `PLUGIN_ASSET_MISSING` validation.
-- [ ] 1.3 In `plugins/triage/test-cases.md`, retire the TC-IDs for `tai triage install` and `tai triage uninstall` with tombstone comments (`<!-- TC-... retired YYYY-MM-DD: triage no longer ships its own installer; assets routed via host plugin-host SyncAssetsToTargets per bug-fix-round-1 -->`). Add new TC-IDs for: `triage --help-summary` returns the documented description string; `assets/commands/{import,triage,verify}.md` reference themselves as `/tai-triage:...` (content assertion).
+- [x] 1.2 In `pkg/test-cases.md`, add TC-IDs pinning the new wire-contract verb `<plugin> --help-summary` (success, non-zero, empty stdout, >1 KB) and the `PLUGIN_ASSET_MISSING` validation.
+- [x] 1.3 In `plugins/triage/test-cases.md`, retire the TC-IDs for `tai triage install` and `tai triage uninstall` with tombstone comments (`<!-- TC-... retired YYYY-MM-DD: triage no longer ships its own installer; assets routed via host plugin-host SyncAssetsToTargets per bug-fix-round-1 -->`). Add new TC-IDs for: `triage --help-summary` returns the documented description string; `assets/commands/{import,triage,verify}.md` reference themselves as `/tai-triage:...` (content assertion).
 - [ ] 1.4 Cross-check every new TC-ID drives at the CLI boundary per CLAUDE.md's "north star" rule. A TC about user-visible behaviour MUST get a test that captures stdout/stderr/exit, not just a unit assertion on a helper.
 
 ## 2. pkg/ framework changes (Bug 6, Bug 3 — error codes)
 
-- [ ] 2.1 In `pkg/errcode/`, register new codes (append-only): `PluginAssetMissing`, `PluginHelpSummaryFailed`, `PluginThirdpartyUnconfirmed`. Map each to an appropriate exit code. Update `pkg/test-cases.md` if the error-code taxonomy section needs new entries.
-- [ ] 2.2 In `pkg/taiplugin/`, add a `HelpSummary(string)` helper that plugin authors call before `cli.Run` to register the description, plus the `--help-summary` flag handling so plugins built against the SDK get the wire verb for free. Document in the package doc comment as part of the wire contract.
-- [ ] 2.3 Add a Go test in `pkg/taiplugin` that exercises the new `--help-summary` flow via a stub command, asserting the documented exit/output behaviour.
+- [x] 2.1 In `pkg/errcode/`, register new codes (append-only): `PluginAssetMissing`, `PluginHelpSummaryFailed`, `PluginThirdpartyUnconfirmed`. Map each to an appropriate exit code. Update `pkg/test-cases.md` if the error-code taxonomy section needs new entries.
+- [x] 2.2 In `pkg/taiplugin/`, add a `HelpSummary(string)` helper that plugin authors call before `cli.Run` to register the description, plus the `--help-summary` flag handling so plugins built against the SDK get the wire verb for free. Document in the package doc comment as part of the wire contract.
+- [x] 2.3 Add a Go test in `pkg/taiplugin` that exercises the new `--help-summary` flow via a stub command, asserting the documented exit/output behaviour.
 
 ## 3. Bug 5 — pseudo-version → `dev`
 
@@ -26,15 +26,15 @@
 
 ## 5. Bug 6 — delete triage self-installer, ship `assets/`, enforce in host
 
-- [ ] 5.1 Delete the entire `plugins/triage/internal/installer/` package and its tests.
-- [ ] 5.2 Delete `plugins/triage/internal/cmd/install.go` (the `newInstallCommand` / `newUninstallCommand` definitions).
-- [ ] 5.3 In `plugins/triage/internal/cmd/root.go`, remove the `newInstallCommand(cfg.bundle)` and `newUninstallCommand(cfg.bundle)` entries from the subcommand list, plus any `bundle` plumbing the deletion makes orphan. Triage's `root.go` becomes shorter and no longer accepts a bundle parameter.
-- [ ] 5.4 Implement `triage --help-summary` (using the new `pkg/taiplugin.HelpSummary` helper). Description: `Walk through pending PR review comments interactively.`
-- [ ] 5.5 In `.goreleaser.triage.yaml`, extend `archives.files` to include `assets/**/*` mapped to `assets` in the tarball. Run `make release-snapshot` and inspect `dist/triage/tai-plugin-triage-*.tar.gz` to confirm the archive contains the `assets/` tree at the expected path.
-- [ ] 5.6 In `core/internal/plugins/install.go`, add the `PLUGIN_ASSET_MISSING` check between fetch and `ValidateAssetNamespace`. Same insertion in `update.go` (which delegates to install for the staging-phase work).
-- [ ] 5.7 In `core/internal/plugins/install.go`, after `ValidateAssetNamespace` but before `atomicReplaceDir`, exec the staged binary with `--help-summary`, capture stdout, validate against the limits in the spec, and either fail with `PLUGIN_HELP_SUMMARY_FAILED` or pass the captured description into the `Entry` written to `plugins.json`.
-- [ ] 5.8 In `core/internal/plugins/state.go`, extend `Entry` with a `Description string \`json:"description"\`` field. Append-only — existing entries without the field remain readable.
-- [ ] 5.9 Update the triage `test-cases.md` retirement entries from task 1.3 with actual dates, and ensure all Go tests that referenced the deleted code paths are removed or rewritten.
+- [x] 5.1 Delete the entire `plugins/triage/internal/installer/` package and its tests.
+- [x] 5.2 Delete `plugins/triage/internal/cmd/install.go` (the `newInstallCommand` / `newUninstallCommand` definitions).
+- [x] 5.3 In `plugins/triage/internal/cmd/root.go`, remove the `newInstallCommand(cfg.bundle)` and `newUninstallCommand(cfg.bundle)` entries from the subcommand list, plus any `bundle` plumbing the deletion makes orphan. Triage's `root.go` becomes shorter and no longer accepts a bundle parameter.
+- [x] 5.4 Implement `triage --help-summary` (using the new `pkg/taiplugin.HelpSummary` helper). Description: `Walk through pending PR review comments interactively.`
+- [x] 5.5 In `.goreleaser.triage.yaml`, extend `archives.files` to include `assets/**/*` mapped to `assets` in the tarball. Run `make release-snapshot` and inspect `dist/triage/tai-plugin-triage-*.tar.gz` to confirm the archive contains the `assets/` tree at the expected path.
+- [x] 5.6 In `core/internal/plugins/install.go`, add the `PLUGIN_ASSET_MISSING` check between fetch and `ValidateAssetNamespace`. Same insertion in `update.go` (which delegates to install for the staging-phase work).
+- [x] 5.7 In `core/internal/plugins/install.go`, after `ValidateAssetNamespace` but before `atomicReplaceDir`, exec the staged binary with `--help-summary`, capture stdout, validate against the limits in the spec, and either fail with `PLUGIN_HELP_SUMMARY_FAILED` or pass the captured description into the `Entry` written to `plugins.json`.
+- [x] 5.8 In `core/internal/plugins/state.go`, extend `Entry` with a `Description string \`json:"description"\`` field. Append-only — existing entries without the field remain readable.
+- [x] 5.9 Update the triage `test-cases.md` retirement entries from task 1.3 with actual dates, and ensure all Go tests that referenced the deleted code paths are removed or rewritten.
 
 ## 6. Bug 3 — plugin help discovery (`PLUGINS:` block + `tai <plugin> help`)
 
@@ -63,9 +63,9 @@
 
 ## 9. Bug 4 — triage asset content rewrite
 
-- [ ] 9.1 In `plugins/triage/assets/commands/triage.md`, rewrite every `/tai:triage`, `/tai:import`, `/tai:verify` reference to `/tai-triage:triage`, `/tai-triage:import`, `/tai-triage:verify` respectively. Same for `import.md` and `verify.md`. Total 31 replacements across the three files.
-- [ ] 9.2 Update the front-matter `content_hash` field on each rewritten file (existing scheme uses sha256 of the body — regenerate it after the text changes).
-- [ ] 9.3 Add a regression test in `plugins/triage/internal/cmd/` (or wherever the asset-content test lives — create one if absent) that scans the three markdowns and asserts no stale `/tai:` references remain.
+- [x] 9.1 In `plugins/triage/assets/commands/triage.md`, rewrite every `/tai:triage`, `/tai:import`, `/tai:verify` reference to `/tai-triage:triage`, `/tai-triage:import`, `/tai-triage:verify` respectively. Same for `import.md` and `verify.md`. Total 31 replacements across the three files.
+- [x] 9.2 ~~Update the front-matter `content_hash` field on each rewritten file~~ — superseded: the field's only reader was the content-hash ledger, deleted with the self-installer in task 5.1-5.3. The field is removed from all three files rather than regenerated; metadata nothing validates drifts.
+- [x] 9.3 Add a regression test in `plugins/triage/internal/cmd/` (or wherever the asset-content test lives — create one if absent) that scans the three markdowns and asserts no stale `/tai:` references remain.
 
 ## 10. Bug 2 — repoinit README template rewrite
 

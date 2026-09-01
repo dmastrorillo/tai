@@ -10,7 +10,6 @@ import (
 	"context"
 
 	"github.com/dmastrorillo/tai/pkg/errcode"
-	"github.com/dmastrorillo/tai/plugins/triage/internal/installer"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/repoctx"
 	"github.com/dmastrorillo/tai/plugins/triage/internal/version"
 	"github.com/urfave/cli/v3"
@@ -39,22 +38,6 @@ func RequireRepo(ctx context.Context, cmd *cli.Command) (repoctx.Identity, error
 	return repoctx.Resolve(ctx, cmd.String(RepoFlag))
 }
 
-// RootOption configures NewRoot. Production calls NewRoot() with no
-// options; tests pass WithBundle to swap the install/uninstall bundle
-// without touching package-level mutable state.
-type RootOption func(*rootConfig)
-
-type rootConfig struct {
-	bundle installer.Bundle // nil → installer falls back to cmdframework default
-}
-
-// WithBundle overrides the bundle that `tai install` and `tai uninstall`
-// reconcile against. Production calls NewRoot() without this option;
-// tests use it to inject a fake bundle.
-func WithBundle(b installer.Bundle) RootOption {
-	return func(cfg *rootConfig) { cfg.bundle = b }
-}
-
 // NewRoot returns a freshly-assembled tai root command.
 //
 // Writer / ErrWriter / Reader default to os.Stdout/Stderr/Stdin on the
@@ -74,11 +57,7 @@ func WithBundle(b installer.Bundle) RootOption {
 //     prints the error to its package-level ErrWriter and calls os.Exit;
 //     we want neither. Setting a no-op handler lets the error flow back
 //     to cliexec.Run, where main.go takes over.
-func NewRoot(opts ...RootOption) *cli.Command {
-	cfg := &rootConfig{}
-	for _, o := range opts {
-		o(cfg)
-	}
+func NewRoot() *cli.Command {
 	return &cli.Command{
 		Name:    "triage",
 		Usage:   "Triage AI — store, walk, and verify code-review comments",
@@ -92,8 +71,6 @@ func NewRoot(opts ...RootOption) *cli.Command {
 		},
 
 		Commands: []*cli.Command{
-			newInstallCommand(cfg.bundle),
-			newUninstallCommand(cfg.bundle),
 			newImportCommand(),
 			newListCommand(),
 			newShowCommand(),

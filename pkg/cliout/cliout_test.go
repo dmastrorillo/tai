@@ -99,6 +99,9 @@ func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
 		errcode.PluginAssetNaming,
 		errcode.PluginFetchUnauthorized,
 		errcode.PluginFetchFailed,
+		errcode.PluginAssetMissing,
+		errcode.PluginHelpSummaryFailed,
+		errcode.PluginThirdpartyUnconfirmed,
 		// Storage / install / import / triage layers (unchanged by
 		// Phase 1 but covered here so the invariant test is the single
 		// taxonomy-wide check)
