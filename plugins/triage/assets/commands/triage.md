@@ -13,7 +13,7 @@ for one invocation of `/tai-triage:triage`.
 
 Your job: walk the user through every `pending` review comment in a
 scope, one item at a time, and persist each decision via the `tai` CLI
-(`tai accept`, `tai dismiss`, `tai complete`). The CLI is impartial —
+(`tai triage accept`, `tai triage dismiss`, `tai triage complete`). The CLI is impartial —
 all opinion lives in this conversation. The previous `/tai-triage:import` step
 already pulled and enriched the comments; you operate on the rows
 already in the DB.
@@ -43,16 +43,16 @@ from a URL before invoking `tai`. For a URL of the form
 `…/pull/<N>/commits`, etc.), extract the integer immediately after
 `/pull/` — NOT the trailing path segment, which may be `files`,
 `commits`, or a comment anchor. After extraction, call
-`tai status --pr <N>` with only the integer.
+`tai triage status --pr <N>` with only the integer.
 
-For `--branch <name>`: pass the branch name to `tai status --branch
+For `--branch <name>`: pass the branch name to `tai triage status --branch
 <name>` verbatim.
 
 For `stack`: see section 8.
 
 ## 2. Scope resolution
 
-Your first action is ALWAYS `tai status [--pr X | --branch Y]` (with
+Your first action is ALWAYS `tai triage status [--pr X | --branch Y]` (with
 whatever the user supplied). You MUST NOT implement your own scope
 detection. The CLI is the source of truth for which target the current
 working directory maps to.
@@ -74,7 +74,7 @@ Handle the three failure modes:
   dismissed`). Do NOT enter the loop and do NOT emit the full recap
   template from section 7.
 
-When `tai status` succeeds with at least one pending comment, proceed
+When `tai triage status` succeeds with at least one pending comment, proceed
 to phase 1.
 
 ## 3. Phase 1 — investigation (before any decision prompt)
@@ -104,7 +104,7 @@ Evidence sources, in order of trust:
 When evidence is found, mark the comment completed:
 
 ```sh
-tai complete <id> --resolution "<one-line description of what you found>"
+tai triage complete <id> --resolution "<one-line description of what you found>"
 ```
 
 Then tell the user what was auto-completed and offer an override:
@@ -115,7 +115,7 @@ Then tell the user what was auto-completed and offer an override:
 > issue, tell me and I'll reopen it.
 
 If the user says `I think this is still an issue, please don't mark it
-completed` (or equivalent), call `tai accept <id>` to put the comment
+completed` (or equivalent), call `tai triage accept <id>` to put the comment
 back into the active queue, and let the loop drive it.
 
 **Be conservative.** When evidence is ambiguous (the file exists, the
@@ -125,7 +125,7 @@ complete`. A false positive marks a real issue as resolved; a false
 negative just sends the user through one extra "looks already fixed"
 conversation. Err toward the false negative every time.
 
-Do NOT call `tai complete` based on circumstantial signals alone (e.g.
+Do NOT call `tai triage complete` based on circumstantial signals alone (e.g.
 "the file was edited recently"). The evidence must be specific to the
 comment.
 
@@ -148,9 +148,9 @@ acknowledge — do not abandon a half-finished decision.
 
 For each item (batch or individual):
 
-1. **Present.** Run `tai show <id>` for an individual comment, or `tai
+1. **Present.** Run `tai triage show <id>` for an individual comment, or `tai
    show <id>` for each batch member when presenting a batch (one
-   `tai show` per member; the batch is a group, but the CLI surface is
+   `tai triage show` per member; the batch is a group, but the CLI surface is
    per-comment). Pass the same `--pr <N>` / `--branch <name>` scope
    flags that section 2 resolved, so the lookup hits the right scope.
    Surface the markdown verbatim in conversation — do NOT paraphrase.
@@ -161,12 +161,12 @@ For each item (batch or individual):
 
    Parse the user's reply:
 
-   - `accept` / `yes` / `do it` / `looks right` → `tai accept <id>
+   - `accept` / `yes` / `do it` / `looks right` → `tai triage accept <id>
      [--resolution "<text>"]`. If the user offered a refinement to the
      fix, capture it via `--resolution`.
    - `dismiss` / `skip` / `no` / `not a real issue` → enter the
      dismissal-debate contract (section 5).
-   - `already fixed` / `done` / `we did this` → `tai complete <id>
+   - `already fixed` / `done` / `we did this` → `tai triage complete <id>
      --resolution "<text describing what they say was done>"`.
    - Free-text fix proposal without a verb (e.g. "I'd rather rewrite
      this as X") → evaluate the proposal honestly, then ask explicitly:
@@ -175,21 +175,21 @@ For each item (batch or individual):
 3. **Persist.** Call the matching CLI verb. For a batch where the user
    gave a single decision covering all members, use the batch surface:
 
-   - `tai accept --batch <key> [--resolution "<text>"]`
-   - `tai dismiss --batch <key> --reason "<text>"`
-   - `tai complete --batch <key> --resolution "<text>"`
+   - `tai triage accept --batch <key> [--resolution "<text>"]`
+   - `tai triage dismiss --batch <key> --reason "<text>"`
+   - `tai triage complete --batch <key> --resolution "<text>"`
 
    For per-member overrides inside a batch, see section 6.
 
 4. **Progress line.** After each persist call (including each override
-   inside a batch), run `tai status` and emit a single progress line:
+   inside a batch), run `tai triage status` and emit a single progress line:
 
    > [X/Y] N accepted, M completed, K dismissed, L remaining
 
-   Take the counts straight from `tai status`. Do not maintain a
+   Take the counts straight from `tai triage status`. Do not maintain a
    parallel tally in conversation.
 
-Repeat for the next item until `tai status` reports zero `pending`. At
+Repeat for the next item until `tai triage status` reports zero `pending`. At
 that point, emit the recap (section 7).
 
 ## 5. Dismissal-debate contract
@@ -248,7 +248,7 @@ before it becomes a permanent record. Calibrate effort to severity.
 Once the conversation concludes, call:
 
 ```sh
-tai dismiss <id> --reason "<reasoning produced by the conversation>"
+tai triage dismiss <id> --reason "<reasoning produced by the conversation>"
 ```
 
 The reason MUST reflect the conversation's outcome — including any
@@ -289,18 +289,18 @@ Split the decision in this order:
 2. **Apply the batch-wide call first.**
 
    ```sh
-   tai accept --batch B1
+   tai triage accept --batch B1
    ```
 
 3. **Then per-member overrides.**
 
    ```sh
-   tai dismiss 4 --reason "that file is read-only at runtime, the exec flow can't reach it"
+   tai triage dismiss 4 --reason "that file is read-only at runtime, the exec flow can't reach it"
    ```
 
 The resulting batch status will be `mixed` (see the storage-schema
 spec). That is the intended outcome — it signals to anyone reading
-`tai status` later that the batch was decided with exceptions, not
+`tai triage status` later that the batch was decided with exceptions, not
 that it was rejected wholesale.
 
 You MAY pre-split into individual calls only when the user explicitly
@@ -309,7 +309,7 @@ ordering is mandatory.
 
 ## 7. Recap
 
-When `tai status` reports zero `pending` comments in the scope, emit
+When `tai triage status` reports zero `pending` comments in the scope, emit
 the recap exactly once. Use this template:
 
 ```
@@ -325,7 +325,7 @@ Accepted work queue (severity order):
   [maj]  3: <title> (<file>:<lines>)
   …
 
-Ready to start working through these? I can read each one again with `tai show`.
+Ready to start working through these? I can read each one again with `tai triage show`.
 ```
 
 - `<scope-label>` is `PR #142` for a PR scope, `branch feat/x` for a
@@ -333,11 +333,11 @@ Ready to start working through these? I can read each one again with `tai show`.
 - The accepted work queue lists every accepted (and accepted-batched)
   comment in severity order, with abbreviation `crit | maj | min |
   nit` matching the four severity levels. Source the rows from
-  `tai list --status accepted <scope-flag>` (or equivalent surface).
-  Each row's `<id>` is the integer position number `tai list` prints
+  `tai triage list --status accepted <scope-flag>` (or equivalent surface).
+  Each row's `<id>` is the integer position number `tai triage list` prints
   in its `ID` column — do NOT use `B<key>.<member>` notation, that is
   conversational shorthand for batch overrides (section 6) and is not
-  a `tai list` output format. The `BATCH` column shows the batch key
+  a `tai triage list` output format. The `BATCH` column shows the batch key
   on its own; the primary identifier remains the integer position.
 - Completed comments are summarised in the counts only — they are
   done; surfacing them again is noise.
@@ -393,7 +393,7 @@ say so.)
 ## 9. Guardrails — things you MUST NOT do
 
 - Do NOT bypass the CLI by writing to the SQLite database directly.
-  Every state change goes through `tai accept` / `tai dismiss` / `tai
+  Every state change goes through `tai triage accept` / `tai triage dismiss` / `tai
   complete`. If you find yourself reaching for `sqlite3` or for the
   data-directory path, STOP — the CLI is the only persistence seam.
 - Do NOT make network calls during triage. `/tai-triage:import` pulls

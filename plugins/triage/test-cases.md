@@ -387,16 +387,25 @@ into every configured target. The host copies bytes without reading
 them, so nothing else in the pipeline can catch a file that describes
 itself wrongly.
 
-### TC-AST-001 — bundled commands address themselves by their installed name
+### TC-AST-001 — bundled commands name themselves and their CLI correctly
 
 - **Given** the markdown files under `plugins/triage/assets/commands/`,
 - **When** their contents are scanned,
-- **Then** no file contains a `/tai:<verb>` reference.
+- **Then** no file contains a `/tai:<verb>` slash-command reference,
+- **And** no file contains a bare `tai <triage-verb>` CLI invocation
+  (`status`, `list`, `show`, `accept`, `dismiss`, `complete`,
+  `forget`, `import`).
 
-The host routes `assets/commands/*.md` into
-`<target>/commands/tai-triage/`, which makes them reachable as
-`/tai-triage:<verb>`. A file telling the reader to run `/tai:triage`
-sends them to a command that does not exist.
+Two independent forms of the same drift. The host routes
+`assets/commands/*.md` into `<target>/commands/tai-triage/`, which
+makes them reachable as `/tai-triage:<verb>` — a file telling the
+reader to run `/tai:triage` names a command that does not exist. The
+triage verbs likewise left the core binary when triage became a
+plugin, so `tai status` now fails and only `tai triage status` runs.
+
+Both are checked because they drifted separately: an earlier pass
+fixed every slash-command reference and left all 58 CLI invocations
+behind, which a check for only the first form could not see.
 
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestBundledCommands_TCAST001_use_the_plugin_namespace`.
