@@ -155,9 +155,15 @@ For each item (batch or individual):
    flags that section 2 resolved, so the lookup hits the right scope.
    Surface the markdown verbatim in conversation — do NOT paraphrase.
 2. **Decide.** Ask exactly this question (or a close paraphrase that
-   preserves the three verbs):
+   preserves both verbs):
 
-   > Accept, dismiss, or complete? Any thoughts on the fix?
+   > Accept or dismiss? Any thoughts on the fix?
+
+   Only two verbs are offered, because `completed` is a statement about
+   the code rather than a judgement on the comment, and section 3 has
+   already auto-completed everything the tree gives evidence for. Still
+   accept "already fixed" when the user volunteers it — the option is
+   not offered, but it is always understood.
 
    Parse the user's reply:
 
@@ -170,7 +176,7 @@ For each item (batch or individual):
      --resolution "<text describing what they say was done>"`.
    - Free-text fix proposal without a verb (e.g. "I'd rather rewrite
      this as X") → evaluate the proposal honestly, then ask explicitly:
-     `So that's accept, dismiss, or complete?`. Do not infer.
+     `So that's accept or dismiss?`. Do not infer.
 
 3. **Persist.** Call the matching CLI verb. For a batch where the user
    gave a single decision covering all members, use the batch surface:
