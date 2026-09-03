@@ -110,7 +110,17 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 	}
 
 	finalDir := filepath.Join(dataDir, "plugins", name)
+
+	// The plugin's own state/ lives inside finalDir, which the
+	// replace below removes. Park it first and put it back after.
+	restoreState, err := preservePluginState(finalDir)
+	if err != nil {
+		return nil, err
+	}
 	if err := atomicReplaceDir(stagingDir, finalDir); err != nil {
+		return nil, err
+	}
+	if err := restoreState(); err != nil {
 		return nil, err
 	}
 
@@ -287,4 +297,59 @@ func PluginBinaryPath(dataDir, name string) string {
 		bin += ".exe"
 	}
 	return filepath.Join(PluginInstallDir(dataDir, name), bin)
+}
+
+// preservePluginState carries a plugin's runtime state across an
+// install that replaces its directory.
+//
+// A plugin keeps its own state under
+// `<dataDir>/plugins/<name>/state/` — the path the wire contract
+// tells plugin authors to use — which sits inside the very directory
+// atomicReplaceDir removes. For triage that directory holds the
+// SQLite database with every imported review comment and every triage
+// decision made against it: nothing in the release tarball can
+// reconstruct it.
+//
+// The state directory is the only path preserved. Everything else
+// under the install directory belongs to the tarball and is replaced
+// wholesale, so a stale binary or asset can never survive an update.
+//
+// Returns a restore function the caller invokes after the replace,
+// and which is a no-op when the plugin had no state yet (first
+// install). Mirrors the park-and-restore Remove already performs.
+func preservePluginState(installDir string) (restore func() error, err error) {
+	statePath := filepath.Join(installDir, "state")
+	if info, statErr := os.Stat(statePath); statErr != nil || !info.IsDir() {
+		return func() error { return nil }, nil
+	}
+
+	// Park in a sibling of the install dir so the move stays on one
+	// device and cannot fail part-way across a filesystem boundary.
+	tmp, err := os.MkdirTemp(filepath.Dir(installDir), "tai-state-keep-")
+	if err != nil {
+		return nil, errcode.Wrapf(errcode.InternalError, err,
+			"create state-keep dir for %s", installDir)
+	}
+	parked := filepath.Join(tmp, "state")
+	if err := os.Rename(statePath, parked); err != nil {
+		_ = os.RemoveAll(tmp)
+		return nil, errcode.Wrapf(errcode.InternalError, err,
+			"park plugin state %s", statePath)
+	}
+
+	return func() error {
+		if err := os.MkdirAll(installDir, 0o755); err != nil {
+			return errcode.Wrapf(errcode.InternalError, err,
+				"recreate install dir %s", installDir)
+		}
+		if err := os.Rename(parked, statePath); err != nil {
+			// The parked copy is now the only one. Leave it on disk
+			// and name it, rather than cleaning up and losing it.
+			return errcode.Wrapf(errcode.InternalError, err,
+				"restore plugin state to %s — the only surviving copy is at %s, move it back by hand",
+				statePath, parked)
+		}
+		_ = os.RemoveAll(tmp)
+		return nil
+	}, nil
 }

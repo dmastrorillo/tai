@@ -1394,6 +1394,29 @@ Exercised by `core/internal/cmd/plugin_flags_test.go` →
 `TestPluginInvoke_TCPLG023_flags_pass_through_verbatim` and
 `TestPluginInvoke_TCPLG023_host_verbs_still_parse_flags`.
 
+### TC-PLG-024 — Install preserves the plugin's runtime state
+
+- **Given** a plugin is installed and has written runtime state under
+  `<TAI_DATA_DIR>/plugins/<name>/state/`,
+- **When** the user reinstalls or updates that plugin,
+- **Then** every file under `state/` survives, contents unchanged,
+  including nested paths,
+- **And** the binary and `assets/` are replaced by the new version,
+- **And** a first install, which has no `state/` yet, succeeds
+  unchanged.
+
+Regression case. `state/` sits inside the directory
+`atomicReplaceDir` removes, so `tai plugins update <name>` deleted it
+outright — for triage that is the SQLite database holding every
+imported review comment and every triage decision, none of which the
+release tarball can reconstruct. `Remove` already parked and restored
+`state/`; install did not. `state/` is the only preserved path, so a
+stale binary or asset can never survive an update.
+
+Exercised by `core/internal/plugins/state_preservation_test.go` →
+`TestInstall_TCPLG024_preserves_plugin_state_across_reinstall` and
+`TestInstall_TCPLG024_first_install_without_state_is_fine`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
