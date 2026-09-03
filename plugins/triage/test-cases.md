@@ -789,6 +789,54 @@ is TC-IMP-082.)
 
 ---
 
+### TC-IMP-084 — Findings sharing one review body each get their own ref
+
+- **Given** a payload whose comments carry the same
+  `(kind, id)` external ref — the normal shape when several findings
+  are extracted from a single GitHub review body, which is one object
+  with one id,
+- **When** the payload is imported,
+- **Then** every finding is inserted as its own comment,
+- **And** each ref is rewritten to `<id>#<digest>`, distinct per
+  finding,
+- **And** a ref claimed by exactly one comment is left untouched.
+
+Regression case. The importer resolves a ref to an existing row, so
+before this the second finding overwrote the first and the third
+overwrote the second: four findings imported as "1 inserted, 3
+updated" against an empty scope, three of them destroyed with exit 0.
+
+The digest covers title, file and lines — what identifies a finding
+rather than how it is worded — so a re-import of the same payload
+produces byte-identical refs and updates in place, and nothing derives
+from position, so a re-extraction that reorders findings still
+matches.
+
+Exercised by `plugins/triage/internal/import/refs_test.go` →
+`TestDisambiguateRefs_suffixes_shared_refs`,
+`TestDisambiguateRefs_leaves_unique_refs_untouched` and
+`TestDisambiguateRefs_is_deterministic_and_order_independent`.
+
+### TC-IMP-085 — Two identical comments sharing a ref are rejected
+
+- **Given** two comments in one payload carry the same external ref
+  AND the same title, file and lines,
+- **When** the payload is imported,
+- **Then** the import fails with `IMPORT_DUPLICATE_REFS`,
+- **And** the message names each colliding `comments[i]` and the
+  shared title,
+- **And** the help bullets say how to resolve it either way,
+- **And** nothing is written to the database.
+
+No derived key can separate two findings identical in the fields that
+identify one, so the payload's author has to. The check runs before
+the transaction opens.
+
+Exercised by `plugins/triage/internal/import/refs_test.go` →
+`TestDisambiguateRefs_rejects_true_duplicates_with_instructions`.
+
+---
+
 ## TRG — triage state
 
 ### TC-TRG-001 — `--pr` flag scopes the verb

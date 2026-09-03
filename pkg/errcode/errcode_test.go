@@ -61,6 +61,7 @@ func TestCode_ExitCode_taxonomy(t *testing.T) {
 		{errcode.ImportInvalidJSON, exitcode.Usage},
 		{errcode.ImportSchemaInvalid, exitcode.Data},
 		{errcode.ImportAmbiguousRefs, exitcode.Data},
+		{errcode.ImportDuplicateRefs, exitcode.Data},
 		{errcode.TriageNoScope, exitcode.Precondition},
 		{errcode.TriageAmbiguousScope, exitcode.Precondition},
 		{errcode.TriageNotFound, exitcode.Precondition},
