@@ -331,7 +331,7 @@ Accepted work queue (severity order):
   [maj]  3: <title> (<file>:<lines>)
   …
 
-Ready to start working through these? I can read each one again with `tai triage show`.
+Run `/tai-triage:fix` to work through these, then `/tai-triage:verify` to confirm them.
 ```
 
 - `<scope-label>` is `PR #142` for a PR scope, `branch feat/x` for a
