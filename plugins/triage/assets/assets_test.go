@@ -27,6 +27,18 @@ const commandsDir = "commands"
 // name that resolves.
 var staleRef = regexp.MustCompile(`/tai:[a-z-]+`)
 
+// staleInvocation matches a CLI invocation in the pre-plugin-host
+// form: `tai <triage-verb>`. These verbs moved out of the core binary
+// when triage became a plugin, so the only form that runs today is
+// `tai triage <verb>`. The negative lookahead Go's regexp lacks is
+// unnecessary here — `tai triage status` contains no `tai status`
+// substring, since `triage` sits between them.
+//
+// Checked separately from staleRef because the two drifted
+// independently: an earlier pass fixed every `/tai:` reference and
+// left all 58 CLI invocations behind, which this test could not see.
+var staleInvocation = regexp.MustCompile(`\btai (status|list|show|accept|dismiss|complete|forget|import)\b`)
+
 // TC-AST-001 — every bundled command addresses itself by its
 // installed slash-command name.
 func TestBundledCommands_TCAST001_use_the_plugin_namespace(t *testing.T) {
@@ -46,9 +58,15 @@ func TestBundledCommands_TCAST001_use_the_plugin_namespace(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if found := staleRef.FindAllString(string(data), -1); len(found) > 0 {
-				t.Errorf("%d stale reference(s) in the pre-plugin-host namespace: %v\n"+
+			body := string(data)
+			if found := staleRef.FindAllString(body, -1); len(found) > 0 {
+				t.Errorf("%d stale slash-command reference(s): %v\n"+
 					"the host installs these under `tai-triage/`, so they must read `/tai-triage:<verb>`",
+					len(found), unique(found))
+			}
+			if found := staleInvocation.FindAllString(body, -1); len(found) > 0 {
+				t.Errorf("%d stale CLI invocation(s): %v\n"+
+					"these verbs live in the triage plugin, so they must read `tai triage <verb>`",
 					len(found), unique(found))
 			}
 		})

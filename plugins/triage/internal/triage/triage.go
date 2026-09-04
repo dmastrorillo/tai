@@ -40,17 +40,26 @@ type Comment struct {
 // listSQL is the canonical SELECT used for list/show. ROW_NUMBER over
 // `id ASC` partitioned by parent gives the user-facing position; the
 // LEFT JOIN onto batches provides the optional batch_key/title meta.
+//
+// The window is computed in a subquery so that any status filter
+// applies to its result rather than to its input. A filter in the
+// same query would be evaluated first and the window would number
+// only the surviving rows, so `list --status accepted` would print
+// positions that `show` — which never filters — resolves to different
+// comments.
 const listSQL = `
-SELECT
-  c.id,
-  ROW_NUMBER() OVER (PARTITION BY %s ORDER BY c.id ASC) AS position,
-  c.severity, c.category, c.file, c.lines, c.source,
-  c.title, c.description, c.why_fix, c.suggested_fix, c.consequences,
-  c.status, c.resolution, c.dismissed_by, c.dismiss_reason,
-  c.batch_id, b.batch_key, b.title
-FROM comments c
-LEFT JOIN batches b ON c.batch_id = b.id
-WHERE %s = ?
+SELECT * FROM (
+  SELECT
+    c.id,
+    ROW_NUMBER() OVER (PARTITION BY %s ORDER BY c.id ASC) AS position,
+    c.severity, c.category, c.file, c.lines, c.source,
+    c.title, c.description, c.why_fix, c.suggested_fix, c.consequences,
+    c.status, c.resolution, c.dismissed_by, c.dismiss_reason,
+    c.batch_id, b.batch_key, b.title
+  FROM comments c
+  LEFT JOIN batches b ON c.batch_id = b.id
+  WHERE %s = ?
+)
 `
 
 // ListComments returns every comment under the scope, ordered by
@@ -139,7 +148,9 @@ func buildListQuery(s scope.Scope, statusFilter []string) (string, []any) {
 			placeholders += "?"
 			args = append(args, st)
 		}
-		q += " AND c.status IN (" + placeholders + ")"
+		// Filters the subquery's result, so positions already
+		// assigned over the whole scope survive.
+		q += " WHERE status IN (" + placeholders + ")"
 	}
 	q += " ORDER BY position ASC"
 	return q, args

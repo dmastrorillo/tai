@@ -387,16 +387,25 @@ into every configured target. The host copies bytes without reading
 them, so nothing else in the pipeline can catch a file that describes
 itself wrongly.
 
-### TC-AST-001 — bundled commands address themselves by their installed name
+### TC-AST-001 — bundled commands name themselves and their CLI correctly
 
 - **Given** the markdown files under `plugins/triage/assets/commands/`,
 - **When** their contents are scanned,
-- **Then** no file contains a `/tai:<verb>` reference.
+- **Then** no file contains a `/tai:<verb>` slash-command reference,
+- **And** no file contains a bare `tai <triage-verb>` CLI invocation
+  (`status`, `list`, `show`, `accept`, `dismiss`, `complete`,
+  `forget`, `import`).
 
-The host routes `assets/commands/*.md` into
-`<target>/commands/tai-triage/`, which makes them reachable as
-`/tai-triage:<verb>`. A file telling the reader to run `/tai:triage`
-sends them to a command that does not exist.
+Two independent forms of the same drift. The host routes
+`assets/commands/*.md` into `<target>/commands/tai-triage/`, which
+makes them reachable as `/tai-triage:<verb>` — a file telling the
+reader to run `/tai:triage` names a command that does not exist. The
+triage verbs likewise left the core binary when triage became a
+plugin, so `tai status` now fails and only `tai triage status` runs.
+
+Both are checked because they drifted separately: an earlier pass
+fixed every slash-command reference and left all 58 CLI invocations
+behind, which a check for only the first form could not see.
 
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestBundledCommands_TCAST001_use_the_plugin_namespace`.
@@ -1279,6 +1288,35 @@ because the harness wires a `strings.Reader` for stdin (always
 non-TTY). The non-interactive path is covered by TC-TRG-093 / TC-TRG-104;
 the env-var and --yes paths are covered by TC-TRG-094 / TC-TRG-092. The
 interactive `y`/`Y` branch is exercised only manually. -->
+
+---
+
+### TC-TRG-105 — Comment positions are stable across status filters
+
+- **Given** a scope holding several comments, at least one of them in
+  a non-pending status,
+- **When** the user runs `tai triage list` and
+  `tai triage list --status <state>` over that scope,
+- **Then** each comment's `ID` is the same in both listings,
+- **And** feeding an ID from the filtered listing to
+  `tai triage show <id>` resolves to that same comment.
+
+Regression case. The position comes from a `ROW_NUMBER()` window. With
+the status filter in the same query it was evaluated first, so the
+window numbered only the surviving rows and a filtered listing
+disagreed with `show`, which never filters. The mismatch misdirected
+rather than erroring: an ID read from `list --status accepted`
+resolved to a different comment, including one that had just been
+dismissed. Every consumer that reads an ID from a filtered listing and
+feeds it to `show`, `accept`, `dismiss` or `forget` acted on the wrong
+row.
+
+The window is now computed in a subquery and the filter applied to its
+result, so a position belongs to the comment rather than to the query
+that listed it.
+
+Exercised by `plugins/triage/internal/cmd/list_position_test.go` →
+`TestList_TCTRG105_positions_are_stable_across_status_filters`.
 
 ---
 
