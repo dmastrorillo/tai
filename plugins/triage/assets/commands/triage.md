@@ -345,6 +345,10 @@ Run `/tai-triage:fix` to work through these, then `/tai-triage:verify` to confir
   conversational shorthand for batch overrides (section 6) and is not
   a `tai triage list` output format. The `BATCH` column shows the batch key
   on its own; the primary identifier remains the integer position.
+  That position is a property of the comment, not of the query: it is
+  assigned across the whole scope, so it is the same number with or
+  without `--status`, and `tai triage show <id>` resolves it to the
+  same comment.
 - Completed comments are summarised in the counts only — they are
   done; surfacing them again is noise.
 - Dismissed comments are summarised in the counts only — surfacing

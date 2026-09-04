@@ -1291,6 +1291,35 @@ interactive `y`/`Y` branch is exercised only manually. -->
 
 ---
 
+### TC-TRG-105 — Comment positions are stable across status filters
+
+- **Given** a scope holding several comments, at least one of them in
+  a non-pending status,
+- **When** the user runs `tai triage list` and
+  `tai triage list --status <state>` over that scope,
+- **Then** each comment's `ID` is the same in both listings,
+- **And** feeding an ID from the filtered listing to
+  `tai triage show <id>` resolves to that same comment.
+
+Regression case. The position comes from a `ROW_NUMBER()` window. With
+the status filter in the same query it was evaluated first, so the
+window numbered only the surviving rows and a filtered listing
+disagreed with `show`, which never filters. The mismatch misdirected
+rather than erroring: an ID read from `list --status accepted`
+resolved to a different comment, including one that had just been
+dismissed. Every consumer that reads an ID from a filtered listing and
+feeds it to `show`, `accept`, `dismiss` or `forget` acted on the wrong
+row.
+
+The window is now computed in a subquery and the filter applied to its
+result, so a position belongs to the comment rather than to the query
+that listed it.
+
+Exercised by `plugins/triage/internal/cmd/list_position_test.go` →
+`TestList_TCTRG105_positions_are_stable_across_status_filters`.
+
+---
+
 ## MIG — Phase 6 migration
 
 The Phase 6 plugin migration repackages the in-process Triage tree
