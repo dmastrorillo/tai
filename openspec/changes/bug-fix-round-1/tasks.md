@@ -38,9 +38,9 @@
 
 ## 6. Bug 3 — plugin help discovery (`PLUGINS:` block + `tai <plugin> help`)
 
-- [ ] 6.1 In `core/internal/cmd/root.go`, add a `--help` post-processor (urfave/cli's `CustomHelpTemplate` or a wrapping print step) that reads `plugins.json` and renders a `PLUGINS:` section after the auto-generated `COMMANDS:` block. Suppress the section header when the plugin list is empty.
-- [ ] 6.2 In `core/internal/cmd/plugin_invoke.go`, confirm `dispatchPluginOrUnknown` already forwards `help` as a verbatim arg (it does — the rest slice is `args[1:]`). Add an e2e test driving `tai triage help` that asserts the exec'd binary receives `help` as `argv[1]`. Add a second test driving `tai help triage` that asserts the GLOBAL help is rendered and the plugin binary is NOT exec'd.
-- [ ] 6.3 e2e test: `tai --help` output with one installed plugin contains the `PLUGINS:` block and the captured description. With no plugins installed, the output does NOT contain `PLUGINS:`.
+- [x] 6.1 Set `Category: "PLUGINS"` on the per-plugin passthrough commands in `core/internal/cmd/plugin_invoke.go`, with `Usage` taken from the entry's stored description. urfave/cli renders one heading per distinct category and emits none for a category with no commands, so this needs no custom template and no post-processing, and it keeps plugins out of the built-in verb list rather than listing them twice.
+- [x] 6.2 In `core/internal/cmd/plugin_invoke.go`, confirm `dispatchPluginOrUnknown` already forwards `help` as a verbatim arg (it does — the rest slice is `args[1:]`). Add an e2e test driving `tai triage help` that asserts the exec'd binary receives `help` as `argv[1]`. Add a second test driving `tai help triage` that asserts the GLOBAL help is rendered and the plugin binary is NOT exec'd.
+- [x] 6.3 e2e test: `tai --help` output with one installed plugin contains the `PLUGINS:` block and the captured description. With no plugins installed, the output does NOT contain `PLUGINS:`.
 
 ## 7. Bug 7 — first-run hint + post-install hint
 

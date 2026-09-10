@@ -1449,6 +1449,58 @@ directory.
 Exercised by `core/internal/plugins/state_preservation_test.go` →
 `TestInstall_TCPLG025_failed_restore_keeps_the_parked_copy`.
 
+### TC-PLG-026 — `tai --help` lists installed plugins under a `PLUGINS:` heading
+
+- **Given** the triage plugin is installed with the description
+  "Walk through pending PR review comments interactively." recorded in
+  `<TAI_DATA_DIR>/state/plugins.json`,
+- **When** the user runs `tai --help`,
+- **Then** stdout carries a `PLUGINS:` heading,
+- **And** `triage` is listed beneath it with that description beside
+  its name,
+- **And** no plugin subprocess is executed to produce the line.
+
+The description is the one captured from `<plugin> --help-summary` at
+install time (TC-PLG-020), so rendering help costs no process spawns.
+
+A plugin installed before the host captured descriptions has an empty
+`description` field — the schema is append-only, so old entries simply
+lack it. Such a plugin is still listed, with a fallback line naming
+what invoking it does.
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG026_lists_installed_plugins` and
+`TestHelp_TCPLG026_plugin_without_description_still_listed`.
+
+### TC-PLG-027 — The `PLUGINS:` heading is absent when nothing is installed
+
+- **Given** `<TAI_DATA_DIR>/state/plugins.json` records no plugins,
+- **When** the user runs `tai --help`,
+- **Then** stdout does not contain the literal `PLUGINS:` token.
+
+An empty heading is worse than no heading: it advertises a feature and
+implies the list failed to load.
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG027_no_plugins_no_heading`.
+
+### TC-PLG-028 — `tai <plugin> help` reaches the plugin; `tai help <plugin>` does not
+
+- **Given** the triage plugin is installed,
+- **When** the user runs `tai triage help`,
+- **Then** the plugin subprocess receives `help` as its first
+  argument and owns the response.
+- **When** the user runs `tai help triage` instead,
+- **Then** the host renders its own global help and executes no
+  plugin.
+
+`help` is a reserved core verb, so the reverse form is the host's, not
+the plugin's. The plugin form works because every argument after the
+plugin name is passed through verbatim (TC-PLG-023).
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG028_help_routing`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
