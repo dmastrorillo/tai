@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/pkg/errcode"
@@ -54,58 +53,26 @@ func Remove(name string, dataDir string, cfg *config.File, opts RemoveOptions) (
 	}
 
 	installDir := PluginInstallDir(dataDir, name)
-	statePath := filepath.Join(installDir, "state")
+
+	// Move the state subdir aside, wipe the install dir, then put it
+	// back. Parking before the wipe rather than re-creating after it
+	// avoids a window where a concurrent plugin invocation sees a
+	// missing state path.
+	parked, err := parkPluginState(installDir)
+	if err != nil {
+		return nil, err
+	}
 	retained := ""
-	if info, statErr := os.Stat(statePath); statErr == nil && info.IsDir() {
-		retained = statePath
+	if parked.held() {
+		retained = parked.statePath
 	}
 
-	// Move the install dir's state subdir aside (if any), then wipe
-	// the install dir, then put state back. This sequence avoids a
-	// "remove + then re-create" race where a concurrent plugin
-	// invocation might see a missing state path mid-flight.
-	//
-	// The wrapper temp dir is only cleaned up after the state was
-	// successfully restored — if the restore Rename fails, the
-	// wrapper is the only surviving copy of the plugin's runtime
-	// state and MUST NOT be wiped.
-	parked := ""
-	restored := false
-	if retained != "" {
-		tmp, err := os.MkdirTemp(filepath.Dir(installDir), "tai-state-keep-")
-		if err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"create state-keep tmp dir")
-		}
-		parked = filepath.Join(tmp, "state")
-		if err := os.Rename(statePath, parked); err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"park state %s", statePath)
-		}
-		defer func() {
-			if restored {
-				_ = os.RemoveAll(filepath.Dir(parked))
-			}
-		}()
-	}
 	if err := os.RemoveAll(installDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, errcode.Wrapf(errcode.InternalError, err,
 			"remove %s", installDir)
 	}
-	if parked != "" {
-		if err := os.MkdirAll(installDir, 0o755); err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"recreate %s for state restore", installDir)
-		}
-		if err := os.Rename(parked, statePath); err != nil {
-			return nil, errcode.Wrapf(errcode.InternalError, err,
-				"restore state %s", statePath).
-				WithHelp(
-					"the plugin's runtime state is parked at "+parked,
-					"recover it manually before re-running `tai plugins remove`",
-				)
-		}
-		restored = true
+	if err := parked.restore(); err != nil {
+		return nil, err
 	}
 
 	// Update state last so a failure above leaves the listing

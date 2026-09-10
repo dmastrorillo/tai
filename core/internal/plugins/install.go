@@ -110,8 +110,28 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 	}
 
 	finalDir := filepath.Join(dataDir, "plugins", name)
-	if err := atomicReplaceDir(stagingDir, finalDir); err != nil {
+
+	// The plugin's own state/ lives inside finalDir, which the
+	// replace below removes. Park it first, and restore it on EVERY
+	// exit path from here on — an early return that skips the restore
+	// leaves the state in a wrapper directory nothing references,
+	// which is the data loss this parking exists to prevent.
+	parked, err := parkPluginState(finalDir)
+	if err != nil {
 		return nil, err
+	}
+	replaceErr := atomicReplaceDir(stagingDir, finalDir)
+	if restoreErr := parked.restore(); restoreErr != nil {
+		if replaceErr != nil {
+			// Both failed. The restore error carries the parked
+			// path, so it is the one the user needs.
+			return nil, errcode.Wrapf(errcode.InternalError, replaceErr,
+				"install failed and the plugin's state could not be restored: %s", restoreErr)
+		}
+		return nil, restoreErr
+	}
+	if replaceErr != nil {
+		return nil, replaceErr
 	}
 
 	// Ensure the binary is executable. The tarball SHOULD already

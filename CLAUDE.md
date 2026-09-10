@@ -218,6 +218,8 @@ When `tai` invokes a plugin subprocess (`tai <plugin> <args>`), it sets these en
 
 Stdin, stdout, stderr, and the exit code pass through unchanged. The host translates a non-zero child exit into its own exit code; the plugin owns its own template-conforming error output via `pkg/cliout`.
 
+`$TAI_DATA_DIR/plugins/<name>/state/` is durable storage: the host preserves it verbatim across install, update and remove, so a plugin may keep a database there. It is the ONLY part of a plugin's install directory the host does not replace — the binary and `assets/` are overwritten wholesale on every update, so nothing else in that directory should be treated as persistent.
+
 Go plugin authors should not parse the env vars themselves: import `pkg/taiplugin` and call `taiplugin.Load()` for a typed `*Context`. The same package re-exports the error code taxonomy (`pkg/errcode`) and the CLI output writer (`pkg/cliout`) so a plugin's footer-format is identical to `tai`'s.
 
 ### Plugins are NOT distributable via Homebrew

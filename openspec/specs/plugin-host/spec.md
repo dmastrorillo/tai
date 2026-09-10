@@ -141,6 +141,21 @@ If any configured target's relevant sub-path is falsy, the install SHALL skip th
 
 The plugin's own runtime state (e.g. a SQLite file at `<TAI_DATA_DIR>/plugins/<name>/state/`) MUST be preserved. The command's stderr output MUST name the retained data path and remind the user to delete it manually if desired.
 
+The same guarantee applies to install and update. `<TAI_DATA_DIR>/plugins/<name>/state/` MUST survive every install, update and remove of the plugin, with its contents unchanged. It is the ONLY path under the plugin's install directory the host preserves — the binary, `assets/`, and anything else the tarball carries are replaced wholesale, so a stale artefact can never outlive an update. An entry named `state` that is not a directory is out of contract and is replaced with the rest of the tarball's namespace.
+
+#### Scenario: Update preserves runtime state
+
+- **WHEN** the Triage plugin has a SQLite file at `<TAI_DATA_DIR>/plugins/triage/state/triage.db`
+- **AND** the user runs `tai plugins update triage`
+- **THEN** the binary and `assets/` are replaced by the new version
+- **AND** `state/triage.db` is unchanged
+
+#### Scenario: State survives a failed install
+
+- **WHEN** an install fails after the plugin's state has been moved aside
+- **THEN** the state is returned to `<TAI_DATA_DIR>/plugins/<name>/state/`
+- **AND** if it cannot be returned, the error names the path holding the only surviving copy
+
 #### Scenario: Remove preserves runtime state
 
 - **WHEN** the Triage plugin has a SQLite file at `<TAI_DATA_DIR>/plugins/triage/state/triage.db`
