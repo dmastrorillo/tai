@@ -13,14 +13,12 @@
 // killed mid-write when it's about to finish; if it overruns, the OS
 // reaps it at process exit and the next invocation retries.
 //
-// Before dispatching the foreground command, main also calls
-// sync.EmitBanner against the data directory. EmitBanner emits the
-// once-per-day update banner to stderr based on whatever the most
-// recent poll wrote to <TAI_DATA_DIR>/state/update-check.json. The
-// banner fires PRE-foreground so the user sees it even if the
-// command itself errors. The test harness in
-// core/internal/cmd/root_test.go mirrors this call so banner
-// behaviour is exercised end-to-end (see TC-UB-007).
+// main also brackets the foreground command with
+// notices.BeforeCommand / notices.AfterCommand, which own the
+// once-per-day update banner and the once-ever first-run onboarding
+// hint. The e2e harness in core/internal/cmd calls the same pair, so
+// a wiring regression (wrong stream, wrong directory, call omitted)
+// fails a test rather than shipping (see TC-UB-007, TC-UB-008).
 //
 // main is the single place that calls os.Exit. Subcommands and
 // library code under core/internal/ and plugins/<name>/internal/
@@ -35,6 +33,7 @@ import (
 
 	"github.com/dmastrorillo/tai/core/internal/cmd"
 	"github.com/dmastrorillo/tai/core/internal/config"
+	"github.com/dmastrorillo/tai/core/internal/notices"
 	"github.com/dmastrorillo/tai/core/internal/sync"
 	"github.com/dmastrorillo/tai/pkg/cliexec"
 	"github.com/dmastrorillo/tai/pkg/datadir"
@@ -54,22 +53,27 @@ func main() {
 
 	waiter := schedulePoll(ctx)
 
-	// Update banner: emit once-per-day to stderr based on whatever
-	// the most recent poll wrote into the state file. Pre-foreground
-	// so the user sees the banner even if the command itself errors.
-	// EmitBanner silently absorbs any state-file issues — first-ever
-	// invocations and rotated state files just produce no banner.
+	// Unsolicited stderr notices bracket the foreground command: the
+	// once-per-day update banner before it (so it shows even when the
+	// command errors), the once-ever first-run hint after it (so the
+	// "run this next" line lands below the output of what just ran).
+	// notices owns which of the two fires — they never stack.
 	//
-	// Stream: writes to the real os.Stderr (not the cli.Command's
-	// ErrWriter) because the banner fires BEFORE command dispatch.
-	// The test harness mirrors this in runRoot by writing to the
-	// captured stderr buffer; production tests are end-to-end via
-	// the same routing.
-	if dataDir, err := datadir.Resolve(); err == nil {
-		sync.EmitBanner(os.Stderr, dataDir, time.Now())
+	// Stream: the real os.Stderr, not the cli.Command's ErrWriter,
+	// because neither notice belongs to a command. Both calls absorb
+	// their own failures; a broken state file costs a notice, never
+	// the command.
+	dataDir, dataDirErr := datadir.Resolve()
+	firstRunOwed := false
+	if dataDirErr == nil {
+		firstRunOwed = notices.BeforeCommand(os.Stderr, dataDir, time.Now(), os.Args)
 	}
 
 	err := cliexec.Run(ctx, cmd.NewRoot(), os.Args)
+
+	if dataDirErr == nil {
+		notices.AfterCommand(os.Stderr, dataDir, time.Now(), firstRunOwed)
+	}
 
 	// Give the background poll a brief chance to finish writing its
 	// state file before we exit. Overruns are reaped by the OS — the

@@ -1613,6 +1613,91 @@ catches the integration regression by driving `runRoot`.
 Exercised by `core/internal/cmd/banner_test.go` →
 `TestBanner_TCUB007_fires_at_cli_boundary`.
 
+### TC-UB-008 — The first invocation on a machine prints an onboarding hint
+
+- **Given** `<TAI_DATA_DIR>/state/first-run.json` does not exist,
+- **When** the user runs any tai command (e.g. `tai --version`),
+- **Then** stderr carries the line
+  `→ Get started: run \`tai install-commands\` to make tai's commands available in your AI tool.`,
+- **And** the line names no specific AI tool,
+- **And** the hint is on stderr, not stdout, so it cannot corrupt a
+  piped command's output,
+- **And** `<TAI_DATA_DIR>/state/first-run.json` then holds a JSON
+  object whose `first-run` field is an ISO-8601 UTC timestamp.
+
+The hint is written after the foreground command completes: it points
+at what to run next, so it belongs below that command's output rather
+than above it.
+
+Any verb creates the marker — `tai install-commands` does not have to
+be the one that runs.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB008_hint_and_marker`.
+
+### TC-UB-009 — The onboarding hint fires once, ever
+
+- **Given** `<TAI_DATA_DIR>/state/first-run.json` exists,
+- **When** the user runs any tai command,
+- **Then** the onboarding hint is not printed,
+- **And** the marker's timestamp is unchanged.
+
+The marker's existence is the whole gate; the timestamp is
+informational and is never rewritten.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB009_suppressed_once_marked`.
+
+### TC-UB-010 — The onboarding hint and the update banner never stack
+
+- **Given** no first-run marker exists,
+- **And** `<TAI_DATA_DIR>/state/update-check.json` reports a pending
+  TAI update with `last-banner-date` set to yesterday,
+- **When** the user runs any tai command,
+- **Then** stderr carries the onboarding hint,
+- **And** no `[tai]` banner is printed,
+- **And** `last-banner-date` is advanced to today, so the banner is
+  eligible tomorrow rather than dropped.
+
+"Here is how to get started" and "here is how to upgrade" arriving
+together teaches a new user nothing from the second line. The banner
+is deferred, not suppressed.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB010_defers_the_update_banner`.
+
+### TC-UB-011 — An unwritable marker costs a repeated hint, not a failed command
+
+- **Given** no first-run marker exists,
+- **And** `<TAI_DATA_DIR>/state/` is not writable,
+- **When** the user runs any tai command,
+- **Then** the command exits with its normal code and its normal
+  stdout,
+- **And** the onboarding hint is still printed,
+- **And** no marker is created, so the hint may print again next time.
+
+Repeating a one-line hint is a far cheaper failure than turning a
+successful command into an error.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB011_unwritable_marker_does_not_fail_the_command`.
+
+### TC-UB-012 — A bare `tai` outside a terminal gets no onboarding hint
+
+- **Given** no first-run marker exists,
+- **When** `tai` is run with no arguments and stderr is not a
+  terminal,
+- **Then** the onboarding hint is not printed,
+- **And** no marker is written, so the hint survives for the next
+  interactive run.
+
+A bare `tai` with nothing attached to stderr is the shape a CI step
+takes when it checks the binary exists. Consuming the hint there would
+mean the person never sees it.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB012_suppressed_for_a_bare_non_tty_invocation`.
+
 <!-- Add new UB cases here as their proposals land. -->
 
 ---

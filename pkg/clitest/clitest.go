@@ -64,6 +64,11 @@ type Options struct {
 	// wrappers use it to mirror their main's pre-foreground writes
 	// (e.g. core's update-banner emission) into the same buffer.
 	PreRun func(stderr io.Writer)
+	// PostRun, when set, runs after the command returns but before
+	// the exit code is computed, receiving the same captured stderr.
+	// The counterpart to PreRun, for a main's post-foreground writes
+	// (e.g. core's first-run onboarding hint).
+	PostRun func(stderr io.Writer)
 }
 
 // Run invokes cmd with the given argv (NOT including the executable
@@ -103,6 +108,11 @@ func RunWith(t *testing.T, cmd *cli.Command, opts Options, argv ...string) Resul
 
 	fullArgs := append([]string{cmd.Name}, argv...)
 	err := cliexec.Run(context.Background(), cmd, fullArgs)
+
+	if opts.PostRun != nil {
+		opts.PostRun(&stderr)
+	}
+
 	exitCode := cliexec.Exit(&stderr, err)
 
 	return Result{

@@ -229,6 +229,28 @@ func EmitBanner(stderr io.Writer, dataDir string, now time.Time) {
 	_ = SaveState(dataDir, state)
 }
 
+// DeferBannerToday records today as the banner's most recent firing
+// date without printing anything, which makes the banner eligible
+// again tomorrow.
+//
+// It exists for the first-run hint: on a brand-new install the
+// onboarding line and the upgrade banner would otherwise arrive
+// together, and the upgrade advice is useless to someone who has just
+// installed. Deferring rather than dropping means the banner still
+// reaches the user, one day later.
+//
+// Best effort. A state file that cannot be read or written means the
+// banner fires normally next time, which is the pre-existing
+// behaviour rather than a new failure.
+func DeferBannerToday(dataDir string, now time.Time) {
+	state, err := LoadState(dataDir)
+	if err != nil {
+		return
+	}
+	state.LastBannerDate = now.Local().Format(time.DateOnly)
+	_ = SaveState(dataDir, state)
+}
+
 // renderBanner produces the stderr text. Format invariants (per
 // spec, locked by TC-UB-004 / TC-UB-005):
 //
