@@ -1,6 +1,6 @@
 # CONTEXT
 
-Glossary for TAI. Definitions only — no implementation details, no decisions. Implementation lives in `openspec/`, design rationale in `docs/adr/`.
+Glossary for TAI. Definitions only — no implementation details, no decisions. Both implementation and design rationale live in `openspec/` — the change proposal under `openspec/changes/<change>/` carries the reasoning, and the capability spec under `openspec/specs/<capability>/` carries the settled contract.
 
 ---
 
@@ -55,3 +55,25 @@ A plugin not in the built-in registry. Installed by explicit source: `tai plugin
 ## plugins.yml
 
 A YAML file at the root of the source repo listing the plugins TAI should auto-install on `tai sync`. It is **additive, not authoritative** — a developer may install additional plugins beyond what plugins.yml declares via `tai plugins install <name>`, and those are not removed when the file changes. Removing a plugin from plugins.yml does not uninstall it from developer machines.
+
+## Board
+
+A browser surface the `triage` plugin serves on localhost so a developer can look at every pending review comment in a scope at once and make quick calls on the obvious ones. The board is a capture surface, not a writer: it reads comments and records the developer's intents, and it never changes a comment's status.
+
+## Intent
+
+One developer call on one comment (or one batch), captured on the board and not yet persisted. An intent is `accept`, `dismiss`, or `unanswered`. `unanswered` covers every comment the developer did not decide.
+
+Any intent may carry a free-text note: a refinement to the suggested fix on an accept, the reasoning behind a dismiss, or on an `unanswered`, whatever the developer wants from the conversation about it ("explain this one to me", "I need to see the surrounding code first").
+
+Intents are input to triage, not the outcome of it. Every intent still passes through the AI's triage loop, where a dismissal can be challenged, a note can be questioned, and a proposed fix can be sparred over.
+
+**Intents live in a file; decisions live in the database.**
+
+## Decision
+
+The persisted outcome of triage for one comment: `accepted`, `dismissed`, or `completed`. A decision is written only by the `tai accept` / `tai dismiss` / `tai complete` verbs, and only after the comment has been through the triage conversation. An [intent](#intent) is not a decision — the word "decision" is reserved for state that has reached the database.
+
+## Bulk pass
+
+The act of working the board: reviewing the pending comments in a scope and recording intents on the easy ones, so the one-at-a-time triage conversation is left with the comments that genuinely need discussion. A bulk pass narrows the conversation; it does not replace it.
