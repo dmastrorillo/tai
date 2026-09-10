@@ -204,3 +204,64 @@ func TestSync_TCPLG042_changed_yml_needs_fresh_consent(t *testing.T) {
 	}
 	assertCode(t, r.err, errcode.PluginThirdpartyUnconfirmed)
 }
+
+// TC-PLG-044 — consenting to a source repo's third-party plugins has
+// to carry through to the installs that consent authorises.
+//
+// This test deliberately does NOT stub the installer via
+// AutoInstallForTesting: the bug it guards lives in what the loop
+// hands to the real plugins.Install, so a stubbed installer cannot
+// see it. Only the network is faked, via the default fetcher.
+func TestSync_TCPLG044_consent_reaches_the_real_installer(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml": `plugins:
+  - name: acme
+    source: github.com/acme/tai-plugin-acme
+`,
+	})
+	dataDir, _, _ := syncEnv(t, url)
+	plugins.FetcherForTesting(t, &bundleFetcher{root: stageBundle(t, "acme"), version: "v1.0.0"})
+
+	r := runRoot(t, "sync", "-y", "--trust-third-party")
+	if r.err != nil {
+		t.Fatalf("consent given, so the install must proceed: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+
+	state, err := plugins.LoadState(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, idx := state.Find("acme"); idx < 0 {
+		t.Errorf("the consented plugin must be installed; state: %+v", state)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "plugins", "acme", "acme")); err != nil {
+		t.Errorf("the plugin binary must be on disk: %v", err)
+	}
+}
+
+// Consent is per file, so a sync whose consent was never given must
+// still refuse — the fix for TC-PLG-044 must not become a blanket
+// AssumeYes that defeats the gate.
+func TestSync_TCPLG044_no_consent_still_refuses_the_real_installer(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml": `plugins:
+  - name: acme
+    source: github.com/acme/tai-plugin-acme
+`,
+	})
+	dataDir, _, _ := syncEnv(t, url)
+	plugins.FetcherForTesting(t, &bundleFetcher{root: stageBundle(t, "acme"), version: "v1.0.0"})
+
+	r := runRoot(t, "sync", "-y")
+	if r.err == nil {
+		t.Fatal("no consent was given, so the sync must be refused")
+	}
+	assertCode(t, r.err, errcode.PluginThirdpartyUnconfirmed)
+	if _, err := os.Stat(filepath.Join(dataDir, "plugins", "acme")); !os.IsNotExist(err) {
+		t.Errorf("nothing may be installed without consent: %v", err)
+	}
+}

@@ -24,8 +24,15 @@ func TestConfirmThirdPartyPlugins_TCPLG043_interactive_yes(t *testing.T) {
 		var stderr bytes.Buffer
 		opts := Options{Stdin: strings.NewReader(answer), Stderr: &stderr}
 
-		if err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, opts, true); err != nil {
+		consented, err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, opts, true)
+		if err != nil {
 			t.Fatalf("answer %q must proceed, got %v", answer, err)
+		}
+		// The bool is what the caller passes to each install as
+		// AssumeYes. Without it the per-plugin gate refuses the very
+		// entries this yes just authorised.
+		if !consented {
+			t.Errorf("answer %q must report consent to the caller", answer)
 		}
 		prompt := stderr.String()
 		for _, want := range []string{"acme", "github.com/acme/tai-plugin-acme", "arbitrary code", "[y/N]"} {
@@ -57,7 +64,10 @@ func TestConfirmThirdPartyPlugins_TCPLG043_interactive_no(t *testing.T) {
 		var stderr bytes.Buffer
 		opts := Options{Stdin: strings.NewReader(answer), Stderr: &stderr}
 
-		err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, opts, true)
+		consented, err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, opts, true)
+		if consented {
+			t.Errorf("answer %q must not report consent", answer)
+		}
 		coded, ok := errcode.As(err)
 		if !ok || coded.Code != errcode.PluginThirdpartyUnconfirmed {
 			t.Errorf("answer %q: want PLUGIN_THIRDPARTY_UNCONFIRMED, got %v", answer, err)
@@ -80,15 +90,22 @@ func TestConfirmThirdPartyPlugins_TCPLG038_builtin_only_records_nothing(t *testi
 	opts := Options{Stdin: strings.NewReader(""), Stderr: &stderr}
 
 	entries := []pluginsYAMLEntry{{Name: "triage"}}
-	if err := confirmThirdPartyPlugins(entries, []byte("raw"), repoURL, dataDir, opts, true); err != nil {
+	consented, err := confirmThirdPartyPlugins(entries, []byte("raw"), repoURL, dataDir, opts, true)
+	if err != nil {
 		t.Fatalf("a built-in-only file must pass straight through: %v", err)
+	}
+	// Nothing was agreed to, because nothing needed agreeing to. The
+	// install gate never asks about a built-in, so the caller has no
+	// consent to forward.
+	if consented {
+		t.Error("a built-in-only file must report no consent")
 	}
 	if stderr.Len() != 0 {
 		t.Errorf("no prompt may be printed, got %q", stderr.String())
 	}
-	store, err := plugins.LoadTrust(dataDir)
-	if err != nil {
-		t.Fatal(err)
+	store, loadErr := plugins.LoadTrust(dataDir)
+	if loadErr != nil {
+		t.Fatal(loadErr)
 	}
 	if len(store.Trust) != 0 {
 		t.Errorf("no consent may be stored, got %+v", store.Trust)
@@ -104,10 +121,33 @@ func TestConfirmThirdPartyPlugins_unresolvable_entry_is_not_thirdparty(t *testin
 	opts := Options{Stdin: strings.NewReader(""), Stderr: &stderr}
 
 	entries := []pluginsYAMLEntry{{Name: "not-a-real-plugin"}}
-	if err := confirmThirdPartyPlugins(entries, []byte("raw"), repoURL, dataDir, opts, true); err != nil {
+	if _, err := confirmThirdPartyPlugins(entries, []byte("raw"), repoURL, dataDir, opts, true); err != nil {
 		t.Fatalf("an unresolvable entry must not be gated: %v", err)
 	}
 	if stderr.Len() != 0 {
 		t.Errorf("no prompt may be printed, got %q", stderr.String())
+	}
+}
+
+// TC-PLG-044 — an already-recorded consent still reports consent, so a
+// later sync's installs are authorised without re-prompting.
+func TestConfirmThirdPartyPlugins_TCPLG044_recorded_consent_reports_consent(t *testing.T) {
+	dataDir := t.TempDir()
+	var stderr bytes.Buffer
+
+	first := Options{Stdin: strings.NewReader("y\n"), Stderr: &stderr}
+	if _, err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, first, true); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	// Second run: no flag, no terminal. The recorded hash is the only
+	// thing that can authorise it.
+	second := Options{Stdin: strings.NewReader(""), Stderr: &stderr}
+	consented, err := confirmThirdPartyPlugins(thirdPartyEntries, []byte("raw"), repoURL, dataDir, second, false)
+	if err != nil {
+		t.Fatalf("a recorded consent must carry over: %v", err)
+	}
+	if !consented {
+		t.Error("a recorded consent must report consent to the caller")
 	}
 }

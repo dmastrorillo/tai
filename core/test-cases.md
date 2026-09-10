@@ -1744,6 +1744,38 @@ Exercised by `core/internal/sync/trust_internal_test.go` →
 `TestConfirmThirdPartyPlugins_TCPLG043_interactive_yes` and
 `TestConfirmThirdPartyPlugins_TCPLG043_interactive_no`.
 
+### TC-PLG-044 — Consent to a `plugins.yml` authorises the installs it covers
+
+- **Given** the source repo's `plugins.yml` lists a third-party plugin,
+- **When** the user runs `tai sync --trust-third-party` (or the file's
+  consent is already recorded, or they answer `y` in a terminal),
+- **Then** the plugin installs,
+- **And** its binary lands under `<TAI_DATA_DIR>/plugins/<name>/`,
+- **And** the user is not asked a second time, once per entry.
+- **Given** no consent for the file,
+- **When** the user runs `tai sync` outside a terminal,
+- **Then** the sync exits with `PLUGIN_THIRDPARTY_UNCONFIRMED` and
+  nothing is installed.
+
+Regression case. `tai plugins install` and the `plugins.yml`
+auto-install reach the same per-plugin consent gate, but only the
+former is invoked by a user who can answer it. The aggregate decision
+made once for the whole file has to be handed to each install it
+authorises, or the gate refuses the very entries the user just agreed
+to — with no flag able to clear it, because the flag was already
+passed.
+
+The test drives the real installer rather than the `AutoInstallForTesting`
+stub every other case on this path uses. The bug lived in what the loop
+hands to `plugins.Install`, which a stubbed installer cannot see; only
+the network is faked.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG044_consent_reaches_the_real_installer` and
+`TestSync_TCPLG044_no_consent_still_refuses_the_real_installer`, and
+`core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG044_recorded_consent_reports_consent`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---

@@ -113,8 +113,9 @@ func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, c
 	// Consent gates the whole phase: nothing is installed and no
 	// asset is synced until the user has agreed to the third-party
 	// entries in this file.
-	if err := confirmThirdPartyPlugins(entries, raw, cfg.RepoURL, dataDir, opts,
-		cliout.IsTTYReader(opts.Stdin)); err != nil {
+	consented, err := confirmThirdPartyPlugins(entries, raw, cfg.RepoURL, dataDir, opts,
+		cliout.IsTTYReader(opts.Stdin))
+	if err != nil {
 		return err
 	}
 	stderr := opts.Stderr
@@ -127,10 +128,15 @@ func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, c
 		if _, idx := state.Find(e.Name); idx >= 0 {
 			continue
 		}
+		// AssumeYes carries the consent given above. Stdin is
+		// deliberately left nil: the user has already answered for
+		// the whole file, and a second prompt per entry would be
+		// asking the same question again.
 		_, installErr := autoInstallFunc(ctx, e.Name, dataDir, cfg, plugins.InstallOptions{
-			Source:  plugins.ParseSource(e.Source),
-			Version: e.Version,
-			Stderr:  stderr,
+			Source:    plugins.ParseSource(e.Source),
+			Version:   e.Version,
+			Stderr:    stderr,
+			AssumeYes: consented,
 		})
 		if installErr != nil {
 			return installErr

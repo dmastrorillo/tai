@@ -32,14 +32,23 @@ import (
 // consent, or when the user agrees now — in which case the consent is
 // recorded before any plugin is installed.
 //
+// The bool reports whether third-party entries were agreed to. The
+// caller must pass it to each install as AssumeYes: the per-plugin
+// gate in plugins.Install cannot see the aggregate decision made
+// here, so without it every third-party entry is refused seconds
+// after the user consented to it.
+//
 // interactive says whether there is a person on the other end of
 // opts.Stdin. Without one, an unanswered prompt would hang a sync in
 // CI forever, so the refusal is immediate and names the flag that
 // unblocks it.
-func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, dataDir string, opts Options, interactive bool) error {
+func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, dataDir string, opts Options, interactive bool) (bool, error) {
 	sources := thirdPartySources(entries)
 	if len(sources) == 0 {
-		return nil
+		// Nothing third-party in the file, so nothing was consented
+		// to. Every entry resolves to a built-in, which the install
+		// gate never asks about.
+		return false, nil
 	}
 
 	sum := sha256.Sum256(raw)
@@ -47,15 +56,15 @@ func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, d
 
 	store, err := plugins.LoadTrust(dataDir)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if agreed, ok := store.Get(repoURL); ok && agreed == digest {
-		return nil
+		return true, nil
 	}
 
 	if !opts.TrustThirdParty {
 		if !interactive {
-			return unconfirmedYAMLError(sources)
+			return false, unconfirmedYAMLError(sources)
 		}
 		_, _ = fmt.Fprintf(opts.Stderr,
 			"Source repo plugins.yml lists third-party plugins:\n%s\nThird-party plugins run arbitrary code on your machine. Continue? [y/N] ",
@@ -64,7 +73,7 @@ func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, d
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "y", "yes":
 		default:
-			return unconfirmedYAMLError(sources)
+			return false, unconfirmedYAMLError(sources)
 		}
 	}
 
@@ -72,7 +81,10 @@ func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, d
 	// does not un-say what the user just said, and re-running the
 	// sync must not ask again.
 	store.Put(repoURL, digest)
-	return plugins.SaveTrust(dataDir, store)
+	if err := plugins.SaveTrust(dataDir, store); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // thirdPartySources returns the `<host>/<repo>` label of every entry
