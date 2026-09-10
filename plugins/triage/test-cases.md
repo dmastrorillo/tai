@@ -1388,8 +1388,15 @@ how these survived that pass. The two checks are deliberately
 separate: they cover different artefacts and have drifted
 independently before.
 
+The source walk is the blanket net — it sees every Go file, so no call
+site can slip past it. It cannot see a message assembled at runtime,
+where the source carries no literal to match but the user still reads
+the wrong command, so the two highest-traffic corrected errors are also
+asserted on their rendered stderr.
+
 Exercised by `plugins/triage/internal/cmd/invocation_text_test.go` →
-`TestTriageSource_TCTRG106_addresses_verbs_as_tai_triage`.
+`TestTriageSource_TCTRG106_addresses_verbs_as_tai_triage` and
+`TestTriageErrors_TCTRG106_render_the_plugin_invocation`.
 
 ---
 

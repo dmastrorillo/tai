@@ -5,8 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/dmastrorillo/tai/plugins/triage/internal/cmd"
+	"github.com/dmastrorillo/tai/plugins/triage/internal/cmdtest"
 )
 
 // staleGoInvocation matches a triage verb addressed the way it was
@@ -45,7 +49,7 @@ func TestTriageSource_TCTRG106_addresses_verbs_as_tai_triage(t *testing.T) {
 		}
 		for i, line := range strings.Split(string(body), "\n") {
 			if m := staleGoInvocation.FindString(line); m != "" {
-				offenders = append(offenders, filepath.ToSlash(path)+":"+itoa(i+1)+"  "+m)
+				offenders = append(offenders, filepath.ToSlash(path)+":"+strconv.Itoa(i+1)+"  "+m)
 			}
 		}
 		return nil
@@ -61,14 +65,43 @@ func TestTriageSource_TCTRG106_addresses_verbs_as_tai_triage(t *testing.T) {
 	}
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
+// TC-TRG-106 — the rendered stderr, not just the source.
+//
+// The walk above is the blanket net: it sees every Go file, so no call
+// site can slip past it. What it cannot see is a message assembled at
+// runtime, where the source carries no literal for the regex to match
+// but the user still reads the wrong command. These two assertions
+// cover the highest-traffic corrected strings at the layer the user
+// actually meets them.
+func TestTriageErrors_TCTRG106_render_the_plugin_invocation(t *testing.T) {
+	cmdtest.Isolate(t)
+	cmdtest.Chdir(t, t.TempDir())
+
+	// `forget` with no selector — deliberately not via the triage()
+	// helper, which auto-prepends --repo and would turn this into the
+	// repo-selector mode.
+	forget := cmdtest.Run(t, cmd.NewRoot(), "forget")
+	cmdtest.AssertError(t, forget)
+	assertNoStaleInvocation(t, "forget", forget.Stderr)
+
+	show := cmdtest.Run(t, cmd.NewRoot(), "show")
+	cmdtest.AssertError(t, show)
+	assertNoStaleInvocation(t, "show", show.Stderr)
+}
+
+// assertNoStaleInvocation fails when rendered output addresses a
+// triage verb as a bare `tai <verb>`, and requires that it names the
+// plugin form at least once — so a message that simply stopped
+// mentioning any command cannot pass by omission.
+func assertNoStaleInvocation(t *testing.T, verb, stderr string) {
+	t.Helper()
+	if stderr == "" {
+		t.Fatalf("%s: expected an error message on stderr, got nothing", verb)
 	}
-	var b []byte
-	for n > 0 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-		n /= 10
+	if m := staleGoInvocation.FindString(stderr); m != "" {
+		t.Errorf("%s: rendered stderr addresses a verb as %q:\n%s", verb, m, stderr)
 	}
-	return string(b)
+	if !strings.Contains(stderr, "tai triage ") {
+		t.Errorf("%s: rendered stderr must name the plugin form `tai triage <verb>`:\n%s", verb, stderr)
+	}
 }
