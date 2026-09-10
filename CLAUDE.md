@@ -146,6 +146,7 @@ Inside `core/`:
 - `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/specs/config/spec.md`.
 - `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/specs/repo-sync/spec.md`.
 - `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/specs/repo-init/spec.md`.
+- `core/internal/notices/` — owns the two unsolicited stderr notices that bracket the foreground command: the once-per-day update banner and the once-ever first-run onboarding hint. They live together because they are mutually exclusive on a single invocation. Called by `core/cmd/tai/main.go` and by the e2e harness, so a wiring regression fails a test rather than shipping. Spec: `openspec/specs/update-banner/spec.md`.
 - `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host. `verbs.IsReserved(name)` is the install-time gate that emits `PLUGIN_NAME_RESERVED`.
 - `core/internal/plugins/` — plugin host: built-in first-party registry (`registry.go`), on-disk state (`state.go`, written to `<TAI_DATA_DIR>/state/plugins.json`), the HTTP-backed `Fetcher` (`fetch.go`), the asset namespacing rules (`assets.go`), and the install/update/remove/list verb implementations. Spec: `openspec/specs/plugin-host/spec.md`.
 - `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
@@ -267,6 +268,30 @@ The host's record of installed plugins lives at
 The schema is append-only — new fields MAY be added (every existing
 plugin install must remain readable by future tai versions); fields
 MUST NOT be renamed or removed without a major version bump.
+
+### Local state: `trust.json`
+
+The record of which source repos' third-party plugin lists the user has
+agreed to lives at `<TAI_DATA_DIR>/state/trust.json`:
+
+```json
+{
+  "trust": [
+    {
+      "repo-url": "https://github.com/acme/ai-assets",
+      "plugins-yml-sha256": "9f2c…"
+    }
+  ]
+}
+```
+
+Consent is to an exact file: the hash is of the verbatim
+`<clone>/plugins.yml` bytes, keyed on the configured `repo-url`. An
+unchanged file is never asked about twice; any edit is asked about
+again. Entries for previous `repo-url` values are kept rather than
+pruned — cleaning them out is the user's affair.
+
+The schema is append-only on the same terms as `plugins.json`.
 
 ### Auto-install from `plugins.yml`
 
