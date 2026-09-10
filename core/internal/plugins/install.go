@@ -14,6 +14,7 @@ import (
 
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/verbs"
+	"github.com/dmastrorillo/tai/pkg/cliout"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -36,8 +37,19 @@ type InstallOptions struct {
 	Fetcher Fetcher
 
 	// Stderr receives non-fatal warnings (e.g. falsy-skip notices
-	// during the asset-sync phase).
+	// during the asset-sync phase) and the third-party confirmation
+	// prompt.
 	Stderr io.Writer
+
+	// Stdin is where the third-party confirmation prompt reads its
+	// answer. Nil means non-interactive, which refuses a third-party
+	// source rather than blocking on a prompt nobody can answer.
+	Stdin io.Reader
+
+	// AssumeYes confirms a third-party source without prompting, for
+	// this invocation only. Threaded from `--yes` on the install and
+	// update verbs.
+	AssumeYes bool
 
 	// InstalledAt overrides the InstalledAt timestamp recorded in
 	// the state file. Zero (default) means Install stamps it with
@@ -75,6 +87,13 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 
 	src, err := resolveSource(name, opts.Source, opts.Version)
 	if err != nil {
+		return nil, err
+	}
+
+	// Consent gates the fetch, not the promotion: a refusal must leave
+	// no downloaded bytes on disk at all.
+	if err := confirmThirdParty(name, src, opts.Stdin, opts.Stderr,
+		opts.AssumeYes, cliout.IsTTYReader(opts.Stdin)); err != nil {
 		return nil, err
 	}
 

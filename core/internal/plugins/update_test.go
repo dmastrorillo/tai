@@ -23,8 +23,9 @@ func TestUpdate_TCPLG013_replaces_binary_and_assets(t *testing.T) {
 		"commands/import.md":         "old-import",
 	})
 	if _, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
-		Fetcher: &fakeFetcher{source: bundleOld, version: "v0.4.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		Fetcher:   &fakeFetcher{source: bundleOld, version: "v0.4.0"},
 	}); err != nil {
 		t.Fatalf("install v0.4.0: %v", err)
 	}
@@ -36,7 +37,8 @@ func TestUpdate_TCPLG013_replaces_binary_and_assets(t *testing.T) {
 		"commands/import.md":          "new-import",
 	})
 	entry, err := plugins.Update(context.Background(), "triage", dataDir, cfg, plugins.UpdateOptions{
-		Fetcher: &fakeFetcher{source: bundleNew, version: "v0.5.0"},
+		AssumeYes: true,
+		Fetcher:   &fakeFetcher{source: bundleNew, version: "v0.5.0"},
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -77,7 +79,8 @@ func TestUpdate_TCPLG013_replaces_binary_and_assets(t *testing.T) {
 // boundary test lives next door in cmd_test.
 func TestUpdate_unknown_plugin_surfaces_PluginUnknown(t *testing.T) {
 	dataDir := t.TempDir()
-	_, err := plugins.Update(context.Background(), "ghost", dataDir, &config.File{}, plugins.UpdateOptions{})
+	_, err := plugins.Update(context.Background(), "ghost", dataDir, &config.File{}, plugins.UpdateOptions{
+		AssumeYes: true})
 	if err == nil || !strings.Contains(err.Error(), "ghost") {
 		t.Fatalf("expected ghost-named error, got: %v", err)
 	}

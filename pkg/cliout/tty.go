@@ -29,3 +29,20 @@ func IsTTY(w io.Writer) bool {
 	}
 	return term.IsTerminal(int(f.Fd()))
 }
+
+// IsTTYReader reports whether r reads from a terminal. The Reader
+// counterpart to IsTTY, for commands that must decide whether asking
+// the user a question can possibly get an answer.
+//
+// Like IsTTY, detection only succeeds for *os.File; anything else is
+// treated as non-interactive. Note that a character-device check is
+// NOT equivalent here — /dev/null is a character device, so a command
+// reading `< /dev/null` would look interactive under that test and
+// block on a prompt nobody can answer.
+func IsTTYReader(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
+}

@@ -62,8 +62,9 @@ func installContractBundle(t *testing.T, name, bundle string) (string, *plugins.
 	dataDir := t.TempDir()
 	cfg := &config.File{Targets: []config.Target{{Root: t.TempDir()}}}
 	entry, err := plugins.Install(context.Background(), name, dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v1.0.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v1.0.0"},
 	})
 	return dataDir, entry, err
 }

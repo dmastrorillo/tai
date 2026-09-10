@@ -87,8 +87,9 @@ func TestInstall_TCPLG001_plugin_layout_on_disk(t *testing.T) {
 	cfg := &config.File{Targets: []config.Target{stageTarget(t)}}
 
 	_, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v0.5.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v0.5.0"},
 	})
 	if err != nil {
 		t.Fatalf("Install: %v", err)
@@ -117,8 +118,9 @@ func TestInstall_TCPLG006_skill_namespace_enforced(t *testing.T) {
 	cfg := &config.File{Targets: []config.Target{stageTarget(t)}}
 
 	_, err := plugins.Install(context.Background(), "mytool", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/tai-plugin-mytool"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v0.1.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/tai-plugin-mytool"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v0.1.0"},
 	})
 	testutil.AssertErrCode(t, err, errcode.PluginAssetNaming)
 	if !strings.Contains(err.Error(), "foo.md") {
@@ -136,8 +138,9 @@ func TestInstall_TCPLG007_commands_routed_into_namespace(t *testing.T) {
 	cfg := &config.File{Targets: []config.Target{tgt}}
 
 	_, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v0.5.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v0.5.0"},
 	})
 	if err != nil {
 		t.Fatalf("Install: %v", err)
@@ -165,7 +168,8 @@ func TestInstall_TCPLG009_401_surfaces_unauthorized(t *testing.T) {
 	cfg := &config.File{Targets: []config.Target{stageTarget(t)}}
 
 	_, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source: plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
 		Fetcher: &plugins.HTTPFetcher{
 			Client:        srv.Client(),
 			GitHubBaseURL: srv.URL,
@@ -188,7 +192,8 @@ func TestInstall_TCPLG010_5xx_surfaces_failure(t *testing.T) {
 	cfg := &config.File{Targets: []config.Target{stageTarget(t)}}
 
 	_, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source: plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
 		Fetcher: &plugins.HTTPFetcher{
 			Client:        srv.Client(),
 			GitHubBaseURL: srv.URL,
@@ -203,7 +208,8 @@ func TestInstall_TCPLG010_5xx_surfaces_failure(t *testing.T) {
 // assertion lives in core/internal/cmd's plugins_test.go.
 func TestInstall_reserved_name_rejected(t *testing.T) {
 	dataDir := t.TempDir()
-	_, err := plugins.Install(context.Background(), "config", dataDir, &config.File{}, plugins.InstallOptions{})
+	_, err := plugins.Install(context.Background(), "config", dataDir, &config.File{}, plugins.InstallOptions{
+		AssumeYes: true})
 	testutil.AssertErrCode(t, err, errcode.PluginNameReserved)
 	if !strings.Contains(err.Error(), "config") {
 		t.Errorf("error should name the offending verb, got: %v", err)
@@ -240,8 +246,9 @@ func TestInstall_preserves_executable_bit_on_asset(t *testing.T) {
 	tgt := stageTarget(t)
 	cfg := &config.File{Targets: []config.Target{tgt}}
 	if _, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v0.0.0-test"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v0.0.0-test"},
 	}); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -260,7 +267,8 @@ func TestInstall_preserves_executable_bit_on_asset(t *testing.T) {
 // TC-PLG-008 at the CLI boundary.
 func TestInstall_unknown_name_no_source(t *testing.T) {
 	dataDir := t.TempDir()
-	_, err := plugins.Install(context.Background(), "acme-custom", dataDir, &config.File{}, plugins.InstallOptions{})
+	_, err := plugins.Install(context.Background(), "acme-custom", dataDir, &config.File{}, plugins.InstallOptions{
+		AssumeYes: true})
 	testutil.AssertErrCode(t, err, errcode.PluginUnknown)
 }
 

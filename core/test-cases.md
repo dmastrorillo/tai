@@ -1559,6 +1559,84 @@ Repeating it once per entry would bury the sync's own summary.
 Exercised by `core/internal/cmd/sync_test.go` →
 `TestSync_TCPLG032_auto_install_prints_one_aggregate_hint`.
 
+### TC-PLG-033 — A third-party plugin is not fetched without consent
+
+- **Given** the user runs
+  `tai plugins install acme --source github.com/acme/tai-plugin-acme`
+  with stdin not attached to a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`,
+- **And** no prompt is printed, because nobody could answer it,
+- **And** the error's "what to do" bullets name `--yes`,
+- **And** nothing exists under `<TAI_DATA_DIR>/plugins/acme/`.
+
+The consent gate runs before the fetch, so a refusal leaves no
+downloaded bytes on disk at all.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG033_thirdparty_needs_confirmation`.
+
+### TC-PLG-034 — `--yes` is the non-interactive consent
+
+- **Given** the user runs the same command with `--yes`,
+- **Then** no prompt is printed,
+- **And** the plugin installs normally.
+
+The flag confirms one invocation. Nothing is remembered — the next
+install of the same source asks again.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG034_yes_flag_installs_thirdparty`.
+
+### TC-PLG-035 — A built-in plugin is never gated
+
+- **Given** the user runs `tai plugins install triage`, whose source is
+  a built-in registry entry,
+- **Then** no confirmation is asked for and nothing calls it
+  third-party,
+- **And** the install proceeds directly.
+
+A built-in plugin is tai's own release under another name. Prompting
+for it would teach the user to type `y` without reading, which is
+exactly the habit the prompt exists to avoid.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG035_firstparty_never_prompts` and
+`core/internal/plugins/thirdparty_internal_test.go` →
+`TestConfirmThirdParty_TCPLG035_builtin_is_never_gated`.
+
+### TC-PLG-036 — Update needs the same consent as install
+
+- **Given** `acme` is installed from a third-party source,
+- **When** the user runs `tai plugins update acme` outside a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED` and
+  the installed plugin is untouched.
+- **When** the user re-runs it with `--yes`,
+- **Then** the update lands.
+
+Update re-fetches from the recorded source, so it downloads and runs
+new third-party code exactly as the first install did.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsUpdate_TCPLG036_thirdparty_needs_confirmation`.
+
+### TC-PLG-037 — In a terminal the user is asked, and told what for
+
+- **Given** stdin is a terminal and the source is third-party,
+- **Then** the prompt names the plugin, names the source, states that
+  third-party plugins run arbitrary code on the machine, and ends in
+  `[y/N]`,
+- **And** `y` / `yes` in any case, with surrounding whitespace,
+  proceeds,
+- **And** anything else — `n`, `no`, a bare Enter, an unrecognised
+  word, or EOF — exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`.
+
+Only an explicit yes counts. The default on Enter is no, which is what
+the capital `N` in the prompt promises.
+
+Exercised by `core/internal/plugins/thirdparty_internal_test.go` →
+`TestConfirmThirdParty_TCPLG037_interactive_yes` and
+`TestConfirmThirdParty_TCPLG037_interactive_no`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---

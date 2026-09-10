@@ -69,6 +69,7 @@ func newPluginsInstallCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "source", Usage: "Explicit source: <host>/<org>/<repo>[/<subpath>]"},
 			&cli.StringFlag{Name: "version", Usage: "Release tag to install (default: latest)"},
+			&cli.BoolFlag{Name: "yes", Aliases: []string{"y"}, Usage: "Confirm installing a third-party plugin without prompting"},
 		},
 		Action: runPluginsInstall,
 	}
@@ -85,9 +86,11 @@ func runPluginsInstall(ctx context.Context, c *cli.Command) error {
 	}
 
 	entry, err := plugins.Install(ctx, name, dataDir, cfg, plugins.InstallOptions{
-		Source:  parseSourceFlag(c.String("source")),
-		Version: c.String("version"),
-		Stderr:  c.ErrWriter,
+		Source:    parseSourceFlag(c.String("source")),
+		Version:   c.String("version"),
+		Stderr:    c.ErrWriter,
+		Stdin:     c.Reader,
+		AssumeYes: c.Bool("yes"),
 	})
 	if err != nil {
 		return err
@@ -106,6 +109,7 @@ func newPluginsUpdateCommand() *cli.Command {
 		ArgsUsage: "<name>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "version", Usage: "Release tag to update to (default: latest)"},
+			&cli.BoolFlag{Name: "yes", Aliases: []string{"y"}, Usage: "Confirm updating a third-party plugin without prompting"},
 		},
 		Action: runPluginsUpdate,
 	}
@@ -122,8 +126,10 @@ func runPluginsUpdate(ctx context.Context, c *cli.Command) error {
 	}
 
 	entry, err := plugins.Update(ctx, name, dataDir, cfg, plugins.UpdateOptions{
-		Version: c.String("version"),
-		Stderr:  c.ErrWriter,
+		Version:   c.String("version"),
+		Stderr:    c.ErrWriter,
+		Stdin:     c.Reader,
+		AssumeYes: c.Bool("yes"),
 	})
 	if err != nil {
 		return err
