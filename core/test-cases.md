@@ -1413,9 +1413,41 @@ release tarball can reconstruct. `Remove` already parked and restored
 `state/`; install did not. `state/` is the only preserved path, so a
 stale binary or asset can never survive an update.
 
+An entry named `state` that is not a directory is out of contract —
+the wire contract specifies `state/` — and is replaced with the rest
+of the tarball's namespace rather than preserved.
+
 Exercised by `core/internal/plugins/state_preservation_test.go` →
-`TestInstall_TCPLG024_preserves_plugin_state_across_reinstall` and
-`TestInstall_TCPLG024_first_install_without_state_is_fine`.
+`TestInstall_TCPLG024_preserves_plugin_state_across_reinstall`,
+`TestUpdate_TCPLG024_preserves_plugin_state` (the update verb the
+reported symptom named, asserted directly rather than relying on its
+delegation to install),
+`TestInstall_TCPLG024_first_install_without_state_is_fine` and
+`TestInstall_TCPLG024_non_directory_state_entry_is_not_preserved`.
+
+### TC-PLG-025 — A failed state restore keeps the only surviving copy
+
+- **Given** a plugin with existing runtime state is reinstalled,
+- **And** the incoming tarball ships its own top-level `state/`, which
+  occupies the path the parked copy must return to,
+- **When** the restore cannot complete,
+- **Then** install fails rather than reporting success,
+- **And** the error's help names the directory holding the parked
+  copy,
+- **And** that copy is still on disk with its contents unchanged.
+
+This is the last line of defence: once the state has been moved aside
+and cannot be put back, the parked directory is the only copy in
+existence, so it must never be cleaned up and the user must be told
+where it is.
+
+The trigger needs no fault injection — `RequireAssetsDir` and
+`ValidateAssetNamespace` inspect only `assets/`, so a tarball may ship
+a top-level `state/`, and the restore rename then lands on a non-empty
+directory.
+
+Exercised by `core/internal/plugins/state_preservation_test.go` →
+`TestInstall_TCPLG025_failed_restore_keeps_the_parked_copy`.
 
 <!-- Add new PLG cases here as their proposals land. -->
 
