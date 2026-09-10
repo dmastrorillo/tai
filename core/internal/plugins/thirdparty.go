@@ -12,11 +12,10 @@
 package plugins
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"strings"
 
+	"github.com/dmastrorillo/tai/pkg/cliout"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -54,9 +53,14 @@ func confirmThirdParty(name string, src Source, stdin io.Reader, stderr io.Write
 		"Installing third-party plugin %s from %s. Third-party plugins run arbitrary code on your machine. Continue? [y/N] ",
 		name, sourceLabel(src))
 
-	line, _ := bufio.NewReader(stdin).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
+	agreed, err := cliout.ConfirmYesNo(stdin)
+	if err != nil {
+		// A gate that cannot read its answer denies, and says why.
+		return errcode.Wrapf(errcode.PluginThirdpartyUnconfirmed, err,
+			"could not read your answer for %q: %s", name, err).
+			WithHelp("re-run with `--yes` to confirm you trust this source")
+	}
+	if agreed {
 		return nil
 	}
 	return unconfirmedError(name, src)

@@ -15,14 +15,13 @@
 package sync
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/dmastrorillo/tai/core/internal/plugins"
+	"github.com/dmastrorillo/tai/pkg/cliout"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -69,10 +68,14 @@ func confirmThirdPartyPlugins(entries []pluginsYAMLEntry, raw []byte, repoURL, d
 		_, _ = fmt.Fprintf(opts.Stderr,
 			"Source repo plugins.yml lists third-party plugins:\n%s\nThird-party plugins run arbitrary code on your machine. Continue? [y/N] ",
 			"  "+strings.Join(sources, "\n  "))
-		line, _ := bufio.NewReader(ensureStdin(opts.Stdin)).ReadString('\n')
-		switch strings.ToLower(strings.TrimSpace(line)) {
-		case "y", "yes":
-		default:
+		agreed, err := cliout.ConfirmYesNo(opts.Stdin)
+		if err != nil {
+			// A gate that cannot read its answer denies, and says why.
+			return false, errcode.Wrapf(errcode.PluginThirdpartyUnconfirmed, err,
+				"could not read your answer: %s", err).
+				WithHelp("re-run with `--trust-third-party` to confirm you trust these sources")
+		}
+		if !agreed {
 			return false, unconfirmedYAMLError(sources)
 		}
 	}
@@ -122,13 +125,4 @@ func unconfirmedYAMLError(sources []string) error {
 			"or run `tai sync` in a terminal to be asked interactively",
 			"or remove the entries from the source repo's plugins.yml",
 		)
-}
-
-// ensureStdin returns a non-nil reader so the prompt path never
-// dereferences a nil Stdin.
-func ensureStdin(r io.Reader) io.Reader {
-	if r == nil {
-		return strings.NewReader("")
-	}
-	return r
 }
