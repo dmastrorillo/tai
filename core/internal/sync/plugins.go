@@ -110,6 +110,7 @@ func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, c
 	if err != nil {
 		return err
 	}
+	installed := []string{}
 	for _, e := range entries {
 		if _, idx := state.Find(e.Name); idx >= 0 {
 			continue
@@ -122,6 +123,7 @@ func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, c
 		if installErr != nil {
 			return installErr
 		}
+		installed = append(installed, e.Name)
 		// Reload after each install so the next iteration sees a
 		// freshly-installed plugin (avoids re-installing if the
 		// YAML file references the same name twice).
@@ -129,6 +131,13 @@ func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, c
 		if err != nil {
 			return err
 		}
+	}
+	// One summary line for the whole batch. The per-plugin hint the
+	// install verb prints belongs to a user who asked for that one
+	// plugin; repeating it here would bury the sync's own output
+	// under a paragraph nobody asked for.
+	if stderr != nil {
+		_, _ = io.WriteString(stderr, plugins.AggregateInstallHint(installed))
 	}
 	return nil
 }

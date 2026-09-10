@@ -742,6 +742,48 @@ func TestSync_TCPLG015_pluginsyml_auto_install(t *testing.T) {
 	}
 }
 
+// TestSync_TCPLG032_auto_install_prints_one_aggregate_hint exercises
+// TC-PLG-032: several plugins installing in one sync produce a single
+// summary line, not one hint each.
+func TestSync_TCPLG032_auto_install_prints_one_aggregate_hint(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml": `plugins:
+  - name: triage
+  - name: acme
+    source: github.com/acme/tai-plugin-acme
+`,
+	})
+	syncEnv(t, url)
+
+	syncpkg.AutoInstallForTesting(t, func(_ context.Context, name, dataDir string, _ *config.File, _ plugins.InstallOptions) (*plugins.Entry, error) {
+		state, _ := plugins.LoadState(dataDir)
+		entry := plugins.Entry{
+			Name:        name,
+			Source:      plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+			Version:     "v0.0.0-test",
+			InstalledAt: time.Now().UTC(),
+		}
+		state.Upsert(entry)
+		_ = plugins.SaveState(dataDir, state)
+		return &entry, nil
+	})
+
+	r := runRoot(t, "sync", "-y")
+	if r.err != nil {
+		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+
+	want := "→ 2 plugin(s) installed — run `tai <name> help` for any of: triage, acme.\n"
+	if !strings.Contains(r.stderr, want) {
+		t.Errorf("stderr must carry the aggregate hint %q, got %q", want, r.stderr)
+	}
+	if n := strings.Count(r.stderr, "to learn how to use"); n != 0 {
+		t.Errorf("per-plugin hints must not fire during auto-install, found %d", n)
+	}
+}
+
 // TestSync_TCPLG016_pluginsyml_removal_is_noop exercises TC-PLG-016:
 // the additive semantics — a previously-installed plugin remains
 // installed when the source repo's plugins.yml no longer lists it.

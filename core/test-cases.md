@@ -1501,6 +1501,64 @@ plugin name is passed through verbatim (TC-PLG-023).
 Exercised by `core/internal/cmd/plugin_help_test.go` →
 `TestHelp_TCPLG028_help_routing`.
 
+### TC-PLG-029 — A successful install says how to find out what the plugin does
+
+- **Given** the user runs `tai plugins install triage` and it
+  succeeds,
+- **Then** stderr carries the line
+  `→ Run \`tai triage help\` to learn how to use triage.`,
+- **And** the line names no specific AI tool,
+- **And** the line is on stderr, so it cannot corrupt the summary a
+  script parses from stdout.
+
+The host cannot describe a plugin's verbs — they are the plugin's own
+— so the hint points at the one command that can.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsInstall_TCPLG029_prints_the_onboarding_hint`.
+
+### TC-PLG-030 — A failed install or update prints no hint
+
+- **Given** the fetch fails and `tai plugins install triage` exits
+  non-zero,
+- **Then** no onboarding hint is printed.
+- **Given** the fetch fails during `tai plugins update triage`,
+- **Then** no onboarding hint is printed, and the previously installed
+  plugin is untouched.
+
+Nothing was installed, so there is nothing new to learn how to use.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsInstall_TCPLG030_failed_install_prints_no_hint` and
+`TestPluginsUpdate_TCPLG030_failed_update_prints_no_hint`.
+
+### TC-PLG-031 — A successful update prints the same hint
+
+- **Given** the user runs `tai plugins update triage` and it succeeds,
+- **Then** stderr carries
+  `→ Run \`tai triage help\` to learn how to use triage.`
+
+An update may add or rename verbs, and the plugin's own help is where
+that surfaces.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsUpdate_TCPLG031_prints_the_onboarding_hint`.
+
+### TC-PLG-032 — Auto-install during sync prints one aggregate hint
+
+- **Given** the source repo's `plugins.yml` lists `triage` and `acme`
+  and neither is installed,
+- **When** the user runs `tai sync`,
+- **Then** stderr carries exactly one line
+  `→ 2 plugin(s) installed — run \`tai <name> help\` for any of: triage, acme.`,
+- **And** the per-plugin hint from TC-PLG-029 does not appear.
+
+The per-plugin hint belongs to a user who asked for that one plugin.
+Repeating it once per entry would bury the sync's own summary.
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG032_auto_install_prints_one_aggregate_hint`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---

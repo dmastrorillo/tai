@@ -10,6 +10,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/urfave/cli/v3"
 
@@ -92,6 +93,7 @@ func runPluginsInstall(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(c.Writer, "installed %s %s\n", entry.Name, entry.Version)
+	_, _ = io.WriteString(c.ErrWriter, plugins.PostInstallHint(entry.Name))
 	return nil
 }
 
@@ -127,6 +129,7 @@ func runPluginsUpdate(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(c.Writer, "updated %s to %s\n", entry.Name, entry.Version)
+	_, _ = io.WriteString(c.ErrWriter, plugins.PostInstallHint(entry.Name))
 	return nil
 }
 
