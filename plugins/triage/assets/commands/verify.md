@@ -14,7 +14,7 @@ instructions for one invocation of `/tai-triage:verify`.
 Your job: walk every `accepted` review comment in a scope, gather
 concrete evidence the fix is in place, surface that evidence to the
 user, and — only on explicit confirmation — mark the comment
-`completed` via `tai complete`. Verify is the post-fix counterpart to
+`completed` via `tai triage complete`. Verify is the post-fix counterpart to
 `/tai-triage:triage`'s investigation phase: there it auto-completed before
 asking; here it MUST always ask.
 
@@ -47,7 +47,7 @@ For `--branch <name>`: pass the branch name verbatim.
 
 For `stack`: see section 9.
 
-**Scope resolution.** Your first action is `tai status [--pr X |
+**Scope resolution.** Your first action is `tai triage status [--pr X |
 --branch Y]` (with whatever the user supplied). You MUST NOT implement
 your own scope detection. Handle the failure modes identically to
 `/tai-triage:triage`:
@@ -58,10 +58,10 @@ your own scope detection. Handle the failure modes identically to
 - **`TRIAGE_AMBIGUOUS_SCOPE`** (exit `2`): surface the
   disambiguation hint from stderr, ask the user to re-invoke with the
   explicit flag, then STOP.
-- **No accepted comments in scope**: when `tai list --status accepted`
+- **No accepted comments in scope**: when `tai triage list --status accepted`
   (with the resolved scope flags) returns zero rows, announce
   `No accepted comments to verify in this scope.` and exit without
-  entering the loop. The status counts from `tai status` are enough
+  entering the loop. The status counts from `tai triage status` are enough
   context — do NOT emit the section-8 recap.
 
 When the scope resolves AND there is at least one accepted comment,
@@ -84,7 +84,7 @@ in memory — every accepted comment will be checked against it.
 Pull the accepted comments in scope:
 
 ```sh
-tai show --all --status accepted [--pr <N>]
+tai triage show --all --status accepted [--pr <N>]
 ```
 
 For each accepted comment, look in the PR diff at the comment's
@@ -206,7 +206,7 @@ confidence label:
 Parse the user's reply:
 
 - `y` / `yes` / `mark it` / Enter at HIGH → call
-  `tai complete <id> --resolution "<one-line evidence summary>"`
+  `tai triage complete <id> --resolution "<one-line evidence summary>"`
   (pass the same `--pr <N>` / `--branch <name>` scope flags that
   section 1 resolved, so the comment is looked up under the right
   scope). The resolution should describe what evidence was found, not
@@ -215,7 +215,7 @@ Parse the user's reply:
   Move on.
 - `show me again` / `re-show` / `show it again` → see section 7.
 
-You MUST NOT call `tai complete` on a NONE-confidence comment without
+You MUST NOT call `tai triage complete` on a NONE-confidence comment without
 the user explicitly typing the completion. The conservative bias is:
 weak evidence stays in the queue.
 
@@ -224,7 +224,7 @@ weak evidence stays in the queue.
 When the user replies "show me again" (or equivalent) to a verify
 prompt:
 
-1. Run `tai show <id>` (passing the same scope flags that section 1
+1. Run `tai triage show <id>` (passing the same scope flags that section 1
    resolved) and surface the full comment markdown verbatim.
 2. Re-emit the SAME evidence summary block from before — same label,
    same bullets. You MUST NOT re-gather evidence on a show-again loop
@@ -259,28 +259,28 @@ Still-accepted work queue (severity order):
   [maj]  3: <title> (<file>:<lines>)
   …
 
-Ready to prune the completed comments? Run `tai forget <scope-flag> --status completed --yes`.
+Ready to prune the completed comments? Run `tai triage forget <scope-flag> --status completed --yes`.
 ```
 
 - `<scope-label>` is `PR #142` for PR scope, `branch feat/x` for
   branch scope.
 - `<M>` is the residual queue size — the number of still-accepted
   comments AFTER this run.
-- Source the still-accepted rows from `tai list --status accepted
+- Source the still-accepted rows from `tai triage list --status accepted
   <scope-flag>` (the same surface used at the loop start, re-run
   after the loop finishes). Each row's `<id>` is the integer
-  position number `tai list` prints in its `ID` column — do NOT use
-  `B<key>.<member>` notation; that is not a `tai list` output
+  position number `tai triage list` prints in its `ID` column — do NOT use
+  `B<key>.<member>` notation; that is not a `tai triage list` output
   format. (The `BATCH` column shows the batch key on its own line
   for members of a batch; the comment's primary identifier remains
   the integer position.)
 - The severity-abbreviation prefix is one of `crit | maj | min | nit`.
 - `<scope-flag>` MUST be `--pr <N>` for a PR-scope run or
-  `--branch <name>` for a branch-scope run. `tai forget` rejects
+  `--branch <name>` for a branch-scope run. `tai triage forget` rejects
   invocations without a scope selector — `--status` alone is a
   filter, not a selector.
 - The final line MUST contain the scope-qualified
-  `tai forget <scope-flag> --status completed --yes` so AI consumers
+  `tai triage forget <scope-flag> --status completed --yes` so AI consumers
   can pick it up directly. Emit this line even when zero comments
   were marked completed in this run (the user may have completed
   some in a prior session); the suggestion is always safe.
@@ -323,12 +323,12 @@ current staccato stack (or `gh`-derived stack), ancestor-first.
      …
 
    Ready to prune across the stack? Run, per PR:
-     tai forget --pr <N1> --status completed --yes
-     tai forget --pr <N2> --status completed --yes
+     tai triage forget --pr <N1> --status completed --yes
+     tai triage forget --pr <N2> --status completed --yes
      …
    ```
 
-   `tai forget` requires a primary scope selector, so the
+   `tai triage forget` requires a primary scope selector, so the
    stack-level aggregate lists one `--pr <N>` invocation per PR
    rather than a single multi-PR command.
 
@@ -340,7 +340,7 @@ it, then continue to the next PR.
 ## 10. Guardrails — things you MUST NOT do
 
 - Do NOT bypass the CLI by writing to the SQLite database directly.
-  Every state change goes through `tai complete`. There is no other
+  Every state change goes through `tai triage complete`. There is no other
   state-mutating call in this command.
 - Do NOT auto-complete a comment without user confirmation, even on
   HIGH-confidence evidence. The cost of a wrong auto-completion
@@ -361,11 +361,11 @@ it, then continue to the next PR.
   NOT emit it when the loop was bypassed due to an empty accepted
   queue (use the one-line announcement from section 1 instead).
 - Do NOT suppress the
-  `tai forget <scope-flag> --status completed --yes` line from the
+  `tai triage forget <scope-flag> --status completed --yes` line from the
   recap even when zero comments were marked completed in this run.
   The suggestion is always safe (the user may have completed some in
   a prior session) and AI consumers need a stable anchor to pick up.
-- Do NOT emit an unscoped `tai forget --status completed --yes`. The
+- Do NOT emit an unscoped `tai triage forget --status completed --yes`. The
   CLI rejects invocations without a primary selector
   (`--pr` / `--branch` / `--repo` / `--comment` / `--batch`); always
   interpolate the resolved scope's flag.

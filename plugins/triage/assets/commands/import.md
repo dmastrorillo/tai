@@ -13,7 +13,7 @@ for one invocation of `/tai-triage:import`.
 
 Your job: turn an outside-world review (GitHub PR comments, an AI
 review, a teammate's pasted notes, a linter report) into a strict JSON
-payload, then pipe it to `tai import -`. The CLI validates the payload
+payload, then pipe it to `tai triage import -`. The CLI validates the payload
 and persists it to the user's local SQLite database. The CLI does not
 talk to GitHub, does not read files, and does not enrich anything — all
 of that is YOUR job.
@@ -59,10 +59,10 @@ Fallback backend: the `gh` CLI. For a PR `<N>` in `<owner>/<name>`:
 If neither backend is available (no `gh` on PATH, no staccato MCP
 connected), STOP. Tell the user which to install — `gh auth login` for
 GitHub CLI, or "connect the staccato MCP server" — and exit without
-invoking `tai import`.
+invoking `tai triage import`.
 
 For stack mode, repeat the per-PR flow for each PR ancestor-first; each
-PR becomes a separate `tai import -` invocation. Stack mode is the
+PR becomes a separate `tai triage import -` invocation. Stack mode is the
 slash command's loop; the CLI never sees a multi-PR payload.
 
 ## 3. Manual collection mode (branch scope)
@@ -197,14 +197,14 @@ For a branch scope, swap the `target` body for:
 
 ## 8. Invocation
 
-Pipe the assembled JSON to `tai import -` via shell redirection. Use a
+Pipe the assembled JSON to `tai triage import -` via shell redirection. Use a
 heredoc or temp file — do NOT pass the payload as an argument (argv
 limits would bite on large reviews).
 
 Example (single PR):
 
 ```sh
-cat <<'EOF' | tai import -
+cat <<'EOF' | tai triage import -
 { "repo": "acme/app", ... }
 EOF
 ```
@@ -215,7 +215,7 @@ frozen.
 
 ## 9. Error handling
 
-If `tai import` exits non-zero:
+If `tai triage import` exits non-zero:
 
 - `IMPORT_INVALID_JSON` — your JSON is malformed. Look at the stderr
   message, fix the payload, and re-run.
@@ -238,5 +238,5 @@ If `tai import` exits non-zero:
 - Do NOT call `gh` or `st_reviews` in manual (branch) mode.
 - Do NOT skip enrichment fields and hope the CLI accepts them — every
   enrichment field is required.
-- Do NOT mix multiple PRs into one `tai import` invocation; stack mode
+- Do NOT mix multiple PRs into one `tai triage import` invocation; stack mode
   loops once per PR.

@@ -387,16 +387,25 @@ into every configured target. The host copies bytes without reading
 them, so nothing else in the pipeline can catch a file that describes
 itself wrongly.
 
-### TC-AST-001 — bundled commands address themselves by their installed name
+### TC-AST-001 — bundled commands name themselves and their CLI correctly
 
 - **Given** the markdown files under `plugins/triage/assets/commands/`,
 - **When** their contents are scanned,
-- **Then** no file contains a `/tai:<verb>` reference.
+- **Then** no file contains a `/tai:<verb>` slash-command reference,
+- **And** no file contains a bare `tai <triage-verb>` CLI invocation
+  (`status`, `list`, `show`, `accept`, `dismiss`, `complete`,
+  `forget`, `import`).
 
-The host routes `assets/commands/*.md` into
-`<target>/commands/tai-triage/`, which makes them reachable as
-`/tai-triage:<verb>`. A file telling the reader to run `/tai:triage`
-sends them to a command that does not exist.
+Two independent forms of the same drift. The host routes
+`assets/commands/*.md` into `<target>/commands/tai-triage/`, which
+makes them reachable as `/tai-triage:<verb>` — a file telling the
+reader to run `/tai:triage` names a command that does not exist. The
+triage verbs likewise left the core binary when triage became a
+plugin, so `tai status` now fails and only `tai triage status` runs.
+
+Both are checked because they drifted separately: an earlier pass
+fixed every slash-command reference and left all 58 CLI invocations
+behind, which a check for only the first form could not see.
 
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestBundledCommands_TCAST001_use_the_plugin_namespace`.
@@ -786,6 +795,54 @@ Exercised by `TestImport_TCIMP082_empty_payload`.
 Exercised by `plugins/triage/internal/import/import_test.go` →
 `TestImport_TCIMP083_empty_payload_succeeds`. (The CLI-boundary half
 is TC-IMP-082.)
+
+---
+
+### TC-IMP-084 — Findings sharing one review body each get their own ref
+
+- **Given** a payload whose comments carry the same
+  `(kind, id)` external ref — the normal shape when several findings
+  are extracted from a single GitHub review body, which is one object
+  with one id,
+- **When** the payload is imported,
+- **Then** every finding is inserted as its own comment,
+- **And** each ref is rewritten to `<id>#<digest>`, distinct per
+  finding,
+- **And** a ref claimed by exactly one comment is left untouched.
+
+Regression case. The importer resolves a ref to an existing row, so
+before this the second finding overwrote the first and the third
+overwrote the second: four findings imported as "1 inserted, 3
+updated" against an empty scope, three of them destroyed with exit 0.
+
+The digest covers title, file and lines — what identifies a finding
+rather than how it is worded — so a re-import of the same payload
+produces byte-identical refs and updates in place, and nothing derives
+from position, so a re-extraction that reorders findings still
+matches.
+
+Exercised by `plugins/triage/internal/import/refs_test.go` →
+`TestDisambiguateRefs_suffixes_shared_refs`,
+`TestDisambiguateRefs_leaves_unique_refs_untouched` and
+`TestDisambiguateRefs_is_deterministic_and_order_independent`.
+
+### TC-IMP-085 — Two identical comments sharing a ref are rejected
+
+- **Given** two comments in one payload carry the same external ref
+  AND the same title, file and lines,
+- **When** the payload is imported,
+- **Then** the import fails with `IMPORT_DUPLICATE_REFS`,
+- **And** the message names each colliding `comments[i]` and the
+  shared title,
+- **And** the help bullets say how to resolve it either way,
+- **And** nothing is written to the database.
+
+No derived key can separate two findings identical in the fields that
+identify one, so the payload's author has to. The check runs before
+the transaction opens.
+
+Exercised by `plugins/triage/internal/import/refs_test.go` →
+`TestDisambiguateRefs_rejects_true_duplicates_with_instructions`.
 
 ---
 
@@ -1281,6 +1338,33 @@ the env-var and --yes paths are covered by TC-TRG-094 / TC-TRG-092. The
 interactive `y`/`Y` branch is exercised only manually. -->
 
 ---
+
+### TC-TRG-105 — Comment positions are stable across status filters
+
+- **Given** a scope holding several comments, at least one of them in
+  a non-pending status,
+- **When** the user runs `tai triage list` and
+  `tai triage list --status <state>` over that scope,
+- **Then** each comment's `ID` is the same in both listings,
+- **And** feeding an ID from the filtered listing to
+  `tai triage show <id>` resolves to that same comment.
+
+Regression case. The position comes from a `ROW_NUMBER()` window. With
+the status filter in the same query it was evaluated first, so the
+window numbered only the surviving rows and a filtered listing
+disagreed with `show`, which never filters. The mismatch misdirected
+rather than erroring: an ID read from `list --status accepted`
+resolved to a different comment, including one that had just been
+dismissed. Every consumer that reads an ID from a filtered listing and
+feeds it to `show`, `accept`, `dismiss` or `forget` acted on the wrong
+row.
+
+The window is now computed in a subquery and the filter applied to its
+result, so a position belongs to the comment rather than to the query
+that listed it.
+
+Exercised by `plugins/triage/internal/cmd/list_position_test.go` →
+`TestList_TCTRG105_positions_are_stable_across_status_filters`.
 
 ### TC-TRG-106 — The plugin's own help text names verbs the way they run
 
