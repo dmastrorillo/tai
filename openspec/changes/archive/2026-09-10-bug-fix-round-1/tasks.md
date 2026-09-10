@@ -1,9 +1,9 @@
 ## 1. BDD cases — add TC-IDs to test-cases.md before any code
 
-- [ ] 1.1 In `core/test-cases.md`, add a new category if needed and pin TC-IDs for the following scenarios: background git poll silent-fail on missing creds (HTTPS prompt suppressed), `PLUGINS:` block rendering in `tai --help` with and without installed plugins, `tai <plugin> help` forwards to plugin subprocess, `tai help <plugin>` ignores the plugin arg, first-run hint + marker file lifecycle, post-install hint emission/suppression, third-party install prompt (interactive yes/no, `--yes` bypass, non-TTY failure), `tai sync` third-party trust cache (skip/prompt/match/mismatch/`--trust-third-party`), pseudo-version → `dev`, clean tag passthrough, scaffolded README backlink + intro + no `docs.tai.sh`.
+- [x] 1.1 In `core/test-cases.md`, add a new category if needed and pin TC-IDs for the following scenarios: background git poll silent-fail on missing creds (HTTPS prompt suppressed), `PLUGINS:` block rendering in `tai --help` with and without installed plugins, `tai <plugin> help` forwards to plugin subprocess, `tai help <plugin>` ignores the plugin arg, first-run hint + marker file lifecycle, post-install hint emission/suppression, third-party install prompt (interactive yes/no, `--yes` bypass, non-TTY failure), `tai sync` third-party trust cache (skip/prompt/match/mismatch/`--trust-third-party`), pseudo-version → `dev`, clean tag passthrough, scaffolded README backlink + intro + no `docs.tai.sh`.
 - [x] 1.2 In `pkg/test-cases.md`, add TC-IDs pinning the new wire-contract verb `<plugin> --help-summary` (success, non-zero, empty stdout, >1 KB) and the `PLUGIN_ASSET_MISSING` validation.
 - [x] 1.3 In `plugins/triage/test-cases.md`, retire the TC-IDs for `tai triage install` and `tai triage uninstall` with tombstone comments (`<!-- TC-... retired YYYY-MM-DD: triage no longer ships its own installer; assets routed via host plugin-host SyncAssetsToTargets per bug-fix-round-1 -->`). Add new TC-IDs for: `triage --help-summary` returns the documented description string; `assets/commands/{import,triage,verify}.md` reference themselves as `/tai-triage:...` (content assertion).
-- [ ] 1.4 Cross-check every new TC-ID drives at the CLI boundary per CLAUDE.md's "north star" rule. A TC about user-visible behaviour MUST get a test that captures stdout/stderr/exit, not just a unit assertion on a helper.
+- [x] 1.4 Cross-check every new TC-ID drives at the CLI boundary per CLAUDE.md's "north star" rule. A TC about user-visible behaviour MUST get a test that captures stdout/stderr/exit, not just a unit assertion on a helper.
 
 ## 2. pkg/ framework changes (Bug 6, Bug 3 — error codes)
 
@@ -74,16 +74,16 @@
 
 ## 11. CLAUDE.md and CONTEXT.md updates
 
-- [ ] 11.1 In `CLAUDE.md`, under the Plugin host section, add a paragraph stating that plugins MUST place all target-bound assets via the tarball's `assets/` directory and MUST NOT write directly to target dirs from their own subcommands. Note the mandatory empty-assets requirement.
-- [ ] 11.2 In `CLAUDE.md`, under Conventions, add a line referencing the pseudo-version-detection rule, pointing readers at `core/internal/version` for the regex.
-- [ ] 11.3 Confirm `CONTEXT.md` already has the `First-party plugin` and `Third-party plugin` glossary entries (added in a prior commit on this branch); no additional CONTEXT.md edits required.
+- [x] 11.1 In `CLAUDE.md`, under the Plugin host section, add a paragraph stating that plugins MUST place all target-bound assets via the tarball's `assets/` directory and MUST NOT write directly to target dirs from their own subcommands. Note the mandatory empty-assets requirement.
+- [x] 11.2 In `CLAUDE.md`, under Conventions, add a line referencing the pseudo-version-detection rule, pointing readers at `core/internal/version` for the regex.
+- [x] 11.3 Confirm `CONTEXT.md` already has the `First-party plugin` and `Third-party plugin` glossary entries (added in a prior commit on this branch); no additional CONTEXT.md edits required.
 
 ## 12. Validation, archive
 
-- [ ] 12.1 Run `go test ./...`, `go vet ./...`, `gofmt -l .`. All clean.
-- [ ] 12.2 Run `go test -race ./...`. Clean.
-- [ ] 12.3 Run `golangci-lint run`. Zero issues against the configured baseline.
-- [ ] 12.4 Run `make release-snapshot` and verify both archives extract cleanly. Confirm `dist/triage/tai-plugin-triage-*.tar.gz` contains the `assets/` tree.
-- [ ] 12.5 Manual smoke: clean data dir, `go install ./core/cmd/tai` (symlinked local), confirm `tai --version` prints `dev`. Run any verb, confirm first-run hint fires and marker is written. Run again, confirm hint is suppressed. `tai plugins install triage` (after triage is also re-installed at the same dev cycle), confirm post-install hint, confirm files land at `<target>/commands/tai-triage/` and not at `<target>/commands/tai/`.
-- [ ] 12.6 Update the affected `test-cases.md` files (core, pkg, triage) so the retired/added TC-IDs reflect the final landed state. Tombstone any IDs that no longer correspond to running tests.
-- [ ] 12.7 Move the proposal to `openspec/changes/archive/<YYYY-MM-DD>-bug-fix-round-1/` and merge the spec deltas into the live `openspec/specs/<capability>/spec.md` files (per the existing archive flow in this repo). Bundle the archive into the same commit as the implementation per [[feedback-openspec-commit-flow]].
+- [x] 12.1 Run `go test ./...`, `go vet ./...`, `gofmt -l .`. All clean.
+- [x] 12.2 Run `go test -race ./...`. Clean.
+- [x] 12.3 Run `golangci-lint run`. Zero issues against the configured baseline.
+- [x] 12.4 Run `make release-snapshot` and verify both archives extract cleanly. Confirm `dist/triage/tai-plugin-triage-*.tar.gz` contains the `assets/` tree.
+- [x] 12.5 Manual smoke: clean data dir, `go install ./core/cmd/tai` (symlinked local), confirm `tai --version` prints `dev`. Run any verb, confirm first-run hint fires and marker is written. Run again, confirm hint is suppressed. `tai plugins install triage` (after triage is also re-installed at the same dev cycle), confirm post-install hint, confirm files land at `<target>/commands/tai-triage/` and not at `<target>/commands/tai/`.
+- [x] 12.6 Update the affected `test-cases.md` files (core, pkg, triage) so the retired/added TC-IDs reflect the final landed state. Tombstone any IDs that no longer correspond to running tests.
+- [x] 12.7 Move the proposal to `openspec/changes/archive/<YYYY-MM-DD>-bug-fix-round-1/` and merge the spec deltas into the live `openspec/specs/<capability>/spec.md` files (per the existing archive flow in this repo). Bundle the archive into the same commit as the implementation per [[feedback-openspec-commit-flow]].
