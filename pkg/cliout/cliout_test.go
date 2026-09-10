@@ -114,6 +114,7 @@ func TestWriteError_TCERR004_footer_regex_invariant(t *testing.T) {
 		errcode.ImportInvalidJSON,
 		errcode.ImportSchemaInvalid,
 		errcode.ImportAmbiguousRefs,
+		errcode.ImportDuplicateRefs,
 		errcode.TriageNoScope,
 		errcode.TriageAmbiguousScope,
 		errcode.TriageNotFound,

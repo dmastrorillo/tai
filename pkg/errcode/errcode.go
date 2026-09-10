@@ -228,6 +228,13 @@ const (
 	// schema rules.
 	ImportSchemaInvalid Code = "IMPORT_SCHEMA_INVALID"
 
+	// ImportDuplicateRefs: two comments in one payload share an
+	// external ref AND are identical in the fields that identify a
+	// finding, so no derived key can tell them apart. Distinct from
+	// ImportAmbiguousRefs, which is about refs pointing at two
+	// different rows already in the database.
+	ImportDuplicateRefs Code = "IMPORT_DUPLICATE_REFS"
+
 	// ImportAmbiguousRefs: a comment's external_refs resolve to more
 	// than one existing comment row.
 	ImportAmbiguousRefs Code = "IMPORT_AMBIGUOUS_REFS"
@@ -307,7 +314,7 @@ func (c Code) ExitCode() int {
 		return exitcode.Internal
 	case ImportInvalidJSON:
 		return exitcode.Usage
-	case ImportSchemaInvalid, ImportAmbiguousRefs:
+	case ImportSchemaInvalid, ImportAmbiguousRefs, ImportDuplicateRefs:
 		return exitcode.Data
 	case TriageNoScope, TriageAmbiguousScope, TriageNotFound:
 		return exitcode.Precondition

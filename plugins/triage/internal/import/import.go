@@ -71,11 +71,23 @@ func (e *AmbiguousRefsError) Error() string {
 // commits. On any failure the transaction is rolled back and a
 // *errcode.Error (or an *AmbiguousRefsError) is returned.
 //
+// External refs are disambiguated first (see DisambiguateRefs), so a
+// review body holding several findings yields one ref per finding.
+//
 // The payload is assumed to have already passed payload.Validate. We
 // re-check a couple of structural invariants (e.g. target.kind matches
 // its body) defensively, but enrichment-field presence is the spec
 // validator's job.
 func Import(ctx context.Context, db *storage.DB, p pkgpayload.Payload) (Summary, error) {
+	// Several findings extracted from one review body all arrive
+	// carrying that body's single GitHub id. Give each its own ref
+	// before anything is written, or they resolve to one another and
+	// overwrite in turn. Runs outside the transaction because it
+	// touches only the payload and must fail before any DB change.
+	if err := DisambiguateRefs(p.Comments); err != nil {
+		return Summary{}, err
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Summary{}, errcode.Wrap(errcode.InternalError, err,
