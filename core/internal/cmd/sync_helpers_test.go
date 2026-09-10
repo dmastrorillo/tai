@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/creack/pty"
+
 	"github.com/dmastrorillo/tai/core/internal/cmd"
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/notices"
@@ -111,5 +113,59 @@ func pollDirect(t *testing.T, _ /*url*/, dataDir string) {
 	// assert on the state file as the user-observable contract.
 	if pollErr := sync.Poll(context.Background(), cfg, dataDir); pollErr != nil {
 		t.Logf("sync.Poll returned (non-fatal): %v", pollErr)
+	}
+}
+
+// runRootTTY drives the assembled root command with a real terminal on
+// stdin and `answer` already typed into it.
+//
+// It exists because the production interactive check is
+// cliout.IsTTYReader(stdin), and under `go test` no ordinary reader —
+// not a strings.Reader, not even os.Stdin — is a terminal. Without a
+// pty, every test takes the non-interactive branch and the prompt
+// path is unreachable.
+//
+// Not tied to a TC-ID — test helper.
+func runRootTTY(t *testing.T, answer string, argv ...string) runResult {
+	t.Helper()
+
+	primary, tty, err := pty.Open()
+	if err != nil {
+		t.Skipf("no pty available on this platform: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = tty.Close()
+		_ = primary.Close()
+	})
+	if _, err := primary.WriteString(answer); err != nil {
+		t.Fatalf("write answer to pty: %v", err)
+	}
+
+	dataDir, dataDirErr := datadir.Resolve()
+	if dataDirErr == nil {
+		markInstallationEstablished(t, dataDir)
+	}
+
+	firstRunOwed := false
+	r := clitest.RunWith(t, cmd.NewRoot(), clitest.Options{
+		StdinReader: tty,
+		PreRun: func(stderr io.Writer) {
+			if dataDirErr == nil {
+				firstRunOwed = notices.BeforeCommand(stderr, dataDir, time.Now(),
+					append([]string{"tai"}, argv...))
+			}
+		},
+		PostRun: func(stderr io.Writer) {
+			if dataDirErr == nil {
+				notices.AfterCommand(stderr, dataDir, time.Now(), firstRunOwed)
+			}
+		},
+	}, argv...)
+
+	return runResult{
+		stdout:   r.Stdout,
+		stderr:   r.Stderr,
+		exitCode: r.ExitCode,
+		err:      r.Err,
 	}
 }

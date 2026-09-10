@@ -371,6 +371,77 @@ channel discipline with their own TC-CLI-* cases.
 Exercised by `core/internal/cmd/config_test.go` →
 `TestConfigTargetList_TCCLI003_channel_discipline`.
 
+### TC-CLI-004 — Only an explicit yes is a yes
+
+- **Given** a prompt has been printed and an answer is on stdin,
+- **When** `cliout.ConfirmYesNo(stdin)` reads it,
+- **Then** `y` or `yes` — any case, surrounding whitespace ignored —
+  returns `true`,
+- **And** everything else returns `false`, including `no`, an
+  unrecognised word, a bare newline, and an empty stdin.
+
+The default is the one the `[y/N]` in every prompt promises. An absent
+answer is never upgraded into agreement.
+
+One parser, one place: every consent surface reads its answer through
+this function, so a change to what counts as a yes lands once rather
+than once per call site.
+
+Exercised by `pkg/cliout/prompt_test.go` →
+`TestConfirmYesNo_TCCLI004_accepts_yes` and
+`TestConfirmYesNo_TCCLI004_everything_else_is_no`.
+
+### TC-CLI-005 — A stdin that cannot be read is not a yes
+
+- **Given** reading stdin fails,
+- **When** `cliout.ConfirmYesNo(stdin)` is called,
+- **Then** the returned bool is `false`,
+- **And** the returned error wraps the cause.
+
+Two separate obligations: a gate must deny when it cannot hear the
+answer, and the caller must still be able to say why it denied. EOF is
+not such a failure — it is stdin reporting there is no more to read,
+and any bytes before it are a valid answer.
+
+Exercised by `pkg/cliout/prompt_test.go` →
+`TestConfirmYesNo_TCCLI005_read_failure_denies_and_reports`.
+
+### TC-CLI-006 — Reader-side TTY detection treats a non-`*os.File` as non-interactive
+
+- **Given** a reader that is not an `*os.File` (a `*bytes.Buffer` or
+  `*strings.Reader`, as every test in this codebase uses for stdin),
+- **When** `cliout.IsTTYReader(r)` is called,
+- **Then** the returned bool is `false`.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI006_non_file_is_non_tty`.
+
+### TC-CLI-007 — Reader-side TTY detection treats a regular file as non-interactive
+
+- **Given** an `*os.File` opened against a regular file on disk — the
+  shape stdin takes under `< answers.txt`,
+- **When** `cliout.IsTTYReader(f)` is called,
+- **Then** the returned bool is `false`.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI007_regular_file_is_non_tty`.
+
+### TC-CLI-008 — A real terminal reads as a terminal
+
+- **Given** a pty,
+- **When** `cliout.IsTTYReader(tty)` and `cliout.IsTTY(tty)` are
+  called,
+- **Then** both return `true`.
+
+This is the only case that can catch a TTY check wired to the wrong
+stream. Under `go test` even `os.Stdin` is not a terminal, so a bug
+such as `isTerminalFile(os.Stdin)` returns `false` for every input and
+matches exactly what TC-CLI-006 and TC-CLI-007 expect. Only a genuine
+terminal separates the two.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI008_a_real_terminal_is_a_tty`.
+
 <!-- Add new CLI cases here as their proposals land. -->
 
 ---
@@ -1553,11 +1624,19 @@ Exercised by `core/internal/cmd/plugin_hint_test.go` →
   `→ 2 plugin(s) installed — run \`tai <name> help\` for any of: triage, acme.`,
 - **And** the per-plugin hint from TC-PLG-029 does not appear.
 
+- **Given** a `plugins.yml` naming only plugins that are already
+  installed,
+- **When** the user runs `tai sync`,
+- **Then** nothing is installed and no hint line is printed at all.
+
 The per-plugin hint belongs to a user who asked for that one plugin.
-Repeating it once per entry would bury the sync's own summary.
+Repeating it once per entry would bury the sync's own summary; printing
+it with an empty list would tell a user whose sync did nothing that
+"0 plugin(s) installed".
 
 Exercised by `core/internal/cmd/sync_test.go` →
-`TestSync_TCPLG032_auto_install_prints_one_aggregate_hint`.
+`TestSync_TCPLG032_auto_install_prints_one_aggregate_hint` and
+`TestSync_TCPLG032_no_hint_when_nothing_installed`.
 
 ### TC-PLG-033 — A third-party plugin is not fetched without consent
 
@@ -1633,9 +1712,18 @@ Exercised by `core/internal/cmd/plugin_trust_test.go` →
 Only an explicit yes counts. The default on Enter is no, which is what
 the capital `N` in the prompt promises.
 
+The prompt's wording and answer parsing are unit-tested with the
+interactive decision passed in directly; the decision itself — that
+the host consults the reader side of stdin, not the writer side — is
+pinned separately at the CLI boundary with a pty, because no ordinary
+reader in a test is a terminal.
+
 Exercised by `core/internal/plugins/thirdparty_internal_test.go` →
 `TestConfirmThirdParty_TCPLG037_interactive_yes` and
-`TestConfirmThirdParty_TCPLG037_interactive_no`.
+`TestConfirmThirdParty_TCPLG037_interactive_no`, and
+`core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG037_interactive_yes_at_the_cli_boundary` and
+`TestPluginsInstall_TCPLG037_interactive_no_at_the_cli_boundary`.
 
 ### TC-PLG-038 — A built-in-only `plugins.yml` asks nothing
 
@@ -1740,9 +1828,16 @@ Exercised by `core/internal/cmd/sync_trust_test.go` →
 - **And** anything else — including a bare Enter and EOF — aborts with
   `PLUGIN_THIRDPARTY_UNCONFIRMED` and records nothing.
 
+The sync gate carries its own copy of the interactive decision, so
+TC-PLG-037's boundary test does not speak for it; this one is pinned
+with a pty of its own.
+
 Exercised by `core/internal/sync/trust_internal_test.go` →
 `TestConfirmThirdPartyPlugins_TCPLG043_interactive_yes` and
-`TestConfirmThirdPartyPlugins_TCPLG043_interactive_no`.
+`TestConfirmThirdPartyPlugins_TCPLG043_interactive_no`, and
+`core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG043_interactive_yes_at_the_cli_boundary` and
+`TestSync_TCPLG043_interactive_no_at_the_cli_boundary`.
 
 ### TC-PLG-044 — Consent to a `plugins.yml` authorises the installs it covers
 
@@ -1953,6 +2048,11 @@ Exercised by `core/internal/cmd/firstrun_test.go` →
 
 Repeating a one-line hint is a far cheaper failure than turning a
 successful command into an error.
+
+The unwritable directory is simulated with a permission bit, which
+root ignores, so the case is skipped when the test runs as uid 0
+(common in container-based CI). The behaviour is real either way; only
+this simulation of it depends on not being root.
 
 Exercised by `core/internal/cmd/firstrun_test.go` →
 `TestFirstRun_TCUB011_unwritable_marker_does_not_fail_the_command`.

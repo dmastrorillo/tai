@@ -138,6 +138,14 @@ func TestFirstRun_TCUB011_unwritable_marker_does_not_fail_the_command(t *testing
 	dataDir := bannerEnv(t)
 	expectFirstRun(t, dataDir)
 
+	// Root bypasses directory permission bits, so the read-only
+	// directory below would still accept the write and the test would
+	// assert the opposite of what it means. Many container-based CI
+	// images run as root.
+	if os.Geteuid() == 0 {
+		t.Skip("permission bits are not enforced for root")
+	}
+
 	stateDir := filepath.Join(dataDir, "state")
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)

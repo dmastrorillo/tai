@@ -265,3 +265,67 @@ func TestSync_TCPLG044_no_consent_still_refuses_the_real_installer(t *testing.T)
 		t.Errorf("nothing may be installed without consent: %v", err)
 	}
 }
+
+// TC-PLG-043 — the sync-side consent prompt at the CLI boundary, with
+// a real terminal on stdin.
+//
+// The sync gate has its own copy of the interactive decision
+// (cliout.IsTTYReader(opts.Stdin) in autoInstallPluginsFromYAML), so
+// the install-side test above cannot speak for it.
+func TestSync_TCPLG043_interactive_yes_at_the_cli_boundary(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml":   thirdPartyPluginsYML,
+	})
+	dataDir, _, _ := syncEnv(t, url)
+	stubAutoInstall(t)
+
+	r := runRootTTY(t, "y\n", "sync", "-y")
+	if r.err != nil {
+		t.Fatalf("answering yes must let the sync proceed: %v\nstderr:\n%s", r.err, r.stderr)
+	}
+	for _, want := range []string{"third-party", "arbitrary code", "[y/N]", "acme"} {
+		if !strings.Contains(r.stderr, want) {
+			t.Errorf("the prompt must reach stderr and contain %q, got %q", want, r.stderr)
+		}
+	}
+
+	store, err := plugins.LoadTrust(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.Get(url); !ok {
+		t.Errorf("an interactive yes must be recorded against the repo url; store: %+v", store)
+	}
+}
+
+// TC-PLG-043 — declining aborts the sync and records nothing.
+func TestSync_TCPLG043_interactive_no_at_the_cli_boundary(t *testing.T) {
+	url := bareRemote(t)
+	seedRemote(t, url, map[string]string{
+		"skills/foo.md": "x",
+		"plugins.yml":   thirdPartyPluginsYML,
+	})
+	dataDir, target, _ := syncEnv(t, url)
+	calls := stubAutoInstall(t)
+
+	r := runRootTTY(t, "n\n", "sync", "-y")
+	if r.err == nil {
+		t.Fatal("declining must abort the sync")
+	}
+	assertCode(t, r.err, errcode.PluginThirdpartyUnconfirmed)
+	if calls.Load() != 0 {
+		t.Errorf("no plugin may be installed after declining, got %d calls", calls.Load())
+	}
+	if _, err := os.Stat(filepath.Join(target, "skills", "foo.md")); !os.IsNotExist(err) {
+		t.Error("the asset-sync phase must not run after declining")
+	}
+	store, err := plugins.LoadTrust(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.Get(url); ok {
+		t.Error("declining must record nothing")
+	}
+}

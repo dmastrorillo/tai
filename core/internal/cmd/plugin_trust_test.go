@@ -94,3 +94,49 @@ func TestPluginsUpdate_TCPLG036_thirdparty_needs_confirmation(t *testing.T) {
 		t.Errorf("the update must land after consent, got %q", accepted.stdout)
 	}
 }
+
+// TC-PLG-037 — the interactive consent prompt, exercised where the
+// user meets it: a real terminal on stdin, driven through the
+// assembled command.
+//
+// The unit test in core/internal/plugins covers the prompt's wording
+// and answer parsing with `interactive` passed as a literal. What it
+// cannot cover is the wiring that decides that literal — a gate
+// reading the wrong stream, or an inverted boolean, keeps every unit
+// test green while the prompt never appears.
+func TestPluginsInstall_TCPLG037_interactive_yes_at_the_cli_boundary(t *testing.T) {
+	dataDir := pluginsEnv(t)
+	plugins.FetcherForTesting(t, &bundleFetcher{root: stageBundle(t, "acme"), version: "v1.0.0"})
+
+	r := runRootTTY(t, "y\n", "plugins", "install", "acme", "--source", acmeSource)
+	if r.err != nil {
+		t.Fatalf("answering yes must install: %v (stderr %q)", r.err, r.stderr)
+	}
+	for _, want := range []string{"acme", acmeSource, "arbitrary code", "[y/N]"} {
+		if !strings.Contains(r.stderr, want) {
+			t.Errorf("the prompt must reach stderr and contain %q, got %q", want, r.stderr)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "plugins", "acme")); err != nil {
+		t.Errorf("the plugin must be installed after consent: %v", err)
+	}
+}
+
+// TC-PLG-037 — declining at the prompt installs nothing, and the
+// refusal is the same error the non-interactive path produces.
+func TestPluginsInstall_TCPLG037_interactive_no_at_the_cli_boundary(t *testing.T) {
+	dataDir := pluginsEnv(t)
+	plugins.FetcherForTesting(t, &bundleFetcher{root: stageBundle(t, "acme"), version: "v1.0.0"})
+
+	r := runRootTTY(t, "n\n", "plugins", "install", "acme", "--source", acmeSource)
+	if r.err == nil {
+		t.Fatal("declining must refuse the install")
+	}
+	assertCode(t, r.err, errcode.PluginThirdpartyUnconfirmed)
+	if !strings.Contains(r.stderr, "[y/N]") {
+		t.Errorf("the prompt must still have been shown, got %q", r.stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "plugins", "acme")); !os.IsNotExist(err) {
+		t.Errorf("nothing may be installed after declining: %v", err)
+	}
+}

@@ -59,6 +59,12 @@ type Result struct {
 type Options struct {
 	// Stdin is piped as the command's standard input.
 	Stdin string
+	// StdinReader, when set, is used as standard input instead of
+	// Stdin. It exists so a test can hand the command a real terminal
+	// (a pty) rather than a string, which is the only way to exercise
+	// a code path gated on cliout.IsTTYReader — under `go test` even
+	// os.Stdin is not a terminal.
+	StdinReader io.Reader
 	// PreRun, when set, runs after the streams are wired but before
 	// the command, receiving the captured stderr. Per-binary harness
 	// wrappers use it to mirror their main's pre-foreground writes
@@ -100,7 +106,11 @@ func RunWith(t *testing.T, cmd *cli.Command, opts Options, argv ...string) Resul
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
-	wireStreams(cmd, &stdout, &stderr, strings.NewReader(opts.Stdin))
+	stdin := opts.StdinReader
+	if stdin == nil {
+		stdin = strings.NewReader(opts.Stdin)
+	}
+	wireStreams(cmd, &stdout, &stderr, stdin)
 
 	if opts.PreRun != nil {
 		opts.PreRun(&stderr)
@@ -128,7 +138,7 @@ func RunWith(t *testing.T, cmd *cli.Command, opts Options, argv ...string) Resul
 // stdio across a command tree, since urfave/cli leaves descendant
 // streams at their nil-defaults (which setupDefaults later swaps for
 // os.Std*).
-func wireStreams(cmd *cli.Command, out, errOut *bytes.Buffer, in *strings.Reader) {
+func wireStreams(cmd *cli.Command, out, errOut *bytes.Buffer, in io.Reader) {
 	cmd.Writer = out
 	cmd.ErrWriter = errOut
 	cmd.Reader = in
