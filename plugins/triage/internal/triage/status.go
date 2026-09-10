@@ -8,7 +8,7 @@ import (
 	"github.com/dmastrorillo/tai/plugins/triage/internal/triage/scope"
 )
 
-// StatusCounts is the per-status comment tally `tai status` renders
+// StatusCounts is the per-status comment tally `tai triage status` renders
 // for a scope.
 type StatusCounts struct {
 	Total, Pending, Accepted, Dismissed, Completed int
@@ -45,7 +45,7 @@ func CountByStatus(ctx context.Context, db *storage.DB, s scope.Scope) (StatusCo
 	return r, rows.Err()
 }
 
-// BatchSummary is one batch row in `tai status`'s output: the batch
+// BatchSummary is one batch row in `tai triage status`'s output: the batch
 // key, title, status, and member-comment count.
 type BatchSummary struct {
 	Key, Title, Status string

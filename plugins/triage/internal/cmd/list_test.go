@@ -7,7 +7,7 @@ import (
 	"github.com/dmastrorillo/tai/plugins/triage/internal/cmdtest"
 )
 
-// TestList_TCTRG020_with_comments exercises TC-TRG-020: `tai list`
+// TestList_TCTRG020_with_comments exercises TC-TRG-020: `tai triage list`
 // with comments in scope prints a header and one row per comment.
 func TestList_TCTRG020_with_comments(t *testing.T) {
 	cmdtest.Isolate(t)
@@ -53,7 +53,7 @@ func TestList_TCTRG022_severity_abbreviated(t *testing.T) {
 }
 
 // TestList_TCTRG025_single_status_filter exercises TC-TRG-025:
-// `tai list --status accepted` returns only accepted rows.
+// `tai triage list --status accepted` returns only accepted rows.
 func TestList_TCTRG025_single_status_filter(t *testing.T) {
 	cmdtest.Isolate(t)
 	seedPR(t, 1, commentJSON("r1", "first", "critical", "pending")+","+commentJSON("r2", "second", "major", "pending"))

@@ -31,7 +31,7 @@ func (p *ForgetPlan) Execute(ctx context.Context, tx *sql.Tx) error {
 	return p.exec(ctx, tx)
 }
 
-// PlanRepoForget handles `tai forget --repo <owner/name> [--status ...]`.
+// PlanRepoForget handles `tai triage forget --repo <owner/name> [--status ...]`.
 // With statuses, only matching comments across the repo are deleted
 // and parent rows survive; without, the whole repo row is deleted and
 // CASCADE picks up everything under it.

@@ -14,11 +14,11 @@
 //
 // The CLI verbs that consume this package live under internal/cmd/:
 //
-//   - list.go       — `tai list`
-//   - show.go       — `tai show` (single + --all)
+//   - list.go       — `tai triage list`
+//   - show.go       — `tai triage show` (single + --all)
 //   - accept.go     — wires the `accept`/`dismiss`/`complete` subcommands
 //   - mutate.go     — shared `runTransition` used by all three
-//   - status.go     — `tai status`
-//   - forget.go     — destructive `tai forget`
+//   - status.go     — `tai triage status`
+//   - forget.go     — destructive `tai triage forget`
 //   - triage.go     — shared flag names and `openDBAndScope` helper
 package triage

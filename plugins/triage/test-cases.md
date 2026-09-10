@@ -1282,6 +1282,33 @@ interactive `y`/`Y` branch is exercised only manually. -->
 
 ---
 
+### TC-TRG-106 — The plugin's own help text names verbs the way they run
+
+- **Given** every Go source file under `plugins/triage/`,
+- **When** their contents are scanned,
+- **Then** none contains a bare `tai <triage-verb>` reference for
+  `status`, `list`, `show`, `accept`, `dismiss`, `complete`, `forget`
+  or `import`.
+
+Regression case. These verbs left the core binary when triage became a
+plugin, so the bare form fails with UNKNOWN_SUBCOMMAND and only
+`tai triage <verb>` runs. The strings survived in error help, which is
+the CLI's most load-bearing prose — it is read exactly when the user
+is already stuck. Resolving a scope outside a repo pointed the reader
+at an import command spelled the pre-plugin way, which no longer
+exists.
+
+TC-AST-001 covers the same drift in the shipped markdown under
+`assets/` but cannot see strings compiled into the binary, which is
+how these survived that pass. The two checks are deliberately
+separate: they cover different artefacts and have drifted
+independently before.
+
+Exercised by `plugins/triage/internal/cmd/invocation_text_test.go` →
+`TestTriageSource_TCTRG106_addresses_verbs_as_tai_triage`.
+
+---
+
 ## MIG — Phase 6 migration
 
 The Phase 6 plugin migration repackages the in-process Triage tree

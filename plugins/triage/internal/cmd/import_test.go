@@ -13,7 +13,7 @@ import (
 )
 
 // validImportPR is the canonical happy-path payload used by E2E tests
-// of `tai import -`. Mutations are constructed inline per test.
+// of `tai triage import -`. Mutations are constructed inline per test.
 const validImportPR = `{
   "repo": "acme/app",
   "target": {
@@ -40,7 +40,7 @@ const validImportPR = `{
 }`
 
 // TestImport_TCIMP020_stdin_payload_persists exercises the happy path:
-// `tai import -` with a valid payload on stdin succeeds, prints the
+// `tai triage import -` with a valid payload on stdin succeeds, prints the
 // success summary, and persists the row.
 func TestImport_TCIMP020_stdin_payload_persists(t *testing.T) {
 	iso := cmdtest.Isolate(t)
@@ -57,7 +57,7 @@ func TestImport_TCIMP020_stdin_payload_persists(t *testing.T) {
 }
 
 // TestImport_TCIMP021_missing_positional_fails exercises the "no
-// positional" error: `tai import` (no `-`) reports a usage error.
+// positional" error: `tai triage import` (no `-`) reports a usage error.
 func TestImport_TCIMP021_missing_positional_fails(t *testing.T) {
 	cmdtest.Isolate(t)
 
@@ -68,7 +68,7 @@ func TestImport_TCIMP021_missing_positional_fails(t *testing.T) {
 	cmdtest.AssertErrorFooter(t, r, "UNKNOWN_SUBCOMMAND", 1)
 }
 
-// TestImport_TCIMP022_wrong_positional_fails: `tai import 142` is
+// TestImport_TCIMP022_wrong_positional_fails: `tai triage import 142` is
 // rejected (no PR-number convenience form).
 func TestImport_TCIMP022_wrong_positional_fails(t *testing.T) {
 	cmdtest.Isolate(t)

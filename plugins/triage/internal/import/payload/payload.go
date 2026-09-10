@@ -1,5 +1,5 @@
 // Package payload owns tai's import-payload JSON schema: the Go shape
-// of `tai import -`'s stdin, the strict decoder that rejects unknown
+// of `tai triage import -`'s stdin, the strict decoder that rejects unknown
 // fields, and the validator that walks a decoded payload and collects
 // every schema violation in one pass.
 //
@@ -38,7 +38,7 @@ import (
 // the same shape check that --repo enforces.
 var ownerNameRe = regexp.MustCompile(`^[^/\s]+/[^/\s]+$`)
 
-// Payload is the top-level JSON shape `tai import -` reads from stdin.
+// Payload is the top-level JSON shape `tai triage import -` reads from stdin.
 type Payload struct {
 	Repo     string    `json:"repo"`
 	Target   Target    `json:"target"`
