@@ -770,7 +770,7 @@ func TestSync_TCPLG032_auto_install_prints_one_aggregate_hint(t *testing.T) {
 		return &entry, nil
 	})
 
-	r := runRoot(t, "sync", "-y")
+	r := runRoot(t, "sync", "-y", "--trust-third-party")
 	if r.err != nil {
 		t.Fatalf("sync error: %v\nstderr:\n%s", r.err, r.stderr)
 	}

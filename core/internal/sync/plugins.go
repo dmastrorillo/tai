@@ -30,6 +30,7 @@ import (
 
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/plugins"
+	"github.com/dmastrorillo/tai/pkg/cliout"
 )
 
 // pluginsYAML mirrors the on-disk schema of `<clone>/plugins.yml`.
@@ -72,23 +73,26 @@ func AutoInstallForTesting(t testing.TB, fn AutoInstallFn) {
 }
 
 // readPluginsYAML returns the parsed entries from
-// `<cloneDir>/plugins.yml`, or (nil, nil) when the file is absent.
-// Parse errors surface as a plain error; the caller wraps them with
-// the appropriate `errcode`.
-func readPluginsYAML(cloneDir string) ([]pluginsYAMLEntry, error) {
+// `<cloneDir>/plugins.yml` along with the verbatim file bytes, or
+// (nil, nil, nil) when the file is absent. Parse errors surface as a
+// plain error; the caller wraps them with the appropriate `errcode`.
+//
+// The raw bytes are what the third-party trust cache hashes: the
+// user agrees to a file, not to a re-serialisation of it.
+func readPluginsYAML(cloneDir string) ([]pluginsYAMLEntry, []byte, error) {
 	p := filepath.Join(cloneDir, "plugins.yml")
 	data, err := os.ReadFile(p)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	var doc pluginsYAML
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return doc.Plugins, nil
+	return doc.Plugins, data, nil
 }
 
 // autoInstallPluginsFromYAML iterates the plugins.yml entries and
@@ -98,14 +102,22 @@ func readPluginsYAML(cloneDir string) ([]pluginsYAMLEntry, error) {
 //
 // Side effects: writes binaries / assets per plugins.Install. No
 // state mutation when the YAML file is absent or empty.
-func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, cfg *config.File, stderr io.Writer) error {
-	entries, err := readPluginsYAML(cloneDir)
+func autoInstallPluginsFromYAML(ctx context.Context, cloneDir, dataDir string, cfg *config.File, opts Options) error {
+	entries, raw, err := readPluginsYAML(cloneDir)
 	if err != nil {
 		return err
 	}
 	if len(entries) == 0 {
 		return nil
 	}
+	// Consent gates the whole phase: nothing is installed and no
+	// asset is synced until the user has agreed to the third-party
+	// entries in this file.
+	if err := confirmThirdPartyPlugins(entries, raw, cfg.RepoURL, dataDir, opts,
+		cliout.IsTTYReader(opts.Stdin)); err != nil {
+		return err
+	}
+	stderr := opts.Stderr
 	state, err := plugins.LoadState(dataDir)
 	if err != nil {
 		return err

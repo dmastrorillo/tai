@@ -1637,6 +1637,113 @@ Exercised by `core/internal/plugins/thirdparty_internal_test.go` →
 `TestConfirmThirdParty_TCPLG037_interactive_yes` and
 `TestConfirmThirdParty_TCPLG037_interactive_no`.
 
+### TC-PLG-038 — A built-in-only `plugins.yml` asks nothing
+
+- **Given** the source repo's `plugins.yml` lists only plugins that
+  resolve to built-in registry entries,
+- **When** the user runs `tai sync`,
+- **Then** no third-party notice or prompt appears,
+- **And** `<TAI_DATA_DIR>/state/trust.json` is neither created nor
+  modified.
+
+No hash is computed either — there is nothing to agree to, so there is
+nothing to remember.
+
+An entry that resolves to nothing at all (no source spec and no
+registry hit) is likewise not third-party: it is broken, and the
+install surfaces `PLUGIN_UNKNOWN`, which says something more useful
+than a consent prompt would.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG038_builtin_only_yml_never_prompts` and
+`core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG038_builtin_only_records_nothing`.
+
+### TC-PLG-039 — A third-party `plugins.yml` stops an unattended sync
+
+- **Given** the source repo's `plugins.yml` lists a plugin whose
+  source is outside the built-in registry,
+- **And** no consent for this repo is recorded,
+- **When** the user runs `tai sync` with stdin not attached to a
+  terminal and without `--trust-third-party`,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`,
+- **And** the error's "what to do" bullets name
+  `--trust-third-party`,
+- **And** no plugin is installed,
+- **And** the asset-sync phase does not run, so no target is touched,
+- **And** nothing is written to `trust.json`.
+
+The asset-sync phase is held back for the same reason a failed
+auto-install holds it back: the host cannot reason about which assets
+depend on which plugin, so a half-applied sync risks a broken target.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG039_thirdparty_yml_aborts_unattended`.
+
+### TC-PLG-040 — `--trust-third-party` confirms and is remembered
+
+- **Given** the same third-party `plugins.yml`,
+- **When** the user runs `tai sync --trust-third-party`,
+- **Then** every listed plugin installs,
+- **And** `trust.json` records the configured `repo-url` against the
+  sha256 of the verbatim `plugins.yml` bytes.
+
+The hash is of the file as committed, not of a re-serialisation of the
+parsed entries: what the user agreed to is a file.
+
+Consent is written before any plugin installs, so a fetch that fails
+afterwards does not un-say what the user just said.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG040_flag_confirms_and_records_the_hash`.
+
+### TC-PLG-041 — Recorded consent carries over to later syncs
+
+- **Given** consent for this repo's current `plugins.yml` is recorded,
+- **When** the user runs `tai sync` without `--trust-third-party`,
+- **Then** the sync proceeds with no prompt and no error.
+
+Asking again for an unchanged file would train the user to agree
+without reading, which is the habit the prompt exists to prevent.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG041_recorded_consent_is_reused`.
+
+### TC-PLG-042 — An edited `plugins.yml` is a fresh question
+
+- **Given** consent for a `plugins.yml` is recorded,
+- **And** the source repo's `plugins.yml` then gains another
+  third-party entry,
+- **When** the user runs `tai sync` without `--trust-third-party` and
+  outside a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`.
+
+Consent is to one exact file. Keying on the hash is what stops a repo
+owner appending a source the user never saw.
+
+The cache is keyed on `repo-url` alone, so pointing tai at a different
+source repo asks independently, and entries for previous URLs are kept
+rather than pruned.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG042_changed_yml_needs_fresh_consent`.
+
+### TC-PLG-043 — In a terminal the sync asks, listing only the third-party entries
+
+- **Given** stdin is a terminal and consent is not recorded,
+- **Then** the prompt lists every third-party entry, states that
+  third-party plugins run arbitrary code on the machine, and ends in
+  `[y/N]`,
+- **And** built-in entries in the same file are not listed, so what
+  the yes covers stays unambiguous,
+- **And** `y` / `yes` in any case proceeds and records the consent,
+- **And** anything else — including a bare Enter and EOF — aborts with
+  `PLUGIN_THIRDPARTY_UNCONFIRMED` and records nothing.
+
+Exercised by `core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG043_interactive_yes` and
+`TestConfirmThirdPartyPlugins_TCPLG043_interactive_no`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
