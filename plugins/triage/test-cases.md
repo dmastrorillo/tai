@@ -1283,6 +1283,39 @@ Exercised by `TestForget_TCTRG098_batch_status_recompute`.
 
 Exercised by `TestForget_TCTRG099_multi_value_status`.
 
+### TC-TRG-107 — A status prune maintains the batches it touches
+
+- **Given** a PR with batch `B1` whose only member is completed, and
+  batch `B2` whose member is pending,
+- **When** `tai triage forget --pr <N> --status completed --yes` runs,
+- **Then** the consent summary counts `1 batches`,
+- **And** `B1` is gone, because the prune emptied it,
+- **And** `B2` is untouched.
+- **Given** instead a batch with one completed and one pending member,
+- **When** the same prune runs,
+- **Then** the summary counts `0 batches`,
+- **And** the batch survives with its status recomputed to `pending`
+  against the member that survived.
+- **Given** a whole-repo prune (`tai triage forget --status completed
+  --yes`, no `--pr`/`--branch`),
+- **Then** the same rule applies across every PR and branch under the
+  repo.
+
+Two obligations, both about not lying. A batch with no members is
+permanent noise in `tai triage status`, the command a user opens to see
+what needs attention — and pruning after verifying is the routine end
+of a triage cycle, so the noise accumulates once per round. A batch
+that keeps members must not keep a status computed from comments that
+no longer exist.
+
+The `--batch` selector is deliberately excluded: it names one batch, and
+TC-TRG-098 pins that its row survives a member prune. Deleting it there
+would surprise a user who asked only to clear its completed members.
+
+Exercised by `TestForget_TCTRG107_status_prune_clears_emptied_batches`,
+`TestForget_TCTRG107_status_prune_keeps_populated_batches`, and
+`TestForget_TCTRG107_repo_status_prune_clears_emptied_batches`.
+
 ### TC-TRG-100 — `[exit 2: TRIAGE_NO_SCOPE]` footer
 
 - **Given** a verb that cannot resolve a scope (no `--pr`/`--branch`,

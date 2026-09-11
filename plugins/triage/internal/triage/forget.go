@@ -51,11 +51,19 @@ func PlanRepoForget(ctx context.Context, db *storage.DB, owner string, statuses 
 		if err != nil {
 			return nil, err
 		}
+		own := repoBatches(repoID)
+		emptied, err := countEmptiedBatches(ctx, db, own, statuses)
+		if err != nil {
+			return nil, err
+		}
 		return &ForgetPlan{
 			Description:  fmt.Sprintf("%s comments matching status (%s)", owner, strings.Join(statuses, ", ")),
-			CommentCount: n, RefCount: refs,
+			CommentCount: n, BatchCount: emptied, RefCount: refs,
 			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteRepoComments(ctx, tx, repoID, statuses)
+				if err := deleteRepoComments(ctx, tx, repoID, statuses); err != nil {
+					return err
+				}
+				return maintainBatches(ctx, tx, own)
 			},
 		}, nil
 	}
@@ -84,12 +92,20 @@ func PlanScopedForget(ctx context.Context, db *storage.DB, s scope.Scope, status
 		if err != nil {
 			return nil, err
 		}
+		own := scopeBatches(col, s.TargetID)
+		emptied, err := countEmptiedBatches(ctx, db, own, statuses)
+		if err != nil {
+			return nil, err
+		}
 		return &ForgetPlan{
 			Description: fmt.Sprintf("%s comments matching status (%s)",
 				s.OwnerName+" "+s.TargetLabel(), strings.Join(statuses, ", ")),
-			CommentCount: n, RefCount: refs,
+			CommentCount: n, BatchCount: emptied, RefCount: refs,
 			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteScopeComments(ctx, tx, col, s.TargetID, statuses)
+				if err := deleteScopeComments(ctx, tx, col, s.TargetID, statuses); err != nil {
+					return err
+				}
+				return maintainBatches(ctx, tx, own)
 			},
 		}, nil
 	}
@@ -186,6 +202,111 @@ func PlanBatchForget(ctx context.Context, db *storage.DB, s scope.Scope, key str
 			return err
 		},
 	}, nil
+}
+
+// batchOwnership is the SQL that ties a batch to the target being
+// pruned: a WHERE fragment over the `batches` alias `ba`, plus its
+// arguments. The scope and repo selectors reach batches differently —
+// one by a direct column, the other through prs/branches — so the
+// maintenance below takes the fragment rather than duplicating itself.
+type batchOwnership struct {
+	where string
+	args  []any
+}
+
+func scopeBatches(col string, targetID int64) batchOwnership {
+	return batchOwnership{where: "ba." + col + " = ?", args: []any{targetID}}
+}
+
+func repoBatches(repoID int64) batchOwnership {
+	return batchOwnership{
+		where: `ba.id IN (SELECT ba2.id FROM batches ba2
+		          LEFT JOIN prs p ON ba2.pr_id = p.id
+		          LEFT JOIN branches b ON ba2.branch_id = b.id
+		          WHERE p.repo_id = ? OR b.repo_id = ?)`,
+		args: []any{repoID, repoID},
+	}
+}
+
+// countEmptiedBatches returns how many of the target's batches would
+// be left with no members by a prune of `statuses`. The consent
+// summary needs this before anything is deleted, because a batch the
+// prune removes is part of what the user is agreeing to.
+func countEmptiedBatches(ctx context.Context, db *storage.DB, own batchOwnership, statuses []string) (int, error) {
+	statusList, statusArgs := inPlaceholders(statuses)
+	args := append(append([]any{}, own.args...), statusArgs...)
+	q := `SELECT COUNT(*) FROM batches ba
+	      WHERE ` + own.where + `
+	        AND EXISTS (SELECT 1 FROM comments c WHERE c.batch_id = ba.id)
+	        AND NOT EXISTS (SELECT 1 FROM comments c
+	                        WHERE c.batch_id = ba.id
+	                          AND c.status NOT IN (` + statusList + `))`
+	var n int
+	if err := db.QueryRowContext(ctx, q, args...).Scan(&n); err != nil {
+		return 0, errcode.Wrap(errcode.InternalError, err, "count emptied batches")
+	}
+	return n, nil
+}
+
+// maintainBatches keeps a pruned target's batches honest: a batch the
+// prune emptied is removed, and one that kept members has its status
+// recomputed against what survived.
+//
+// Without this a pruned scope accumulates batches with no members —
+// permanent noise in `tai triage status`, the command a user opens to
+// see what needs attention — and surviving batches keep a status
+// computed from comments that no longer exist.
+//
+// Must run AFTER the comments are deleted, and inside the same
+// transaction, so it sees exactly what survived.
+func maintainBatches(ctx context.Context, tx *sql.Tx, own batchOwnership) error {
+	ids, err := ownedBatchIDs(ctx, tx, own)
+	if err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		var members int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM comments WHERE batch_id = ?`, id).Scan(&members); err != nil {
+			return errcode.Wrap(errcode.InternalError, err, "count surviving batch members")
+		}
+		if members == 0 {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM batches WHERE id = ?`, id); err != nil {
+				return errcode.Wrap(errcode.InternalError, err, "delete emptied batch")
+			}
+			continue
+		}
+		if _, err := RecomputeBatch(ctx, tx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ownedBatchIDs lists the batch ids the ownership fragment selects.
+// Read in full before the per-batch work below, because that work
+// deletes rows the cursor would otherwise still be walking.
+func ownedBatchIDs(ctx context.Context, tx *sql.Tx, own batchOwnership) ([]int64, error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT ba.id FROM batches ba WHERE `+own.where, own.args...)
+	if err != nil {
+		return nil, errcode.Wrap(errcode.InternalError, err, "list batches to maintain")
+	}
+	defer func() { _ = rows.Close() }()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, errcode.Wrap(errcode.InternalError, err, "scan batch id")
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errcode.Wrap(errcode.InternalError, err, "read batches to maintain")
+	}
+	return ids, nil
 }
 
 // countRepoCascade returns the (#comments, #batches, #refs) a
