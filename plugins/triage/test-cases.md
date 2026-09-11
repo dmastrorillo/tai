@@ -410,6 +410,33 @@ behind, which a check for only the first form could not see.
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestBundledCommands_TCAST001_use_the_plugin_namespace`.
 
+### TC-AST-003 — the triage loop investigates before it asks for a decision
+
+- **Given** `plugins/triage/assets/commands/triage.md`,
+- **When** its presentation contract is read,
+- **Then** it names six fields the loop must present — file:line,
+  description, cause, why fix it, suggested fix, concerns if skipped,
+- **And** it states that `cause` is derived by reading the code in that
+  step and never taken from the stored record,
+- **And** it does not instruct the loop to surface `tai triage show`'s
+  markdown verbatim,
+- **And** it asks for no `references` field.
+
+A stored comment was written against the tree as it stood at import;
+the decision the user is about to make is about the tree as it stands
+now. Echoing the record puts an unverified cause and a possibly stale
+fix in front of them and asks them to trust both, so the loop opens the
+file first and presents what it found.
+
+Two of the six fields are not stored at all. `cause` is always derived.
+`suggested_fix` and `why_fix` are used when the record carries them and
+worked out during the investigation when it does not, which is why no
+schema change accompanies this — the gap is filled at presentation
+time, not at import.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestTriageCommand_TCAST003_presents_an_investigated_review`.
+
 ### TC-AST-002 — the release tarball ships the assets tree
 
 - **Given** a triage release archive built by `.goreleaser.triage.yaml`,
