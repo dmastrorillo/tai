@@ -13,7 +13,7 @@ import (
 
 // Comment is the projection of a `comments` row plus its computed
 // per-target position and (optional) batch metadata. Used by `tai
-// list`, `tai show`, and the mutation verbs that need to display
+// list`, `tai triage show`, and the mutation verbs that need to display
 // what they touched.
 type Comment struct {
 	ID            int64

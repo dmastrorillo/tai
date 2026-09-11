@@ -222,6 +222,10 @@ func mergeEnv(base, over []string) []string {
 // (unresolvable data dir, unreadable state file) still reaches the
 // root Action's catch-all, which loads the same state and surfaces
 // the real error rather than a bare "unknown command".
+//
+// Each command carries Category pluginHelpCategory, which is what
+// makes `tai --help` group plugins under their own heading instead of
+// listing them among the built-in verbs.
 func pluginPassthroughCommands() []*cli.Command {
 	dataDir, err := datadir.Resolve()
 	if err != nil {
@@ -235,8 +239,9 @@ func pluginPassthroughCommands() []*cli.Command {
 	out := make([]*cli.Command, 0, len(state.Plugins))
 	for _, p := range state.Plugins {
 		out = append(out, &cli.Command{
-			Name:  p.Name,
-			Usage: "Run the " + p.Name + " plugin (arguments are passed through)",
+			Name:     p.Name,
+			Usage:    pluginHelpUsage(p),
+			Category: pluginHelpCategory,
 
 			// The plugin owns every argument after its name.
 			SkipFlagParsing: true,
@@ -252,6 +257,26 @@ func pluginPassthroughCommands() []*cli.Command {
 		})
 	}
 	return out
+}
+
+// pluginHelpCategory is the heading installed plugins are listed
+// under in `tai --help`. urfave/cli renders one heading per distinct
+// Category and omits a heading with no commands, so an empty
+// plugins.json produces no PLUGINS: section at all.
+const pluginHelpCategory = "PLUGINS"
+
+// pluginHelpUsage is the one-line description shown beside a plugin's
+// name in `tai --help`. It is the summary captured from the plugin's
+// `--help-summary` at install time.
+//
+// Description is empty for an entry written before the host captured
+// it; the plugin still has to be listed, so fall back to a line that
+// at least says what invoking the name does.
+func pluginHelpUsage(p plugins.Entry) string {
+	if desc := strings.TrimSpace(p.Description); desc != "" {
+		return desc
+	}
+	return "Run the " + p.Name + " plugin (arguments are passed through)"
 }
 
 // execInstalledPlugin resolves the host state a plugin subprocess

@@ -17,6 +17,13 @@ type UpdateOptions struct {
 	Version string
 	Fetcher Fetcher
 	Stderr  io.Writer
+
+	// Stdin and AssumeYes carry the third-party confirmation the
+	// same way InstallOptions does. An update re-fetches from the
+	// recorded source, so it needs the same consent the original
+	// install did.
+	Stdin     io.Reader
+	AssumeYes bool
 }
 
 // Update re-fetches the plugin named `name` from the source recorded
@@ -58,6 +65,8 @@ func Update(ctx context.Context, name string, dataDir string, cfg *config.File, 
 		Version:     opts.Version,
 		Fetcher:     opts.Fetcher,
 		Stderr:      opts.Stderr,
+		Stdin:       opts.Stdin,
+		AssumeYes:   opts.AssumeYes,
 		InstalledAt: time.Now().UTC(),
 	})
 }

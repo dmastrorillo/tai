@@ -371,6 +371,77 @@ channel discipline with their own TC-CLI-* cases.
 Exercised by `core/internal/cmd/config_test.go` →
 `TestConfigTargetList_TCCLI003_channel_discipline`.
 
+### TC-CLI-004 — Only an explicit yes is a yes
+
+- **Given** a prompt has been printed and an answer is on stdin,
+- **When** `cliout.ConfirmYesNo(stdin)` reads it,
+- **Then** `y` or `yes` — any case, surrounding whitespace ignored —
+  returns `true`,
+- **And** everything else returns `false`, including `no`, an
+  unrecognised word, a bare newline, and an empty stdin.
+
+The default is the one the `[y/N]` in every prompt promises. An absent
+answer is never upgraded into agreement.
+
+One parser, one place: every consent surface reads its answer through
+this function, so a change to what counts as a yes lands once rather
+than once per call site.
+
+Exercised by `pkg/cliout/prompt_test.go` →
+`TestConfirmYesNo_TCCLI004_accepts_yes` and
+`TestConfirmYesNo_TCCLI004_everything_else_is_no`.
+
+### TC-CLI-005 — A stdin that cannot be read is not a yes
+
+- **Given** reading stdin fails,
+- **When** `cliout.ConfirmYesNo(stdin)` is called,
+- **Then** the returned bool is `false`,
+- **And** the returned error wraps the cause.
+
+Two separate obligations: a gate must deny when it cannot hear the
+answer, and the caller must still be able to say why it denied. EOF is
+not such a failure — it is stdin reporting there is no more to read,
+and any bytes before it are a valid answer.
+
+Exercised by `pkg/cliout/prompt_test.go` →
+`TestConfirmYesNo_TCCLI005_read_failure_denies_and_reports`.
+
+### TC-CLI-006 — Reader-side TTY detection treats a non-`*os.File` as non-interactive
+
+- **Given** a reader that is not an `*os.File` (a `*bytes.Buffer` or
+  `*strings.Reader`, as every test in this codebase uses for stdin),
+- **When** `cliout.IsTTYReader(r)` is called,
+- **Then** the returned bool is `false`.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI006_non_file_is_non_tty`.
+
+### TC-CLI-007 — Reader-side TTY detection treats a regular file as non-interactive
+
+- **Given** an `*os.File` opened against a regular file on disk — the
+  shape stdin takes under `< answers.txt`,
+- **When** `cliout.IsTTYReader(f)` is called,
+- **Then** the returned bool is `false`.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI007_regular_file_is_non_tty`.
+
+### TC-CLI-008 — A real terminal reads as a terminal
+
+- **Given** a pty,
+- **When** `cliout.IsTTYReader(tty)` and `cliout.IsTTY(tty)` are
+  called,
+- **Then** both return `true`.
+
+This is the only case that can catch a TTY check wired to the wrong
+stream. Under `go test` even `os.Stdin` is not a terminal, so a bug
+such as `isTerminalFile(os.Stdin)` returns `false` for every input and
+matches exactly what TC-CLI-006 and TC-CLI-007 expect. Only a genuine
+terminal separates the two.
+
+Exercised by `pkg/cliout/tty_test.go` →
+`TestIsTTYReader_TCCLI008_a_real_terminal_is_a_tty`.
+
 <!-- Add new CLI cases here as their proposals land. -->
 
 ---
@@ -1449,6 +1520,357 @@ directory.
 Exercised by `core/internal/plugins/state_preservation_test.go` →
 `TestInstall_TCPLG025_failed_restore_keeps_the_parked_copy`.
 
+### TC-PLG-026 — `tai --help` lists installed plugins under a `PLUGINS:` heading
+
+- **Given** the triage plugin is installed with the description
+  "Walk through pending PR review comments interactively." recorded in
+  `<TAI_DATA_DIR>/state/plugins.json`,
+- **When** the user runs `tai --help`,
+- **Then** stdout carries a `PLUGINS:` heading,
+- **And** `triage` is listed beneath it with that description beside
+  its name,
+- **And** no plugin subprocess is executed to produce the line.
+
+The description is the one captured from `<plugin> --help-summary` at
+install time (TC-PLG-020), so rendering help costs no process spawns.
+
+A plugin installed before the host captured descriptions has an empty
+`description` field — the schema is append-only, so old entries simply
+lack it. Such a plugin is still listed, with a fallback line naming
+what invoking it does.
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG026_lists_installed_plugins` and
+`TestHelp_TCPLG026_plugin_without_description_still_listed`.
+
+### TC-PLG-027 — The `PLUGINS:` heading is absent when nothing is installed
+
+- **Given** `<TAI_DATA_DIR>/state/plugins.json` records no plugins,
+- **When** the user runs `tai --help`,
+- **Then** stdout does not contain the literal `PLUGINS:` token.
+
+An empty heading is worse than no heading: it advertises a feature and
+implies the list failed to load.
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG027_no_plugins_no_heading`.
+
+### TC-PLG-028 — `tai <plugin> help` reaches the plugin; `tai help <plugin>` does not
+
+- **Given** the triage plugin is installed,
+- **When** the user runs `tai triage help`,
+- **Then** the plugin subprocess receives `help` as its first
+  argument and owns the response.
+- **When** the user runs `tai help triage` instead,
+- **Then** the host renders its own global help and executes no
+  plugin.
+
+`help` is a reserved core verb, so the reverse form is the host's, not
+the plugin's. The plugin form works because every argument after the
+plugin name is passed through verbatim (TC-PLG-023).
+
+Exercised by `core/internal/cmd/plugin_help_test.go` →
+`TestHelp_TCPLG028_help_routing`.
+
+### TC-PLG-029 — A successful install says how to find out what the plugin does
+
+- **Given** the user runs `tai plugins install triage` and it
+  succeeds,
+- **Then** stderr carries the line
+  `→ Run \`tai triage help\` to learn how to use triage.`,
+- **And** the line names no specific AI tool,
+- **And** the line is on stderr, so it cannot corrupt the summary a
+  script parses from stdout.
+
+The host cannot describe a plugin's verbs — they are the plugin's own
+— so the hint points at the one command that can.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsInstall_TCPLG029_prints_the_onboarding_hint`.
+
+### TC-PLG-030 — A failed install or update prints no hint
+
+- **Given** the fetch fails and `tai plugins install triage` exits
+  non-zero,
+- **Then** no onboarding hint is printed.
+- **Given** the fetch fails during `tai plugins update triage`,
+- **Then** no onboarding hint is printed, and the previously installed
+  plugin is untouched.
+
+Nothing was installed, so there is nothing new to learn how to use.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsInstall_TCPLG030_failed_install_prints_no_hint` and
+`TestPluginsUpdate_TCPLG030_failed_update_prints_no_hint`.
+
+### TC-PLG-031 — A successful update prints the same hint
+
+- **Given** the user runs `tai plugins update triage` and it succeeds,
+- **Then** stderr carries
+  `→ Run \`tai triage help\` to learn how to use triage.`
+
+An update may add or rename verbs, and the plugin's own help is where
+that surfaces.
+
+Exercised by `core/internal/cmd/plugin_hint_test.go` →
+`TestPluginsUpdate_TCPLG031_prints_the_onboarding_hint`.
+
+### TC-PLG-032 — Auto-install during sync prints one aggregate hint
+
+- **Given** the source repo's `plugins.yml` lists `triage` and `acme`
+  and neither is installed,
+- **When** the user runs `tai sync`,
+- **Then** stderr carries exactly one line
+  `→ 2 plugin(s) installed — run \`tai <name> help\` for any of: triage, acme.`,
+- **And** the per-plugin hint from TC-PLG-029 does not appear.
+
+- **Given** a `plugins.yml` naming only plugins that are already
+  installed,
+- **When** the user runs `tai sync`,
+- **Then** nothing is installed and no hint line is printed at all.
+
+The per-plugin hint belongs to a user who asked for that one plugin.
+Repeating it once per entry would bury the sync's own summary; printing
+it with an empty list would tell a user whose sync did nothing that
+"0 plugin(s) installed".
+
+Exercised by `core/internal/cmd/sync_test.go` →
+`TestSync_TCPLG032_auto_install_prints_one_aggregate_hint` and
+`TestSync_TCPLG032_no_hint_when_nothing_installed`.
+
+### TC-PLG-033 — A third-party plugin is not fetched without consent
+
+- **Given** the user runs
+  `tai plugins install acme --source github.com/acme/tai-plugin-acme`
+  with stdin not attached to a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`,
+- **And** no prompt is printed, because nobody could answer it,
+- **And** the error's "what to do" bullets name `--yes`,
+- **And** nothing exists under `<TAI_DATA_DIR>/plugins/acme/`.
+
+The consent gate runs before the fetch, so a refusal leaves no
+downloaded bytes on disk at all.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG033_thirdparty_needs_confirmation`.
+
+### TC-PLG-034 — `--yes` is the non-interactive consent
+
+- **Given** the user runs the same command with `--yes`,
+- **Then** no prompt is printed,
+- **And** the plugin installs normally.
+
+The flag confirms one invocation. Nothing is remembered — the next
+install of the same source asks again.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG034_yes_flag_installs_thirdparty`.
+
+### TC-PLG-035 — A built-in plugin is never gated
+
+- **Given** the user runs `tai plugins install triage`, whose source is
+  a built-in registry entry,
+- **Then** no confirmation is asked for and nothing calls it
+  third-party,
+- **And** the install proceeds directly.
+
+A built-in plugin is tai's own release under another name. Prompting
+for it would teach the user to type `y` without reading, which is
+exactly the habit the prompt exists to avoid.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG035_firstparty_never_prompts` and
+`core/internal/plugins/thirdparty_internal_test.go` →
+`TestConfirmThirdParty_TCPLG035_builtin_is_never_gated`.
+
+### TC-PLG-036 — Update needs the same consent as install
+
+- **Given** `acme` is installed from a third-party source,
+- **When** the user runs `tai plugins update acme` outside a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED` and
+  the installed plugin is untouched.
+- **When** the user re-runs it with `--yes`,
+- **Then** the update lands.
+
+Update re-fetches from the recorded source, so it downloads and runs
+new third-party code exactly as the first install did.
+
+Exercised by `core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsUpdate_TCPLG036_thirdparty_needs_confirmation`.
+
+### TC-PLG-037 — In a terminal the user is asked, and told what for
+
+- **Given** stdin is a terminal and the source is third-party,
+- **Then** the prompt names the plugin, names the source, states that
+  third-party plugins run arbitrary code on the machine, and ends in
+  `[y/N]`,
+- **And** `y` / `yes` in any case, with surrounding whitespace,
+  proceeds,
+- **And** anything else — `n`, `no`, a bare Enter, an unrecognised
+  word, or EOF — exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`.
+
+Only an explicit yes counts. The default on Enter is no, which is what
+the capital `N` in the prompt promises.
+
+The prompt's wording and answer parsing are unit-tested with the
+interactive decision passed in directly; the decision itself — that
+the host consults the reader side of stdin, not the writer side — is
+pinned separately at the CLI boundary with a pty, because no ordinary
+reader in a test is a terminal.
+
+Exercised by `core/internal/plugins/thirdparty_internal_test.go` →
+`TestConfirmThirdParty_TCPLG037_interactive_yes` and
+`TestConfirmThirdParty_TCPLG037_interactive_no`, and
+`core/internal/cmd/plugin_trust_test.go` →
+`TestPluginsInstall_TCPLG037_interactive_yes_at_the_cli_boundary` and
+`TestPluginsInstall_TCPLG037_interactive_no_at_the_cli_boundary`.
+
+### TC-PLG-038 — A built-in-only `plugins.yml` asks nothing
+
+- **Given** the source repo's `plugins.yml` lists only plugins that
+  resolve to built-in registry entries,
+- **When** the user runs `tai sync`,
+- **Then** no third-party notice or prompt appears,
+- **And** `<TAI_DATA_DIR>/state/trust.json` is neither created nor
+  modified.
+
+No hash is computed either — there is nothing to agree to, so there is
+nothing to remember.
+
+An entry that resolves to nothing at all (no source spec and no
+registry hit) is likewise not third-party: it is broken, and the
+install surfaces `PLUGIN_UNKNOWN`, which says something more useful
+than a consent prompt would.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG038_builtin_only_yml_never_prompts` and
+`core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG038_builtin_only_records_nothing`.
+
+### TC-PLG-039 — A third-party `plugins.yml` stops an unattended sync
+
+- **Given** the source repo's `plugins.yml` lists a plugin whose
+  source is outside the built-in registry,
+- **And** no consent for this repo is recorded,
+- **When** the user runs `tai sync` with stdin not attached to a
+  terminal and without `--trust-third-party`,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`,
+- **And** the error's "what to do" bullets name
+  `--trust-third-party`,
+- **And** no plugin is installed,
+- **And** the asset-sync phase does not run, so no target is touched,
+- **And** nothing is written to `trust.json`.
+
+The asset-sync phase is held back for the same reason a failed
+auto-install holds it back: the host cannot reason about which assets
+depend on which plugin, so a half-applied sync risks a broken target.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG039_thirdparty_yml_aborts_unattended`.
+
+### TC-PLG-040 — `--trust-third-party` confirms and is remembered
+
+- **Given** the same third-party `plugins.yml`,
+- **When** the user runs `tai sync --trust-third-party`,
+- **Then** every listed plugin installs,
+- **And** `trust.json` records the configured `repo-url` against the
+  sha256 of the verbatim `plugins.yml` bytes.
+
+The hash is of the file as committed, not of a re-serialisation of the
+parsed entries: what the user agreed to is a file.
+
+Consent is written before any plugin installs, so a fetch that fails
+afterwards does not un-say what the user just said.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG040_flag_confirms_and_records_the_hash`.
+
+### TC-PLG-041 — Recorded consent carries over to later syncs
+
+- **Given** consent for this repo's current `plugins.yml` is recorded,
+- **When** the user runs `tai sync` without `--trust-third-party`,
+- **Then** the sync proceeds with no prompt and no error.
+
+Asking again for an unchanged file would train the user to agree
+without reading, which is the habit the prompt exists to prevent.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG041_recorded_consent_is_reused`.
+
+### TC-PLG-042 — An edited `plugins.yml` is a fresh question
+
+- **Given** consent for a `plugins.yml` is recorded,
+- **And** the source repo's `plugins.yml` then gains another
+  third-party entry,
+- **When** the user runs `tai sync` without `--trust-third-party` and
+  outside a terminal,
+- **Then** the command exits with `PLUGIN_THIRDPARTY_UNCONFIRMED`.
+
+Consent is to one exact file. Keying on the hash is what stops a repo
+owner appending a source the user never saw.
+
+The cache is keyed on `repo-url` alone, so pointing tai at a different
+source repo asks independently, and entries for previous URLs are kept
+rather than pruned.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG042_changed_yml_needs_fresh_consent`.
+
+### TC-PLG-043 — In a terminal the sync asks, listing only the third-party entries
+
+- **Given** stdin is a terminal and consent is not recorded,
+- **Then** the prompt lists every third-party entry, states that
+  third-party plugins run arbitrary code on the machine, and ends in
+  `[y/N]`,
+- **And** built-in entries in the same file are not listed, so what
+  the yes covers stays unambiguous,
+- **And** `y` / `yes` in any case proceeds and records the consent,
+- **And** anything else — including a bare Enter and EOF — aborts with
+  `PLUGIN_THIRDPARTY_UNCONFIRMED` and records nothing.
+
+The sync gate carries its own copy of the interactive decision, so
+TC-PLG-037's boundary test does not speak for it; this one is pinned
+with a pty of its own.
+
+Exercised by `core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG043_interactive_yes` and
+`TestConfirmThirdPartyPlugins_TCPLG043_interactive_no`, and
+`core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG043_interactive_yes_at_the_cli_boundary` and
+`TestSync_TCPLG043_interactive_no_at_the_cli_boundary`.
+
+### TC-PLG-044 — Consent to a `plugins.yml` authorises the installs it covers
+
+- **Given** the source repo's `plugins.yml` lists a third-party plugin,
+- **When** the user runs `tai sync --trust-third-party` (or the file's
+  consent is already recorded, or they answer `y` in a terminal),
+- **Then** the plugin installs,
+- **And** its binary lands under `<TAI_DATA_DIR>/plugins/<name>/`,
+- **And** the user is not asked a second time, once per entry.
+- **Given** no consent for the file,
+- **When** the user runs `tai sync` outside a terminal,
+- **Then** the sync exits with `PLUGIN_THIRDPARTY_UNCONFIRMED` and
+  nothing is installed.
+
+Regression case. `tai plugins install` and the `plugins.yml`
+auto-install reach the same per-plugin consent gate, but only the
+former is invoked by a user who can answer it. The aggregate decision
+made once for the whole file has to be handed to each install it
+authorises, or the gate refuses the very entries the user just agreed
+to — with no flag able to clear it, because the flag was already
+passed.
+
+The test drives the real installer rather than the `AutoInstallForTesting`
+stub every other case on this path uses. The bug lived in what the loop
+hands to `plugins.Install`, which a stubbed installer cannot see; only
+the network is faked.
+
+Exercised by `core/internal/cmd/sync_trust_test.go` →
+`TestSync_TCPLG044_consent_reaches_the_real_installer` and
+`TestSync_TCPLG044_no_consent_still_refuses_the_real_installer`, and
+`core/internal/sync/trust_internal_test.go` →
+`TestConfirmThirdPartyPlugins_TCPLG044_recorded_consent_reports_consent`.
+
 <!-- Add new PLG cases here as their proposals land. -->
 
 ---
@@ -1560,6 +1982,96 @@ catches the integration regression by driving `runRoot`.
 
 Exercised by `core/internal/cmd/banner_test.go` →
 `TestBanner_TCUB007_fires_at_cli_boundary`.
+
+### TC-UB-008 — The first invocation on a machine prints an onboarding hint
+
+- **Given** `<TAI_DATA_DIR>/state/first-run.json` does not exist,
+- **When** the user runs any tai command (e.g. `tai --version`),
+- **Then** stderr carries the line
+  `→ Get started: run \`tai install-commands\` to make tai's commands available in your AI tool.`,
+- **And** the line names no specific AI tool,
+- **And** the hint is on stderr, not stdout, so it cannot corrupt a
+  piped command's output,
+- **And** `<TAI_DATA_DIR>/state/first-run.json` then holds a JSON
+  object whose `first-run` field is an ISO-8601 UTC timestamp.
+
+The hint is written after the foreground command completes: it points
+at what to run next, so it belongs below that command's output rather
+than above it.
+
+Any verb creates the marker — `tai install-commands` does not have to
+be the one that runs.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB008_hint_and_marker`.
+
+### TC-UB-009 — The onboarding hint fires once, ever
+
+- **Given** `<TAI_DATA_DIR>/state/first-run.json` exists,
+- **When** the user runs any tai command,
+- **Then** the onboarding hint is not printed,
+- **And** the marker's timestamp is unchanged.
+
+The marker's existence is the whole gate; the timestamp is
+informational and is never rewritten.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB009_suppressed_once_marked`.
+
+### TC-UB-010 — The onboarding hint and the update banner never stack
+
+- **Given** no first-run marker exists,
+- **And** `<TAI_DATA_DIR>/state/update-check.json` reports a pending
+  TAI update with `last-banner-date` set to yesterday,
+- **When** the user runs any tai command,
+- **Then** stderr carries the onboarding hint,
+- **And** no `[tai]` banner is printed,
+- **And** `last-banner-date` is advanced to today, so the banner is
+  eligible tomorrow rather than dropped.
+
+"Here is how to get started" and "here is how to upgrade" arriving
+together teaches a new user nothing from the second line. The banner
+is deferred, not suppressed.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB010_defers_the_update_banner`.
+
+### TC-UB-011 — An unwritable marker costs a repeated hint, not a failed command
+
+- **Given** no first-run marker exists,
+- **And** `<TAI_DATA_DIR>/state/` is not writable,
+- **When** the user runs any tai command,
+- **Then** the command exits with its normal code and its normal
+  stdout,
+- **And** the onboarding hint is still printed,
+- **And** no marker is created, so the hint may print again next time.
+
+Repeating a one-line hint is a far cheaper failure than turning a
+successful command into an error.
+
+The unwritable directory is simulated with a permission bit, which
+root ignores, so the case is skipped when the test runs as uid 0
+(common in container-based CI). The behaviour is real either way; only
+this simulation of it depends on not being root.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB011_unwritable_marker_does_not_fail_the_command`.
+
+### TC-UB-012 — A bare `tai` outside a terminal gets no onboarding hint
+
+- **Given** no first-run marker exists,
+- **When** `tai` is run with no arguments and stderr is not a
+  terminal,
+- **Then** the onboarding hint is not printed,
+- **And** no marker is written, so the hint survives for the next
+  interactive run.
+
+A bare `tai` with nothing attached to stderr is the shape a CI step
+takes when it checks the binary exists. Consuming the hint there would
+mean the person never sees it.
+
+Exercised by `core/internal/cmd/firstrun_test.go` →
+`TestFirstRun_TCUB012_suppressed_for_a_bare_non_tty_invocation`.
 
 <!-- Add new UB cases here as their proposals land. -->
 

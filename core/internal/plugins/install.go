@@ -3,15 +3,18 @@ package plugins
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/dmastrorillo/tai/core/internal/config"
 	"github.com/dmastrorillo/tai/core/internal/verbs"
+	"github.com/dmastrorillo/tai/pkg/cliout"
 	"github.com/dmastrorillo/tai/pkg/errcode"
 )
 
@@ -34,8 +37,19 @@ type InstallOptions struct {
 	Fetcher Fetcher
 
 	// Stderr receives non-fatal warnings (e.g. falsy-skip notices
-	// during the asset-sync phase).
+	// during the asset-sync phase) and the third-party confirmation
+	// prompt.
 	Stderr io.Writer
+
+	// Stdin is where the third-party confirmation prompt reads its
+	// answer. Nil means non-interactive, which refuses a third-party
+	// source rather than blocking on a prompt nobody can answer.
+	Stdin io.Reader
+
+	// AssumeYes confirms a third-party source without prompting, for
+	// this invocation only. Threaded from `--yes` on the install and
+	// update verbs.
+	AssumeYes bool
 
 	// InstalledAt overrides the InstalledAt timestamp recorded in
 	// the state file. Zero (default) means Install stamps it with
@@ -76,9 +90,16 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 		return nil, err
 	}
 
+	// Consent gates the fetch, not the promotion: a refusal must leave
+	// no downloaded bytes on disk at all.
+	if err := confirmThirdParty(name, src, opts.Stdin, opts.Stderr,
+		opts.AssumeYes, cliout.IsTTYReader(opts.Stdin)); err != nil {
+		return nil, err
+	}
+
 	fetcher := opts.Fetcher
 	if fetcher == nil {
-		fetcher = &HTTPFetcher{}
+		fetcher = defaultFetcher
 	}
 
 	stagingDir, err := os.MkdirTemp("", "tai-plugin-install-")
@@ -176,6 +197,50 @@ func Install(ctx context.Context, name string, dataDir string, cfg *config.File,
 		return nil, err
 	}
 	return &entry, nil
+}
+
+// defaultFetcher is what Install uses when InstallOptions.Fetcher is
+// nil, which is every production call site. It dispatches through a
+// package-level variable so an end-to-end test can drive the install
+// verb from the CLI boundary without a network or a real release —
+// the same test-bypass shape as RegisterForTesting and
+// sync.AutoInstallForTesting.
+var defaultFetcher Fetcher = &HTTPFetcher{}
+
+// FetcherForTesting swaps the default fetcher for the lifetime of t,
+// restoring the production HTTP fetcher via t.Cleanup.
+//
+// The testing.TB parameter is the guard: a production binary that
+// imports `testing` is a glaring code-review red flag, so this cannot
+// be reached by accident from shipped code.
+func FetcherForTesting(t testing.TB, f Fetcher) {
+	t.Helper()
+	prev := defaultFetcher
+	defaultFetcher = f
+	t.Cleanup(func() { defaultFetcher = prev })
+}
+
+// PostInstallHint is the line printed on stderr after a plugin is
+// installed or updated. A plugin's verbs are its own, and the host
+// cannot describe them, so the hint points at the one command that
+// can.
+//
+// It names no AI tool: where a plugin fits into the user's tooling is
+// the plugin's help to explain.
+func PostInstallHint(name string) string {
+	return "→ Run `tai " + name + " help` to learn how to use " + name + ".\n"
+}
+
+// AggregateInstallHint is the single line that replaces the
+// per-plugin hint when several plugins install in one go (the
+// `plugins.yml` auto-install during `tai sync`). Returns "" for an
+// empty list so the caller can print unconditionally.
+func AggregateInstallHint(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("→ %d plugin(s) installed — run `tai <name> help` for any of: %s.\n",
+		len(names), strings.Join(names, ", "))
 }
 
 // resolveSource derives the fetch Source for `name`. Precedence:

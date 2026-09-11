@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/dmastrorillo/tai/pkg/cliout"
 )
 
 // isTruthyEnv reports whether the named environment variable holds a
@@ -24,25 +26,9 @@ func isTruthyEnv(name string) bool {
 	return false
 }
 
-// stdinIsTTY reports whether reader is an *os.File backed by a
-// terminal device. urfave/cli wires c.Reader to os.Stdin in production
-// and to a strings.Reader in tests; only the *os.File path can be a
-// TTY.
-//
-// The mask `ModeDevice|ModeCharDevice` is the canonical stdlib idiom
-// for "this file descriptor is a terminal". Using just ModeCharDevice
-// can produce false positives on certain platforms where character
-// devices that are not terminals also set that bit; requiring both
-// rules them out.
+// stdinIsTTY reports whether reader is a terminal. urfave/cli wires
+// c.Reader to os.Stdin in production and to a strings.Reader in
+// tests; only the *os.File path can be a TTY.
 func stdinIsTTY(reader io.Reader) bool {
-	f, ok := reader.(*os.File)
-	if !ok {
-		return false
-	}
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	const ttyMask = os.ModeDevice | os.ModeCharDevice
-	return fi.Mode()&ttyMask == ttyMask
+	return cliout.IsTTYReader(reader)
 }

@@ -24,6 +24,12 @@ type Options struct {
 	// the manifest no longer present in the current source). Without
 	// it, orphans persist and are surfaced in the summary.
 	Prune bool
+	// TrustThirdParty (--trust-third-party) confirms the third-party
+	// plugins listed in the source repo's plugins.yml without
+	// prompting. Deliberately separate from Yes: agreeing to
+	// overwrite files in your own targets is not the same decision as
+	// agreeing to run a stranger's binary.
+	TrustThirdParty bool
 
 	// Stdin / Stdout / Stderr — Sync's I/O. Tests pass buffers /
 	// strings.NewReader; main.go passes os.Std*.
@@ -89,7 +95,7 @@ func Sync(ctx context.Context, cfg *config.File, dataDir string, opts Options) (
 	// land alongside the source-repo assets in one pass. The hook
 	// is additive — removing a YAML entry does NOT uninstall a
 	// plugin from the developer's machine (spec).
-	if err := autoInstallPluginsFromYAML(ctx, cloneDir, dataDir, cfg, opts.Stderr); err != nil {
+	if err := autoInstallPluginsFromYAML(ctx, cloneDir, dataDir, cfg, opts); err != nil {
 		return nil, err
 	}
 

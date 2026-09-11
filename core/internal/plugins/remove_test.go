@@ -24,8 +24,9 @@ func TestRemove_TCPLG014_preserves_runtime_state(t *testing.T) {
 		"commands/import.md":         "x",
 	})
 	if _, err := plugins.Install(context.Background(), "triage", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v0.5.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "dmastrorillo/tai"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v0.5.0"},
 	}); err != nil {
 		t.Fatalf("install: %v", err)
 	}

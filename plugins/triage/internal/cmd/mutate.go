@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// runTransition implements `tai accept`, `tai dismiss`, `tai complete`.
+// runTransition implements `tai triage accept`, `tai triage dismiss`, `tai triage complete`.
 // status is the target status string (`accepted`/`dismissed`/`completed`).
 //
 // Selection: exactly one of <id> (positional) or --batch <key> MUST be
@@ -53,7 +53,7 @@ func runTransition(ctx context.Context, c *cli.Command, target string) error {
 		dismissReason = strings.TrimSpace(c.String(reasonFlag))
 		if dismissReason == "" {
 			return errcode.New(errcode.TriageInvalidFlags,
-				"--reason is required for `tai dismiss`").
+				"--reason is required for `tai triage dismiss`").
 				WithHelp("pass --reason \"<short explanation>\"")
 		}
 		dismissedBy = resolveDismissBy(ctx, c.String(byFlag))

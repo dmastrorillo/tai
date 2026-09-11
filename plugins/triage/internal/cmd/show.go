@@ -35,23 +35,23 @@ func runShow(ctx context.Context, c *cli.Command) error {
 	if !all {
 		if len(args) == 0 {
 			return errcode.New(errcode.TriageInvalidFlags,
-				"tai show requires a comment id, or --all").
-				WithHelp("invoke as `tai show <id>` or `tai show --all`")
+				"tai triage show requires a comment id, or --all").
+				WithHelp("invoke as `tai triage show <id>` or `tai triage show --all`")
 		}
 		if len(args) > 1 {
 			return errcode.Newf(errcode.TriageInvalidFlags,
-				"tai show takes exactly one comment id, got %d", len(args)).
-				WithHelp("pass a single position, e.g. `tai show 1`")
+				"tai triage show takes exactly one comment id, got %d", len(args)).
+				WithHelp("pass a single position, e.g. `tai triage show 1`")
 		}
 		if len(statuses) > 0 {
 			return errcode.New(errcode.TriageInvalidFlags,
 				"--status is only valid with --all").
-				WithHelp("drop --status, or switch to `tai show --all`")
+				WithHelp("drop --status, or switch to `tai triage show --all`")
 		}
 	} else if len(args) > 0 {
 		return errcode.New(errcode.TriageInvalidFlags,
-			"tai show --all takes no positional arguments").
-			WithHelp("invoke as `tai show --all` (optionally with --status)")
+			"tai triage show --all takes no positional arguments").
+			WithHelp("invoke as `tai triage show --all` (optionally with --status)")
 	}
 
 	if err := triage.ValidateStatuses(statuses); err != nil {

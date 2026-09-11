@@ -11,7 +11,7 @@ import (
 // TestForget_TCTRG090_zero_selectors exercises TC-TRG-090: no
 // selector → TRIAGE_INVALID_FLAGS. This test deliberately bypasses
 // the `triage()` helper because the helper auto-prepends --repo,
-// which `tai forget` would interpret as the repo-selector mode.
+// which `tai triage forget` would interpret as the repo-selector mode.
 func TestForget_TCTRG090_zero_selectors(t *testing.T) {
 	cmdtest.Isolate(t)
 	cmdtest.Chdir(t, t.TempDir())
@@ -32,7 +32,7 @@ func TestForget_TCTRG091_two_local_selectors(t *testing.T) {
 // TestForget_TCTRG092_repo_with_yes_outside_git exercises TC-TRG-092:
 // `tai --repo acme/app forget --yes` succeeds from any working
 // directory (no git resolution), prints the destructive summary,
-// commits the delete, and `tai list --pr 1` then exits TRIAGE_NOT_FOUND
+// commits the delete, and `tai triage list --pr 1` then exits TRIAGE_NOT_FOUND
 // because the cascade removed the PR row alongside the repo row.
 func TestForget_TCTRG092_repo_with_yes_outside_git(t *testing.T) {
 	cmdtest.Isolate(t)
@@ -135,7 +135,7 @@ func TestForget_TCTRG097_repo_status_prune(t *testing.T) {
 }
 
 // TestForget_TCTRG098_batch_status_recompute exercises TC-TRG-098:
-// `tai forget --batch B1 --status completed --yes` deletes only the
+// `tai triage forget --batch B1 --status completed --yes` deletes only the
 // matching members, preserves the batch row, and recomputes the
 // batch status against the surviving members.
 func TestForget_TCTRG098_batch_status_recompute(t *testing.T) {
@@ -160,7 +160,7 @@ func TestForget_TCTRG098_batch_status_recompute(t *testing.T) {
 }
 
 // TestForget_TCTRG099_multi_value_status exercises TC-TRG-099:
-// multiple `--status` values on `tai forget` combine via OR.
+// multiple `--status` values on `tai triage forget` combine via OR.
 func TestForget_TCTRG099_multi_value_status(t *testing.T) {
 	cmdtest.Isolate(t)
 	seedPR(t, 1,

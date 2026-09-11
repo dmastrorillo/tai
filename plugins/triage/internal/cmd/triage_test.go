@@ -1,7 +1,7 @@
 package cmd_test
 
 // Shared scaffolding for triage-verb E2E tests. Each TC-TRG-NNN
-// scenario assembles a payload, pipes it through `tai import -` to
+// scenario assembles a payload, pipes it through `tai triage import -` to
 // seed the database under a per-test isolated env, then exercises
 // the verb under test. Test helpers live here to keep individual
 // test files focused on assertions.

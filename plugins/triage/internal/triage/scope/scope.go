@@ -1,5 +1,5 @@
 // Package scope resolves the operating scope for every triage verb
-// (except `tai forget --repo`, which carries its own identity). The
+// (except `tai triage forget --repo`, which carries its own identity). The
 // rule is precedence-based: explicit `--pr` flag wins, then explicit
 // `--branch`, otherwise the current git branch auto-detects to a PR
 // row (via `prs.head_branch`) or a `branches` row.
@@ -45,7 +45,7 @@ type Scope struct {
 
 // TargetLabel returns the human-readable label used in headers:
 // `PR #<n>` for PR scope, `branch <name>` for branch scope. Used by
-// `tai list`, `tai show`, `tai status`.
+// `tai triage list`, `tai triage show`, `tai triage status`.
 func (s Scope) TargetLabel() string {
 	if s.Kind == KindPR {
 		return fmt.Sprintf("PR #%d", s.PRNumber)
@@ -53,7 +53,7 @@ func (s Scope) TargetLabel() string {
 	return fmt.Sprintf("branch %s", s.BranchName)
 }
 
-// LongLabel is `tai status`'s richer scope line (includes PR title and
+// LongLabel is `tai triage status`'s richer scope line (includes PR title and
 // head_branch for PR scope).
 func (s Scope) LongLabel() string {
 	if s.Kind == KindPR {
@@ -127,7 +127,7 @@ func lookupRepoID(ctx context.Context, db *storage.DB, ownerName string) (int64,
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, errcode.Newf(errcode.TriageNotFound,
 			"no triage data for repo %q (nothing has been imported yet)", ownerName).
-			WithHelp("run `tai import -` to populate the database, or check the repo identity")
+			WithHelp("run `tai triage import -` to populate the database, or check the repo identity")
 	}
 	if err != nil {
 		return 0, errcode.Wrap(errcode.InternalError, err, "look up repo id")
@@ -147,7 +147,7 @@ func resolvePR(ctx context.Context, db *storage.DB, repoID int64, ownerName stri
 	if errors.Is(err, sql.ErrNoRows) {
 		return Scope{}, errcode.Newf(errcode.TriageNotFound,
 			"no PR #%d in %s", number, ownerName).
-			WithHelp("check `tai status` for the PRs that have been imported")
+			WithHelp("check `tai triage status` for the PRs that have been imported")
 	}
 	if err != nil {
 		return Scope{}, errcode.Wrap(errcode.InternalError, err, "look up pr")
@@ -167,7 +167,7 @@ func resolveBranch(ctx context.Context, db *storage.DB, repoID int64, ownerName,
 	if errors.Is(err, sql.ErrNoRows) {
 		return Scope{}, errcode.Newf(errcode.TriageNotFound,
 			"no branch %q in %s", name, ownerName).
-			WithHelp("check `tai status` for the branches that have been imported")
+			WithHelp("check `tai triage status` for the branches that have been imported")
 	}
 	if err != nil {
 		return Scope{}, errcode.Wrap(errcode.InternalError, err, "look up branch")
@@ -228,7 +228,7 @@ func autoDetect(ctx context.Context, db *storage.DB, repoID int64, ownerName str
 			current, ownerName).
 			WithHelp(
 				"pass --pr <number> or --branch <name> to identify the scope",
-				"or run `tai status` to see what has been imported",
+				"or run `tai triage status` to see what has been imported",
 			)
 	}
 }

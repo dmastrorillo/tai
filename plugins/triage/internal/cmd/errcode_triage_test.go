@@ -68,7 +68,7 @@ func TestErrcode_TCTRG103_invalid_flags_footer(t *testing.T) {
 }
 
 // TestErrcode_TCTRG104_confirmation_required_footer exercises
-// TC-TRG-104: `tai forget` invoked non-interactively without --yes
+// TC-TRG-104: `tai triage forget` invoked non-interactively without --yes
 // surfaces `[exit 1: TRIAGE_CONFIRMATION_REQUIRED]`.
 func TestErrcode_TCTRG104_confirmation_required_footer(t *testing.T) {
 	cmdtest.Isolate(t)

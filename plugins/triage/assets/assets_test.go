@@ -31,8 +31,8 @@ var staleRef = regexp.MustCompile(`/tai:[a-z-]+`)
 // form: `tai <triage-verb>`. These verbs moved out of the core binary
 // when triage became a plugin, so the only form that runs today is
 // `tai triage <verb>`. The negative lookahead Go's regexp lacks is
-// unnecessary here — `tai triage status` contains no `tai status`
-// substring, since `triage` sits between them.
+// unnecessary here — the corrected form puts the plugin name between
+// `tai` and the verb, so it never matches this pattern.
 //
 // Checked separately from staleRef because the two drifted
 // independently: an earlier pass fixed every `/tai:` reference and

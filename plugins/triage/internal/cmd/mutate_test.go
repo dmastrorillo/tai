@@ -20,7 +20,7 @@ func TestAccept_TCTRG040_accept_pending(t *testing.T) {
 	cmdtest.AssertStdoutContains(t, r, "Accepted comment 1")
 	cmdtest.AssertStdoutContains(t, r, "[exit 0]")
 
-	// Confirm via `tai show`.
+	// Confirm via `tai triage show`.
 	r2 := triage(t, "show", "1", "--pr", "1")
 	cmdtest.AssertStdoutContains(t, r2, "**Status:** accepted")
 	cmdtest.AssertStdoutContains(t, r2, "## Resolution\nuse execFileSync")

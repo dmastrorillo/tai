@@ -14,16 +14,16 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// maxImportStdinBytes caps the size of an `tai import -` stdin payload.
+// maxImportStdinBytes caps the size of an `tai triage import -` stdin payload.
 // Payloads in practice are tens to low hundreds of KB; a misdirected
-// pipe (e.g. `tai import - < /var/log/...`) would otherwise let
+// pipe (e.g. `tai triage import - < /var/log/...`) would otherwise let
 // io.ReadAll allocate without bound. Anything larger than this is
 // vanishingly unlikely to be a real review payload.
 const maxImportStdinBytes = 4 << 20 // 4 MB
 
-// newImportCommand wires the `tai import` subcommand.
+// newImportCommand wires the `tai triage import` subcommand.
 //
-// `tai import` is the data-ingestion verb. It is unique within the CLI
+// `tai triage import` is the data-ingestion verb. It is unique within the CLI
 // in two ways:
 //
 //   - It is repo-independent at the CLI boundary: the JSON payload
@@ -54,7 +54,7 @@ func newImportCommand() *cli.Command {
 	}
 }
 
-// runImport implements the `tai import -` action.
+// runImport implements the `tai triage import -` action.
 //
 // Step 1: usage-shape validation. The repo flag is forbidden, exactly
 // one positional `-` is required.
@@ -72,20 +72,20 @@ func newImportCommand() *cli.Command {
 func runImport(ctx context.Context, c *cli.Command) error {
 	if c.IsSet(RepoFlag) {
 		return errcode.New(errcode.UnknownSubcommand,
-			"--repo is not accepted by `tai import` (repo identity is read from the JSON payload)").
+			"--repo is not accepted by `tai triage import` (repo identity is read from the JSON payload)").
 			WithHelp("remove --repo and let the JSON's `repo` field drive the import target")
 	}
 
 	args := c.Args().Slice()
 	if len(args) == 0 {
 		return errcode.New(errcode.UnknownSubcommand,
-			"tai import expects '-' to read the JSON payload from stdin").
-			WithHelp("invoke as `tai import -` and pipe the payload on stdin")
+			"tai triage import expects '-' to read the JSON payload from stdin").
+			WithHelp("invoke as `tai triage import -` and pipe the payload on stdin")
 	}
 	if len(args) > 1 || args[0] != "-" {
 		return errcode.Newf(errcode.UnknownSubcommand,
-			"tai import expects '-' as its sole positional argument, got %q", args[0]).
-			WithHelp("invoke as `tai import -` and pipe the payload on stdin")
+			"tai triage import expects '-' as its sole positional argument, got %q", args[0]).
+			WithHelp("invoke as `tai triage import -` and pipe the payload on stdin")
 	}
 
 	// io.LimitReader caps stdin so a runaway pipe can't OOM the process.
@@ -129,7 +129,7 @@ func runImport(ctx context.Context, c *cli.Command) error {
 				ambig.CommentIndex, ambig.CommentIDs).
 				WithHelp(
 					"remove one of the conflicting refs from the payload and re-run",
-					"or use `tai forget` to delete the unwanted existing row, then re-run",
+					"or use `tai triage forget` to delete the unwanted existing row, then re-run",
 				)
 		}
 		return err

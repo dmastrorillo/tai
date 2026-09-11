@@ -29,8 +29,9 @@ func TestInstall_TCPLG024_preserves_plugin_state_across_reinstall(t *testing.T) 
 
 	install := func() error {
 		_, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-			Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-			Fetcher: &fakeFetcher{source: bundle, version: "v1.0.0"},
+			AssumeYes: true,
+			Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+			Fetcher:   &fakeFetcher{source: bundle, version: "v1.0.0"},
 		})
 		return err
 	}
@@ -87,8 +88,9 @@ func TestInstall_TCPLG024_first_install_without_state_is_fine(t *testing.T) {
 	bundle := stageContractBundle(t, "demo", answersHelpSummary("Does the thing."), "populated")
 
 	if _, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-		Fetcher: &fakeFetcher{source: bundle, version: "v1.0.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+		Fetcher:   &fakeFetcher{source: bundle, version: "v1.0.0"},
 	}); err != nil {
 		t.Fatalf("install with no prior state: %v", err)
 	}
@@ -110,8 +112,9 @@ func TestUpdate_TCPLG024_preserves_plugin_state(t *testing.T) {
 	fetch := &fakeFetcher{source: bundle, version: "v1.0.0"}
 
 	if _, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-		Fetcher: fetch,
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+		Fetcher:   fetch,
 	}); err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -125,7 +128,8 @@ func TestUpdate_TCPLG024_preserves_plugin_state(t *testing.T) {
 	}
 
 	if _, err := plugins.Update(context.Background(), "demo", dataDir, cfg, plugins.UpdateOptions{
-		Fetcher: fetch,
+		AssumeYes: true,
+		Fetcher:   fetch,
 	}); err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -154,8 +158,9 @@ func TestInstall_TCPLG025_failed_restore_keeps_the_parked_copy(t *testing.T) {
 
 	first := stageContractBundle(t, "demo", answersHelpSummary("Does the thing."), "populated")
 	if _, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-		Fetcher: &fakeFetcher{source: first, version: "v1.0.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+		Fetcher:   &fakeFetcher{source: first, version: "v1.0.0"},
 	}); err != nil {
 		t.Fatalf("first install: %v", err)
 	}
@@ -179,8 +184,9 @@ func TestInstall_TCPLG025_failed_restore_keeps_the_parked_copy(t *testing.T) {
 	}
 
 	_, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-		Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-		Fetcher: &fakeFetcher{source: second, version: "v2.0.0"},
+		AssumeYes: true,
+		Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+		Fetcher:   &fakeFetcher{source: second, version: "v2.0.0"},
 	})
 	if err == nil {
 		t.Fatal("want an error when the state cannot be restored")
@@ -234,8 +240,9 @@ func TestInstall_TCPLG024_non_directory_state_entry_is_not_preserved(t *testing.
 	bundle := stageContractBundle(t, "demo", answersHelpSummary("Does the thing."), "populated")
 	install := func() error {
 		_, err := plugins.Install(context.Background(), "demo", dataDir, cfg, plugins.InstallOptions{
-			Source:  plugins.Source{Host: "github.com", Repo: "acme/demo"},
-			Fetcher: &fakeFetcher{source: bundle, version: "v1.0.0"},
+			AssumeYes: true,
+			Source:    plugins.Source{Host: "github.com", Repo: "acme/demo"},
+			Fetcher:   &fakeFetcher{source: bundle, version: "v1.0.0"},
 		})
 		return err
 	}

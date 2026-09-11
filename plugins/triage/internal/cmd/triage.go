@@ -14,7 +14,7 @@ import (
 )
 
 // Triage-verb flag names. The two scope flags (--pr / --branch) are
-// shared across every triage verb (except `tai forget --repo`), which
+// shared across every triage verb (except `tai triage forget --repo`), which
 // is why they live on this file alongside the helpers.
 const (
 	prFlag         = "pr"

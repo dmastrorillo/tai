@@ -146,6 +146,7 @@ Inside `core/`:
 - `core/internal/config/` — YAML config loader, schema, validation, lazy save. Spec: `openspec/specs/config/spec.md`.
 - `core/internal/sync/` — `tai sync` engine: clone manager, eager git fetch with cache fallback, M1 overwrite detection, per-target manifest, prune, batched prompt, background update-check goroutine. Spec: `openspec/specs/repo-sync/spec.md`.
 - `core/internal/repoinit/` — `tai repo init` scaffold with embedded templates, git init + initial commit. Spec: `openspec/specs/repo-init/spec.md`.
+- `core/internal/notices/` — owns the two unsolicited stderr notices that bracket the foreground command: the once-per-day update banner and the once-ever first-run onboarding hint. They live together because they are mutually exclusive on a single invocation. Called by `core/cmd/tai/main.go` and by the e2e harness, so a wiring regression fails a test rather than shipping. Spec: `openspec/specs/update-banner/spec.md`.
 - `core/internal/verbs/` — canonical reserved-verbs registry consumed by the plugin host. `verbs.IsReserved(name)` is the install-time gate that emits `PLUGIN_NAME_RESERVED`.
 - `core/internal/plugins/` — plugin host: built-in first-party registry (`registry.go`), on-disk state (`state.go`, written to `<TAI_DATA_DIR>/state/plugins.json`), the HTTP-backed `Fetcher` (`fetch.go`), the asset namespacing rules (`assets.go`), and the install/update/remove/list verb implementations. Spec: `openspec/specs/plugin-host/spec.md`.
 - `core/internal/version/` — build-metadata package exposing the linker-injectable `version.String` for the core binary. Kept separate to isolate one of the project's sole package-level mutable-var exceptions (see Conventions).
@@ -198,6 +199,7 @@ Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVers
 - Use `context.Context` for anything that might be cancellable or time out (network, long file walks, prompts).
 - Logging: `log/slog` from the standard library.
 - Don't write package-level mutable state. The sole exception is **linker-injectable build-metadata variables** — variables declared `var` specifically so `go build -ldflags="-X …"` can overwrite them at link time (e.g. `core/internal/version.String`, `plugins/<name>/internal/version.String`). These MUST be documented at their declaration site, MUST NOT be mutated from Go code at runtime (including tests), and MUST live in a dedicated package so the exception's surface stays narrow. ONE init-time mutation per package is permitted as a fallback for when ldflags injection didn't run (e.g. plain `go install ...@vX.Y.Z`): the init function MAY read `runtime/debug.ReadBuildInfo()` and overwrite the default once before any caller observes the value, then the var is effectively read-only for the rest of the process. Both core's and triage's `version.String` follow this shape. Each binary owns its own version package so the linker can inject distinct values; first-party binaries in this repo share commits and release through the prefix-aware tag scheme owned by the `release-cycle` capability (bare `vX.Y.Z` for core, `plugins/<name>/vX.Y.Z` for plugins). Third-party plugins ship on their own cadence from their own repos.
+- A version string that the Go toolchain synthesized rather than a human tagging a release is not a version the user should see. `core/internal/version` owns the detection (see `pseudoVersionPattern` there) and reports `dev` instead. Any new build-metadata surface follows the same rule.
 - One exported symbol per file is a guideline, not a rule — but if a file has many, look for a missing package boundary.
 
 ---
@@ -236,6 +238,10 @@ Every asset a plugin distributes lives inside the plugin's namespace. The rules 
 
 The namespace IS the manifest. `tai plugins update <name>` wipes the plugin's namespace in every target and re-copies, with no overwrite prompts.
 
+**A plugin places target-bound assets only through its tarball's `assets/` directory.** A plugin MUST NOT write into a target directory from its own subcommands — the host owns that copy, and an install path the host does not know about cannot be namespaced, updated, or removed with the plugin. `assets/` is therefore mandatory in every tarball (missing it fails install with `PLUGIN_ASSET_MISSING`), though it MAY be empty for a plugin that ships no skills, commands, or agents.
+
+**A source outside the built-in registry needs the user's consent.** `tai plugins install`/`update` prompt before fetching a third-party plugin, take `--yes` outside a terminal, and refuse with `PLUGIN_THIRDPARTY_UNCONFIRMED` when neither is available. `tai sync` applies the same rule to the plugins listed in the source repo's `plugins.yml`, recording consent as the sha256 of that exact file against the configured `repo-url` in `<TAI_DATA_DIR>/state/trust.json` — so an unchanged file is never asked about twice and any edit is asked about again. Built-in registry entries are never gated.
+
 ### Local state: `plugins.json`
 
 The host's record of installed plugins lives at
@@ -262,6 +268,30 @@ The host's record of installed plugins lives at
 The schema is append-only — new fields MAY be added (every existing
 plugin install must remain readable by future tai versions); fields
 MUST NOT be renamed or removed without a major version bump.
+
+### Local state: `trust.json`
+
+The record of which source repos' third-party plugin lists the user has
+agreed to lives at `<TAI_DATA_DIR>/state/trust.json`:
+
+```json
+{
+  "trust": [
+    {
+      "repo-url": "https://github.com/acme/ai-assets",
+      "plugins-yml-sha256": "9f2c…"
+    }
+  ]
+}
+```
+
+Consent is to an exact file: the hash is of the verbatim
+`<clone>/plugins.yml` bytes, keyed on the configured `repo-url`. An
+unchanged file is never asked about twice; any edit is asked about
+again. Entries for previous `repo-url` values are kept rather than
+pruned — cleaning them out is the user's affair.
+
+The schema is append-only on the same terms as `plugins.json`.
 
 ### Auto-install from `plugins.yml`
 

@@ -29,6 +29,10 @@ func newSyncCommand() *cli.Command {
 				Name:  "prune",
 				Usage: "Delete files no longer present in the source (use with care)",
 			},
+			&cli.BoolFlag{
+				Name:  "trust-third-party",
+				Usage: "Confirm the third-party plugins listed in the source repo's plugins.yml",
+			},
 		},
 		Action: runSync,
 	}
@@ -50,11 +54,12 @@ func runSync(ctx context.Context, c *cli.Command) error {
 	}
 
 	res, err := sync.Sync(ctx, cfg, dataDir, sync.Options{
-		Yes:    c.Bool("yes"),
-		Prune:  c.Bool("prune"),
-		Stdin:  c.Reader,
-		Stdout: c.Writer,
-		Stderr: c.ErrWriter,
+		Yes:             c.Bool("yes"),
+		Prune:           c.Bool("prune"),
+		TrustThirdParty: c.Bool("trust-third-party"),
+		Stdin:           c.Reader,
+		Stdout:          c.Writer,
+		Stderr:          c.ErrWriter,
 	})
 	if err != nil {
 		return err

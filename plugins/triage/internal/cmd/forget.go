@@ -91,12 +91,12 @@ func runForget(ctx context.Context, c *cli.Command) error {
 
 	if selectorCount == 0 {
 		return errcode.New(errcode.TriageInvalidFlags,
-			"tai forget requires exactly one selector").
+			"tai triage forget requires exactly one selector").
 			WithHelp("pass exactly one of --comment <id>, --batch <key>, --pr <number>, --branch <name>, or --repo <owner/name>")
 	}
 	if selectorCount > 1 {
 		return errcode.New(errcode.TriageInvalidFlags,
-			"tai forget accepts only one selector at a time").
+			"tai triage forget accepts only one selector at a time").
 			WithHelp("pass exactly one of --comment, --batch, --pr, --branch")
 	}
 

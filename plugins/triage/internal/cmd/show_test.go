@@ -30,7 +30,7 @@ func TestShow_TCTRG030_pending_comment(t *testing.T) {
 }
 
 // TestShow_TCTRG031_accepted_with_resolution exercises TC-TRG-031:
-// `tai show` on an accepted comment with resolution surfaces the
+// `tai triage show` on an accepted comment with resolution surfaces the
 // "## Resolution" section.
 func TestShow_TCTRG031_accepted_with_resolution(t *testing.T) {
 	cmdtest.Isolate(t)
@@ -88,7 +88,7 @@ func TestShow_TCTRG035_all_empty(t *testing.T) {
 
 // TestShow_TCTRG033_batch_meta_present exercises the spec's "Comment
 // with batch shows batch meta" scenario: a comment whose batch_id is
-// set renders a `**Batch:** <key> — <title>` meta line in `tai show`.
+// set renders a `**Batch:** <key> — <title>` meta line in `tai triage show`.
 func TestShow_TCTRG033_batch_meta_present(t *testing.T) {
 	cmdtest.Isolate(t)
 	batches := `[{"batch_key": "B1", "title": "Replace execSync"}]`
@@ -102,7 +102,7 @@ func TestShow_TCTRG033_batch_meta_present(t *testing.T) {
 	cmdtest.AssertStdoutContains(t, r2, "**Batch:** B1 — Replace execSync")
 }
 
-// TestShow_TCTRG036_all_status_filter exercises the spec's "tai show
+// TestShow_TCTRG036_all_status_filter exercises the spec's "tai triage show
 // --all --status" filter: only comments matching the supplied
 // statuses appear.
 func TestShow_TCTRG036_all_status_filter(t *testing.T) {
@@ -121,7 +121,7 @@ func TestShow_TCTRG036_all_status_filter(t *testing.T) {
 }
 
 // TestShow_TCTRG038_status_rejected_on_single exercises TC-TRG-038:
-// --status is rejected on `tai show <id>`.
+// --status is rejected on `tai triage show <id>`.
 func TestShow_TCTRG038_status_rejected_on_single(t *testing.T) {
 	cmdtest.Isolate(t)
 	seedPR(t, 1, commentJSON("r1", "t", "critical", "pending"))
