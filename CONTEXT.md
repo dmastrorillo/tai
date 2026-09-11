@@ -72,7 +72,7 @@ Intents are input to triage, not the outcome of it. Every intent still passes th
 
 ## Decision
 
-The persisted outcome of triage for one comment: `accepted`, `dismissed`, or `completed`. A decision is written only by the `tai accept` / `tai dismiss` / `tai complete` verbs, and only after the comment has been through the triage conversation. An [intent](#intent) is not a decision — the word "decision" is reserved for state that has reached the database.
+The persisted outcome of triage for one comment: `accepted`, `dismissed`, or `completed`. A decision is written only by the `tai triage accept` / `tai triage dismiss` / `tai triage complete` verbs, and only after the comment has been through the triage conversation. An `intent` is not a decision — the word "decision" is reserved for state that has reached the database.
 
 ## Bulk pass
 

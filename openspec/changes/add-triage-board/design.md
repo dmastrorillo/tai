@@ -12,7 +12,7 @@ The problem is a mismatch between the bandwidth of the input surface and the ban
 
 **Goals:**
 
-1. Let a developer read every pending comment in a scope — with the same content `tai show` renders — and record accept / dismiss / leave-alone calls on all of them in one pass.
+1. Let a developer read every pending comment in a scope — with the same content `tai triage show` renders — and record accept / dismiss / leave-alone calls on all of them in one pass.
 2. Let any of those calls carry a free-text note: a refinement to the suggested fix, the reasoning behind a dismissal, or a request for explanation on one left alone.
 3. Feed those calls into the existing triage loop such that every existing obligation still fires. A bulk dismissal of a `critical` gets the same debate it would get if typed in chat.
 4. Leave the default `/tai-triage:triage` path byte-identical for anyone who does not use the board.
@@ -28,7 +28,7 @@ The problem is a mismatch between the bandwidth of the input surface and the ban
 
 ### The board never writes to the database
 
-The board reads comments and writes intents to a file. It does not call `tai accept` / `tai dismiss` / `tai complete`, and it does not open the database for writing.
+The board reads comments and writes intents to a file. It does not call `tai triage accept` / `tai triage dismiss` / `tai triage complete`, and it does not open the database for writing.
 
 This is the load-bearing decision of the whole change, and everything cheap about the change follows from it:
 
@@ -54,9 +54,9 @@ One consequence is worth naming rather than discovering later: **the note attach
 
 ### Intents are identified by the position IDs the developer already sees
 
-Comment IDs in `tai` are per-target positions computed with `ROW_NUMBER()` at query time, not stable identities; a `tai forget` shifts every subsequent position. The intents file therefore records something that could, in principle, drift.
+Comment IDs in `tai` are per-target positions computed with `ROW_NUMBER()` at query time, not stable identities; a `tai triage forget` shifts every subsequent position. The intents file therefore records something that could, in principle, drift.
 
-In practice it cannot, within the flow the board exists to serve. The flow is import → triage → fix → verify. Nothing in it deletes comments: re-import upserts by `external_refs` and appends, and accept / dismiss / complete never delete. The only operation that shifts positions is `tai forget`, a deliberate destructive gesture guarded by its own consent model, which nobody performs between opening a board and finishing the conversation it feeds.
+In practice it cannot, within the flow the board exists to serve. The flow is import → triage → fix → verify. Nothing in it deletes comments: re-import upserts by `external_refs` and appends, and accept / dismiss / complete never delete. The only operation that shifts positions is `tai triage forget`, a deliberate destructive gesture guarded by its own consent model, which nobody performs between opening a board and finishing the conversation it feeds.
 
 Fingerprinting each intent against `file` / `lines` / `title`, or keying intents by `comment_external_refs.external_id`, were both considered and rejected as defences against a scenario the flow does not produce. Positions also keep one representation of a comment's identity across the board, the intents file, the conversation, and the CLI — introducing a second identifier that the AI must never see is a durable cost paid against a transient risk.
 
@@ -86,7 +86,9 @@ Three constraints shaped the server:
 
 The slash command launches the board as a background process. The board serves, blocks until submit, writes the intents artifact, and exits `0`. An agent harness that notifies on background-process exit — which the harness the slash command targets does — wakes the AI at exactly the right moment, with no polling contract to specify.
 
-`tai triage board status` exists so a harness without that notification can poll for the same signal. The board's behaviour is identical either way; only the slash command's wait strategy differs, and both strategies are documented in its body.
+Not every harness offers that notification, and the plugin ships to whichever AI tool owns the target directory, so exit-notify cannot be the only mechanism. A harness without it polls `tai triage board intents`, which exits `TRIAGE_NO_INTENTS` while no artifact exists and emits the intents once one does. That exit is the not-yet signal, so polling needs no verb of its own.
+
+A dedicated `tai triage board status` verb was considered for the polling case and rejected: it would carry its own output format, error contract and tests while adding no capability `board intents` does not already have.
 
 A blocking foreground invocation whose stdout carries the intents was rejected: a developer working a 40-comment board takes ten to twenty minutes, which exceeds the per-command timeout of the harness the slash command targets, and a timeout would discard every decision they had made.
 
@@ -95,7 +97,7 @@ A blocking foreground invocation whose stdout carries the intents was rejected: 
 - **The browser page has no automated coverage.** Handler behaviour, the intents artifact, and `tai triage board intents` output are all testable and are covered. What a click does in the page is not. This is declared in `plugins/triage/test-cases.md` the same way the slash commands' conversational contracts already are, rather than papered over with a handler test that implies coverage it does not have.
 - **Headless machines.** On a box with no browser, launching one fails. The board prints the URL and keeps serving rather than treating this as an error, so an SSH developer can forward the port.
 - **A developer can abandon a board.** The process holds a port and blocks until submit or until it is killed. There is no timeout: an abandoned board is a stray process the developer kills, and inventing an expiry would risk discarding a half-finished pass.
-- **Two surfaces now describe a comment.** The board's rendering and `tai show`'s markdown must stay in agreement, or the developer sees one thing on the board and the AI quotes another in conversation. Both are driven from the same storage query and the same set of comment fields, which keeps them honest by construction rather than by discipline.
+- **Two surfaces now describe a comment.** The board's rendering and `tai triage show`'s markdown must stay in agreement, or the developer sees one thing on the board and the AI quotes another in conversation. Both read `listSQL` in `plugins/triage/internal/triage`, which its own comment calls the canonical SELECT for list and show, so there is one projection rather than two kept in step by discipline. A rendering scenario asserts every field that `tai triage show` renders appears in the served HTML, so a template that stops consuming part of that projection fails a test rather than silently showing less than the conversation quotes.
 
 ## Open Questions
 

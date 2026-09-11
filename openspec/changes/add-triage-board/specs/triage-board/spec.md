@@ -51,13 +51,33 @@ The command SHALL NOT write to the database under any circumstances.
 
 The board SHALL render every comment in the resolved scope whose `status` is `pending`, and no comment of any other status.
 
-Each comment SHALL display its position ID, severity, category, file, lines, source, title, description, why-fix, suggested fix, and consequences — the same fields `tai show` renders, so that the board and the conversation never describe the same comment differently.
+Each comment SHALL display its position ID, severity, category, file, lines, source, title, description, why-fix, suggested fix, and consequences — the same fields `tai triage show` renders, so that the board and the conversation never describe the same comment differently.
 
 Comments belonging to a batch SHALL be rendered grouped under their batch, labelled with the batch key and title. A batch SHALL carry a batch-level control that sets the same intent on every member in one action, and each member SHALL additionally carry its own control so a member can be given a different intent from the rest of its batch.
 
 Batches SHALL be presented before non-batched comments, batches ordered by their highest-severity member and ties broken by batch key ascending, non-batched comments ordered by severity and ties broken by file then lines ascending — the ordering the `triage-command` capability mandates for the conversational loop.
 
 When the scope has no pending comments, the board SHALL render a message saying so and offer submit of an empty intent set.
+
+#### Scenario: Every field `tai triage show` renders is present
+
+- **GIVEN** a scope with one pending comment whose ten display fields are all populated
+- **WHEN** the board is rendered
+- **THEN** the served HTML contains each of severity, category, file, lines, source, title, description, why-fix, suggested fix and consequences for that comment
+
+#### Scenario: A note input is present for every comment and every batch
+
+- **GIVEN** a scope with a three-member batch and two non-batched comments
+- **WHEN** the board is rendered
+- **THEN** the served HTML carries a note input for each of the five comments
+- **AND** a note input for the batch
+
+#### Scenario: Empty scope
+
+- **GIVEN** a scope with no pending comments
+- **WHEN** the board is rendered
+- **THEN** the served HTML says so
+- **AND** submitting it writes an intents artifact carrying no entries
 
 #### Scenario: Only pending comments are rendered
 
@@ -91,7 +111,7 @@ An intent SHALL be exactly one of `accept`, `dismiss`, or `unanswered`. `unanswe
 
 A batch-level call SHALL be recorded as the resulting per-member intents, not as a batch-level entry, so that a batch decided with exceptions is represented exactly as the per-member calls that produced it.
 
-The artifact is written only by `tai triage board` and read only by `tai triage board intents` and `tai triage board status`. No other component reads it.
+The artifact is written only by `tai triage board` and read only by `tai triage board intents`. No other component reads it.
 
 #### Scenario: Artifact records all three intents with notes
 
@@ -151,31 +171,11 @@ The subcommand SHALL NOT write to the database and SHALL NOT modify or delete th
 - **THEN** both invocations produce identical output
 - **AND** the artifact still exists after both
 
-### Requirement: `tai triage board status` reports artifact presence
-
-The system SHALL provide a `tai triage board status` subcommand that resolves a scope and reports whether an intents artifact exists for it and, when one does, when it was written.
-
-The subcommand SHALL exit `0` whether or not an artifact exists — its purpose is to be polled, so absence is a reportable state and not an error.
-
-#### Scenario: Status before submit
-
-- **GIVEN** no intents artifact for the scope
-- **WHEN** `tai triage board status --pr 142` is invoked
-- **THEN** stdout reports that no intents have been submitted for the scope
-- **AND** the CLI exits `0`
-
-#### Scenario: Status after submit
-
-- **GIVEN** an intents artifact written for the scope
-- **WHEN** `tai triage board status --pr 142` is invoked
-- **THEN** stdout reports that intents exist, with the submit timestamp
-- **AND** the CLI exits `0`
-
 ### Requirement: Board-layer error codes
 
 The system SHALL register two error codes in the append-only `pkg/errcode` registry:
 
-- `TRIAGE_BOARD_UNAVAILABLE` — the board could not bind a loopback listener. Exit code `1`.
+- `TRIAGE_BOARD_UNAVAILABLE` — the board could not bind a loopback listener. Exit code `3`, joining the other codes for an environment that blocked the operation (`DATA_DIR_UNWRITABLE`, `CONFIG_UNWRITABLE`, `REPO_FETCH_FAILED`, `PLUGIN_FETCH_FAILED`, `INSTALL_TARGET_UNWRITABLE`). Exit code `1` is reserved for an unknown subcommand, a malformed flag, or conflicting options, none of which describes a bind failure.
 - `TRIAGE_NO_INTENTS` — an intents artifact was requested for a scope that has none. Exit code `2`, joining the other "the thing you named does not exist" triage codes.
 
 Both SHALL render through the foundation error template with the `[exit N: ERROR_CODE]` footer.
@@ -184,4 +184,4 @@ Both SHALL render through the foundation error template with the `[exit N: ERROR
 
 - **WHEN** either code is surfaced
 - **THEN** stderr carries the foundation error template
-- **AND** the footer reads `[exit 1: TRIAGE_BOARD_UNAVAILABLE]` or `[exit 2: TRIAGE_NO_INTENTS]` respectively
+- **AND** the footer reads `[exit 3: TRIAGE_BOARD_UNAVAILABLE]` or `[exit 2: TRIAGE_NO_INTENTS]` respectively
