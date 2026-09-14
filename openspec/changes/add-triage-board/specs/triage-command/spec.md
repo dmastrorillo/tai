@@ -100,8 +100,8 @@ The slash command SHALL present items in this order:
 
 Within each item:
 
-1. Surface the relevant `tai triage show` output verbatim (one per batch member when presenting a batch; one for individual comments).
-2. Ask `Accept, dismiss, or complete? Any thoughts on the fix?`.
+1. Read the stored record with `tai triage show` (one per batch member when presenting a batch; one for individual comments), then open the file at the flagged lines and read the surrounding code. Present what the investigation found under seven fields: who raised it, file:line, description, cause, why fix it, suggested fix, and concerns if skipped. `cause` is always derived from the code read in this step and never taken from the record. The stored markdown MUST NOT be surfaced verbatim.
+2. Ask `Accept or dismiss? Any thoughts on the fix?`.
 3. Persist the decision via `tai triage accept` / `tai triage dismiss --reason …` / `tai triage complete --resolution …`.
 4. After each decision, run `tai triage status` and surface a `[X/Y] …` progress line.
 
@@ -123,6 +123,12 @@ A run of `accept` intents read from an intents artifact is one decision for this
 
 - **WHEN** the user replies "accept" to an individual comment prompt
 - **THEN** the slash command invokes `tai triage accept <id>` (with `--resolution` if a fix proposal was captured)
+
+#### Scenario: An item is presented as an investigation, not a stored record
+
+- **WHEN** the slash command presents a comment in the loop
+- **THEN** it surfaces the seven presentation fields
+- **AND** it does not surface `tai triage show`'s markdown verbatim
 
 #### Scenario: A run of accept intents surfaces one progress line
 
