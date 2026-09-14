@@ -91,6 +91,106 @@ The slash command SHALL NOT introduce any obligation that applies to intents and
 
 ## MODIFIED Requirements
 
+### Requirement: Bundled slash command exists and is placed by the plugin host
+
+The system SHALL bundle a slash command at `plugins/triage/assets/commands/triage.md`. The plugin host copies it verbatim into `<target.commands>/tai-triage/triage.md` on install and update; the plugin does not place it itself and MUST NOT write into a target directory from its own subcommands.
+
+The frontmatter MUST include:
+
+| Field | Value |
+|---|---|
+| `name` | `"TAI: Triage"` |
+| `description` | `"Walk through pending PR review comments interactively, batches-first."` |
+| `category` | `"Workflow"` |
+| `tags` | `[tai, triage, review]` |
+| `version` | integer, bumped when the body's contract changes |
+
+The body SHALL address itself by its installed slash-command name, `/tai-triage:triage`.
+
+No `content_hash` field and no ledger file accompany the command. The host owns placement and replaces a plugin's namespace wholesale on update, so there is nothing for a per-command hash to arbitrate.
+
+#### Scenario: Command is placed under the plugin's namespace
+
+- **WHEN** the triage plugin is installed
+- **THEN** the command is written to `<target.commands>/tai-triage/triage.md`
+- **AND** its frontmatter carries `name: "TAI: Triage"`
+
+#### Scenario: Body addresses its installed name
+
+- **WHEN** the bundled body refers to itself or its sibling commands
+- **THEN** it uses the `/tai-triage:` prefix
+
+### Requirement: Scope resolution via the CLI
+
+The slash command body SHALL resolve operating scope by invoking `tai triage status` (with any user-supplied `--pr` / `--branch` flag passed through) BEFORE entering the triage loop. The slash command MUST NOT implement its own scope detection.
+
+If `tai triage status` exits `2` with `TRIAGE_NO_SCOPE`, the slash command MUST surface a message instructing the user to run `/tai-triage:import` first or to re-invoke with `--pr <N>` / `--branch <name>`, then exit the conversation without further action.
+
+If `tai triage status` exits `2` with `TRIAGE_AMBIGUOUS_SCOPE`, the slash command MUST ask the user to disambiguate by re-invoking with `--pr` or `--branch`, then exit the conversation.
+
+If `tai triage status` succeeds but reports zero pending comments, the slash command MUST announce that all comments are triaged, surface a brief recap (counts of accepted/completed/dismissed), and exit the conversation without entering the loop.
+
+#### Scenario: TRIAGE_NO_SCOPE handled
+
+- **WHEN** the user invokes `/tai-triage:triage` on a branch with no associated PR row and no branch row
+- **THEN** the slash command body instructs the user to run `/tai-triage:import` or pass `--pr`/`--branch`
+- **AND** does not invoke any further `tai triage` verbs
+
+#### Scenario: Empty scope produces a recap without entering the loop
+
+- **WHEN** the user invokes `/tai-triage:triage` in a scope with zero `pending` comments
+- **THEN** the slash command body announces completion
+- **AND** does not prompt for any decisions
+
+### Requirement: Invocation forms
+
+The slash command SHALL accept exactly these invocation forms:
+
+- `/tai-triage:triage` — auto-detect current scope.
+- `/tai-triage:triage --pr <number-or-url>` — single PR by number or full URL.
+- `/tai-triage:triage --branch <name>` — branch-scoped review.
+- `/tai-triage:triage stack` — every PR from trunk to the current branch, ancestor-first.
+
+Any other argument shape MUST be surfaced as a usage error in the conversation, listing the four supported forms.
+
+#### Scenario: stack mode requires gh or staccato
+
+- **WHEN** the user invokes `/tai-triage:triage stack` and neither `gh` nor staccato MCP is available
+- **THEN** the slash command body announces the missing dependency and exits without entering the loop
+
+### Requirement: Phase 1 — investigation before triage
+
+Before entering the per-comment decision loop, the slash command SHALL walk every `pending` comment in scope and look for evidence the comment has already been addressed.
+
+Evidence sources (in order of trust):
+
+1. The file referenced by `comments.file` no longer exists or has been renamed away.
+2. The exact code snippet flagged in the comment's `description` is no longer present near `comments.lines`.
+3. The pattern described in the comment's `suggested_fix` is now observable in the file.
+4. Recent git history (`git log --oneline -10 -- <file>`) shows a change whose subject contains keywords matching the comment's `title`.
+
+When evidence is found, the slash command MUST:
+
+- Call `tai triage complete <id> --resolution "<one-line description of the evidence found>"`.
+- Inform the user what was found and offer an override (`I think this is still an issue, please don't mark it completed`).
+
+The slash command MUST be conservative: when evidence is ambiguous or relies on heuristics alone, it MUST NOT call `tai triage complete`. The comment proceeds to the decision loop and the user decides.
+
+This phase asks only whether a comment is already addressed. The per-comment investigation that produces the seven presentation fields belongs to phase 2 step 1 and runs for the comments that survive this one.
+
+#### Scenario: Already-fixed comment auto-completed
+
+- **WHEN** the slash command finds the comment's flagged code is no longer present
+- **AND** the suggested fix pattern is observable in the file
+- **THEN** the slash command runs `tai triage complete <id> --resolution "…"`
+- **AND** tells the user what was found
+
+#### Scenario: User overrides an auto-completion
+
+- **WHEN** the slash command marks a comment completed during investigation
+- **AND** the user replies that the fix is incorrect
+- **THEN** the slash command runs `tai triage accept <id>` (reverting to active triage with the user's input)
+
 ### Requirement: Phase 2 — triage loop, batches first, severity-ordered
 
 The slash command SHALL present items in this order:
@@ -135,6 +235,37 @@ A run of `accept` intents read from an intents artifact is one decision for this
 - **GIVEN** an intents artifact carrying thirty-seven `accept` entries
 - **THEN** the slash command surfaces one progress line for the run, not thirty-seven
 
+### Requirement: Dismissal-debate contract
+
+When the user expresses a dismiss intent, the slash command SHALL engage in a debate calibrated to the comment's severity:
+
+- For `critical` severity: challenge with at least one concrete, scenario-based question before accepting the dismissal. If the user's response contains assumptions treated as facts, scope dismissal, effort bias, or anchoring, continue the debate. Halt when the user's reasoning withstands a concrete scenario OR when the user explicitly insists.
+- For `major` severity: challenge once with a concrete scenario; accept the user's response unless it has an evident gap.
+- For `minor` / `nitpick` severity: do not debate. Accept the dismissal after a one-sentence acknowledgement.
+
+The slash command MUST record the dismissal via `tai triage dismiss <id> --reason "<reasoning produced by the conversation, not the user's first sentence>"`. The reason captures the conversation's outcome — including any agreed-upon counter-evidence — not just the user's opening line.
+
+The slash command MUST NOT:
+
+- Use "are you sure?" as a substitute for a concrete challenge.
+- Argue past a debate's natural conclusion to demonstrate thoroughness.
+- Accept "I don't want to fix that" as a complete reason for a critical-severity dismissal.
+
+#### Scenario: Critical-severity dismissal triggers debate
+
+- **WHEN** the user wants to dismiss a `critical` comment
+- **THEN** the slash command poses a concrete scenario challenging the dismissal before persisting it
+
+#### Scenario: Nitpick-severity dismissal does not debate
+
+- **WHEN** the user wants to dismiss a `nitpick` comment
+- **THEN** the slash command acknowledges and persists via `tai triage dismiss --reason …` without further challenge
+
+#### Scenario: Dismissal reason reflects the conversation
+
+- **WHEN** a user dismisses a comment after a multi-round debate
+- **THEN** the `--reason` passed to `tai triage dismiss` describes the conclusion reached, not just the user's opening line
+
 ### Requirement: Batch-override convention
 
 When the user names a subset of a batch's members in their decision response, the slash command SHALL split the decision:
@@ -166,3 +297,42 @@ The resulting batch status will be `mixed` in both cases. This is the intended o
 - **THEN** those four members end `accepted` and B1.4 ends `dismissed` carrying its note as the reason
 - **AND** B1's status is `mixed`
 - **AND** the slash command does not prompt for confirmation of the split
+
+### Requirement: Recap at end of loop
+
+When `tai triage status` reports zero `pending` comments in the scope, the slash command SHALL emit a recap containing:
+
+1. A header line naming the scope (e.g. `Triage complete for acme/app PR #142.`).
+2. Counts: accepted (with parenthesised batch count when batches accepted), completed, dismissed.
+3. The accepted work queue: every accepted comment in severity order, each row showing `[<sev-abbr>] <id>: <title> (<file>:<lines>)`, where `<id>` is the integer position `tai triage list` prints.
+4. A closing line pointing at the next command: `/tai-triage:fix` to work through the accepted queue, then `/tai-triage:verify` to confirm it.
+
+The recap MUST be emitted exactly once per loop completion.
+
+For `stack` mode, the recap is per-PR with a final stack-level aggregate after the last PR.
+
+#### Scenario: Recap surfaces accepted work queue
+
+- **WHEN** triage completes for a scope with three accepted comments
+- **THEN** the recap lists each accepted comment in severity order with its file and line range
+
+#### Scenario: Recap points at the next command
+
+- **WHEN** the recap is emitted
+- **THEN** its closing line names `/tai-triage:fix` and `/tai-triage:verify`
+
+#### Scenario: Stack mode recaps per PR and at the end
+
+- **WHEN** `/tai-triage:triage stack` completes for a stack of three PRs
+- **THEN** three per-PR recaps appear in conversation
+- **AND** a final stack-level aggregate count appears after the last PR's recap
+
+### Requirement: Slash command persistence is via the CLI only
+
+The slash command body SHALL NOT write to the database directly. It SHALL NOT bypass `tai triage accept` / `tai triage dismiss` / `tai triage complete` by editing files under the data directory.
+
+#### Scenario: All state changes route through tai triage verbs
+
+- **WHEN** the user makes any decision during the loop
+- **THEN** the resulting state change is observable as a `tai triage accept`/`tai triage dismiss`/`tai triage complete` invocation
+- **AND** no direct SQLite writes occur from the slash command
