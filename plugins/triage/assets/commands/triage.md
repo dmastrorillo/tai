@@ -148,12 +148,51 @@ acknowledge — do not abandon a half-finished decision.
 
 For each item (batch or individual):
 
-1. **Present.** Run `tai triage show <id>` for an individual comment, or `tai
-   show <id>` for each batch member when presenting a batch (one
-   `tai triage show` per member; the batch is a group, but the CLI surface is
-   per-comment). Pass the same `--pr <N>` / `--branch <name>` scope
-   flags that section 2 resolved, so the lookup hits the right scope.
-   Surface the markdown verbatim in conversation — do NOT paraphrase.
+1. **Investigate, then present.** Read the stored record with
+   `tai triage show <id>` for an individual comment, or one
+   `tai triage show <id>` per member when presenting a batch (the batch
+   is a group, but the CLI surface is per-comment). Pass the same
+   `--pr <N>` / `--branch <name>` scope flags that section 2 resolved,
+   so the lookup hits the right scope.
+
+   That output is raw material, not the presentation. Before asking for
+   a decision, open the file at the flagged lines and read the
+   surrounding code. A comment was written against the tree as it was
+   at import; the decision is about the tree as it is now.
+
+   Present each item with these fields, in this order:
+
+   - **who raised it** — the record's `source`, verbatim. It is the
+     only attribution the user gets, and it is what separates a
+     teammate's comment from a bot's when both sit in the same queue.
+     Never drop it because the investigation agreed or disagreed with
+     the finding; who said a thing and whether it holds up are separate
+     facts.
+   - **file:line** — from the record. Say so when the code has moved
+     since import, and give the position you actually found it at.
+   - **description** — what the issue is, in your own words.
+   - **cause** — the specific code path or user action that produces
+     the issue, and what happens once it does. ALWAYS derived from
+     reading the code in this step, never taken from the record. When
+     the code does not support the claim, say that plainly — a comment
+     that does not reproduce is the most useful thing you can tell the
+     user before they decide.
+   - **why fix it** — the record's `why_fix` when it has one. When it
+     is empty, work it out from what you found.
+   - **suggested fix** — the record's `suggested_fix` when it has one.
+     When it is empty, propose one from the investigation. Say which of
+     the two it is, so the user knows whether they are reading the
+     reviewer's proposal or yours.
+   - **concerns if skipped** — what goes wrong if this is left. The
+     record's own field is the starting point; sharpen it with
+     anything the investigation turned up.
+
+   Keep it concise. The goal is a decision, not a report: enough for the
+   user to judge the issue without opening the file themselves.
+
+   You MUST NOT present an item by echoing the stored markdown. A
+   record repeated back unchecked carries a cause nobody confirmed and
+   a fix that may no longer apply, and asks the user to trust both.
 2. **Decide.** Ask exactly this question (or a close paraphrase that
    preserves both verbs):
 
@@ -420,6 +459,11 @@ say so.)
   a real debate is honoured; insistence as the first move is not.
 - Do NOT change the presentation order based on conversation drift.
   Process strictly in the order section 4 names.
+- Do NOT present a comment by pasting `tai triage show`'s output.
+  Section 4 step 1 is an investigation, and its six fields are the
+  contract; the stored record supplies some of them, never all.
+- Do NOT state a `cause` you have not confirmed against the code in
+  this session.
 - Do NOT silently merge a batch's per-member overrides without
   confirming the split with the user first (section 6 step 1).
 - Do NOT emit the recap (section 7) more than once per loop, and do

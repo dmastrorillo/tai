@@ -184,3 +184,175 @@ func TestForget_TCTRG099_multi_value_status(t *testing.T) {
 		}
 	}
 }
+
+// TestForget_TCTRG107_status_prune_clears_emptied_batches exercises
+// TC-TRG-107: pruning a scope by status removes batches the prune
+// emptied, and the consent summary counts them.
+func TestForget_TCTRG107_status_prune_clears_emptied_batches(t *testing.T) {
+	cmdtest.Isolate(t)
+	batches := `[{"batch_key": "B1", "title": "Emptied"}, {"batch_key": "B2", "title": "Survives"}]`
+	payload := buildPRPayloadWithBatches(1, "t", "feat/x", batches,
+		commentInBatch("r1", "first", "critical", "B1")+","+
+			commentInBatch("r2", "second", "major", "B2"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	// B1's only member is completed; B2's stays pending.
+	triage(t, "complete", "1", "--pr", "1")
+
+	r = triage(t, "forget", "--pr", "1", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	// The summary is the user's only view of what consent covers, so
+	// a batch this prune deletes has to be named in it.
+	cmdtest.AssertStdoutContains(t, r, "1 batches")
+
+	rs := triage(t, "status", "--pr", "1")
+	if strings.Contains(rs.Stdout, "B1") {
+		t.Errorf("B1 lost its only member, so it must not survive the prune:\n%s", rs.Stdout)
+	}
+	// A batch that still has members is untouched.
+	cmdtest.AssertStdoutContains(t, rs, "B2 (1 comments — pending)")
+}
+
+// TestForget_TCTRG107_status_prune_keeps_populated_batches exercises
+// TC-TRG-107: a prune that empties no batch must not touch any, and
+// must not claim to.
+func TestForget_TCTRG107_status_prune_keeps_populated_batches(t *testing.T) {
+	cmdtest.Isolate(t)
+	batches := `[{"batch_key": "B1", "title": "Mixed"}]`
+	payload := buildPRPayloadWithBatches(1, "t", "feat/x", batches,
+		commentInBatch("r1", "first", "critical", "B1")+","+
+			commentInBatch("r2", "second", "major", "B1"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	triage(t, "complete", "1", "--pr", "1")
+
+	r = triage(t, "forget", "--pr", "1", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	cmdtest.AssertStdoutContains(t, r, "0 batches")
+
+	rs := triage(t, "status", "--pr", "1")
+	cmdtest.AssertStdoutContains(t, rs, "B1 (1 comments — pending)")
+}
+
+// TestForget_TCTRG107_repo_status_prune_clears_emptied_batches
+// exercises TC-TRG-107: the same rule for a whole-repo prune, which
+// deletes across every PR and branch under the repo.
+func TestForget_TCTRG107_repo_status_prune_clears_emptied_batches(t *testing.T) {
+	cmdtest.Isolate(t)
+	batches := `[{"batch_key": "B1", "title": "Emptied"}]`
+	payload := buildPRPayloadWithBatches(1, "t", "feat/x", batches,
+		commentInBatch("r1", "only", "critical", "B1"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	triage(t, "complete", "1", "--pr", "1")
+
+	r = triage(t, "forget", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	cmdtest.AssertStdoutContains(t, r, "1 batches")
+
+	rs := triage(t, "status", "--pr", "1")
+	if strings.Contains(rs.Stdout, "B1") {
+		t.Errorf("a repo-wide prune must clear emptied batches too:\n%s", rs.Stdout)
+	}
+}
+
+// TestForget_TCTRG107_status_prune_leaves_pre_existing_empty_batches
+// exercises TC-TRG-107: a batch that was already empty before the
+// prune is not the prune's business, and must survive it.
+//
+// Import creates this state: every entry in a payload's batches[] is
+// inserted whether or not a comment references it, so a batch can
+// exist with no members from the moment it lands.
+func TestForget_TCTRG107_status_prune_leaves_pre_existing_empty_batches(t *testing.T) {
+	cmdtest.Isolate(t)
+	batches := `[{"batch_key": "B1", "title": "Emptied by the prune"}, {"batch_key": "B2", "title": "Already empty"}]`
+	payload := buildPRPayloadWithBatches(1, "t", "feat/x", batches,
+		commentInBatch("r1", "only", "critical", "B1"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	triage(t, "complete", "1", "--pr", "1")
+
+	r = triage(t, "forget", "--pr", "1", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	// One batch is emptied by this prune. B2 was empty before it ran,
+	// so deleting it would be a deletion the user never agreed to.
+	cmdtest.AssertStdoutContains(t, r, "1 batches")
+
+	rs := triage(t, "status", "--pr", "1")
+	if strings.Contains(rs.Stdout, "B1") {
+		t.Errorf("B1 lost its only member, so it must not survive:\n%s", rs.Stdout)
+	}
+	if !strings.Contains(rs.Stdout, "B2") {
+		t.Errorf("B2 was already empty and is not this prune's business:\n%s", rs.Stdout)
+	}
+}
+
+// TestForget_TCTRG107_branch_status_prune_maintains_batches exercises
+// TC-TRG-107 on the branch selector: batches reached by branch_id get
+// the same maintenance as those reached by pr_id.
+//
+// The PR cases above cannot speak for this — scopeComments builds a
+// different column, and a transposed one would leave every
+// branch-scoped batch unmaintained with the suite still green.
+func TestForget_TCTRG107_branch_status_prune_maintains_batches(t *testing.T) {
+	cmdtest.Isolate(t)
+	batches := `[{"batch_key": "B1", "title": "Emptied"}, {"batch_key": "B2", "title": "Survives"}]`
+	payload := buildBranchPayloadWithBatches("feat/x", batches,
+		commentInBatch("r1", "first", "critical", "B1")+","+
+			commentInBatch("r2", "second", "major", "B2"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	triage(t, "complete", "1", "--branch", "feat/x")
+
+	r = triage(t, "forget", "--branch", "feat/x", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	cmdtest.AssertStdoutContains(t, r, "1 batches")
+
+	rs := triage(t, "status", "--branch", "feat/x")
+	if strings.Contains(rs.Stdout, "B1") {
+		t.Errorf("B1 lost its only member, so it must not survive:\n%s", rs.Stdout)
+	}
+	cmdtest.AssertStdoutContains(t, rs, "B2 (1 comments — pending)")
+}
+
+// TestForget_TCTRG107_repo_prune_spares_another_repo exercises
+// TC-TRG-107's isolation guarantee: a repo-wide prune reaches batches
+// through prs and branches, and must not cross into a repo it was not
+// asked about.
+func TestForget_TCTRG107_repo_prune_spares_another_repo(t *testing.T) {
+	cmdtest.Isolate(t)
+	mine := buildPRPayloadInRepo("acme/app", 1, "t", "feat/x",
+		`[{"batch_key": "B1", "title": "Mine"}]`,
+		commentInBatch("r1", "mine", "critical", "B1"))
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), mine, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	theirs := buildPRPayloadInRepo("other/app", 1, "t", "feat/y",
+		`[{"batch_key": "B1", "title": "Theirs"}]`,
+		commentInBatch("r2", "theirs", "critical", "B1"))
+	r = cmdtest.RunWithStdin(t, cmd.NewRoot(), theirs, "import", "-")
+	cmdtest.AssertNoError(t, r)
+
+	// Both repos' batches hold exactly one completed member, so an
+	// ownership filter that leaked across repos would see two batches
+	// about to be emptied and say so. A pending member in the other
+	// repo would mask the leak: it can never be counted as emptied,
+	// whatever the filter matches.
+	triage(t, "complete", "1", "--pr", "1")
+	cmdtest.Run(t, cmd.NewRoot(), "--repo", "other/app", "complete", "1", "--pr", "1")
+
+	r = triage(t, "forget", "--status", "completed", "--yes")
+	cmdtest.AssertNoError(t, r)
+	cmdtest.AssertStdoutContains(t, r, "1 batches")
+
+	// The other repo's comment was never deleted, so its batch keeps
+	// the member and the status the prune had no business changing.
+	rs := cmdtest.Run(t, cmd.NewRoot(), "--repo", "other/app", "status", "--pr", "1")
+	cmdtest.AssertNoError(t, rs)
+	cmdtest.AssertStdoutContains(t, rs, "B1 (1 comments — completed)")
+}

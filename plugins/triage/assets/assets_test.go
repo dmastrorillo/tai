@@ -90,3 +90,49 @@ func unique(in []string) []string {
 	}
 	return out
 }
+
+// TC-AST-003 — the triage loop investigates before it asks.
+//
+// A decision prompt is only as good as what precedes it. Echoing the
+// stored record puts the reviewer's original wording in front of the
+// user unchecked, including a cause nobody confirmed and a fix that
+// may not fit the code as it stands today. The loop has to open the
+// file first and present what it found.
+func TestTriageCommand_TCAST003_presents_an_investigated_review(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "triage.md"))
+	if err != nil {
+		t.Fatalf("read triage.md: %v", err)
+	}
+	text := string(body)
+
+	// Every field the presentation owes the reader.
+	for _, want := range []string{
+		"**who raised it**",
+		"**file:line**",
+		"**description**",
+		"**cause**",
+		"**why fix it**",
+		"**suggested fix**",
+		"**concerns if skipped**",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("triage.md must name the %s field in its presentation contract", want)
+		}
+	}
+
+	// The instruction that made the loop a passthrough.
+	if strings.Contains(text, "Surface the markdown verbatim") {
+		t.Error("triage.md must not tell the loop to echo `tai triage show` verbatim")
+	}
+
+	// Cause is derived, never repeated from the record.
+	if !strings.Contains(text, "never taken from the record") {
+		t.Error("triage.md must state that cause is investigated, not read from the stored comment")
+	}
+
+	// References were deliberately dropped; a reader should not be
+	// told to produce one.
+	if strings.Contains(text, "**references**") {
+		t.Error("triage.md must not ask for a references field")
+	}
+}

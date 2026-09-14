@@ -51,11 +51,23 @@ func PlanRepoForget(ctx context.Context, db *storage.DB, owner string, statuses 
 		if err != nil {
 			return nil, err
 		}
+		own := repoComments(repoID)
+		emptied, err := countEmptiedBatches(ctx, db, own, statuses)
+		if err != nil {
+			return nil, err
+		}
 		return &ForgetPlan{
 			Description:  fmt.Sprintf("%s comments matching status (%s)", owner, strings.Join(statuses, ", ")),
-			CommentCount: n, RefCount: refs,
+			CommentCount: n, BatchCount: emptied, RefCount: refs,
 			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteRepoComments(ctx, tx, repoID, statuses)
+				affected, err := batchesLosingMembers(ctx, tx, own, statuses)
+				if err != nil {
+					return err
+				}
+				if err := deleteRepoComments(ctx, tx, repoID, statuses); err != nil {
+					return err
+				}
+				return maintainBatches(ctx, tx, affected)
 			},
 		}, nil
 	}
@@ -84,12 +96,24 @@ func PlanScopedForget(ctx context.Context, db *storage.DB, s scope.Scope, status
 		if err != nil {
 			return nil, err
 		}
+		own := scopeComments(col, s.TargetID)
+		emptied, err := countEmptiedBatches(ctx, db, own, statuses)
+		if err != nil {
+			return nil, err
+		}
 		return &ForgetPlan{
 			Description: fmt.Sprintf("%s comments matching status (%s)",
 				s.OwnerName+" "+s.TargetLabel(), strings.Join(statuses, ", ")),
-			CommentCount: n, RefCount: refs,
+			CommentCount: n, BatchCount: emptied, RefCount: refs,
 			exec: func(ctx context.Context, tx *sql.Tx) error {
-				return deleteScopeComments(ctx, tx, col, s.TargetID, statuses)
+				affected, err := batchesLosingMembers(ctx, tx, own, statuses)
+				if err != nil {
+					return err
+				}
+				if err := deleteScopeComments(ctx, tx, col, s.TargetID, statuses); err != nil {
+					return err
+				}
+				return maintainBatches(ctx, tx, affected)
 			},
 		}, nil
 	}

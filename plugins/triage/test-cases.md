@@ -410,6 +410,42 @@ behind, which a check for only the first form could not see.
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestBundledCommands_TCAST001_use_the_plugin_namespace`.
 
+### TC-AST-003 — the triage loop investigates before it asks for a decision
+
+- **Given** `plugins/triage/assets/commands/triage.md`,
+- **When** its presentation contract is read,
+- **Then** it names seven fields the loop must present — who raised
+  it, file:line, description, cause, why fix it, suggested fix,
+  concerns if skipped,
+- **And** it states that `cause` is derived by reading the code in that
+  step and never taken from the stored record,
+- **And** it does not instruct the loop to surface `tai triage show`'s
+  markdown verbatim,
+- **And** it asks for no `references` field.
+
+A stored comment was written against the tree as it stood at import;
+the decision the user is about to make is about the tree as it stands
+now. Echoing the record puts an unverified cause and a possibly stale
+fix in front of them and asks them to trust both, so the loop opens the
+file first and presents what it found.
+
+Attribution comes from the record's `source` and is presented
+verbatim. It is the only attribution the reader gets — the GitHub login
+captured in `comment_external_refs.reviewer` is stored but never read
+back — and it is what distinguishes a teammate's comment from a bot's
+in a queue holding both. It is not conditional on what the
+investigation concluded: who raised a finding and whether it holds up
+are separate facts.
+
+Two of the seven fields are not stored at all. `cause` is always derived.
+`suggested_fix` and `why_fix` are used when the record carries them and
+worked out during the investigation when it does not, which is why no
+schema change accompanies this — the gap is filled at presentation
+time, not at import.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestTriageCommand_TCAST003_presents_an_investigated_review`.
+
 ### TC-AST-002 — the release tarball ships the assets tree
 
 - **Given** a triage release archive built by `.goreleaser.triage.yaml`,
@@ -1399,6 +1435,59 @@ Exercised by `plugins/triage/internal/cmd/invocation_text_test.go` →
 `TestTriageErrors_TCTRG106_render_the_plugin_invocation`.
 
 ---
+
+### TC-TRG-107 — A status prune maintains the batches it touches
+
+- **Given** a PR with batch `B1` whose only member is completed, and
+  batch `B2` whose member is pending,
+- **When** `tai triage forget --pr <N> --status completed --yes` runs,
+- **Then** the consent summary counts `1 batches`,
+- **And** `B1` is gone, because the prune emptied it,
+- **And** `B2` is untouched.
+- **Given** instead a batch with one completed and one pending member,
+- **When** the same prune runs,
+- **Then** the summary counts `0 batches`,
+- **And** the batch survives with its status recomputed to `pending`
+  against the member that survived.
+- **Given** a whole-repo prune (`tai triage forget --status completed
+  --yes`, no `--pr`/`--branch`),
+- **Then** the same rule applies across every PR and branch under the
+  repo, and no batch belonging to another repo is counted or touched.
+- **Given** a batch that already had no members before the prune ran,
+- **Then** it survives, and is absent from the summary's count.
+- **Given** the same scenarios under a `--branch` selector,
+- **Then** they behave identically to the `--pr` ones.
+
+Two obligations, both about not lying. A batch with no members is
+permanent noise in `tai triage status`, the command a user opens to see
+what needs attention — and pruning after verifying is the routine end
+of a triage cycle, so the noise accumulates once per round. A batch
+that keeps members must not keep a status computed from comments that
+no longer exist.
+
+A batch that was already empty is not the prune's business. Import
+creates that state — every entry in a payload's `batches[]` is inserted
+whether or not a comment references it — and a `--comment` forget can
+strip a batch's last member without maintaining anything. Sweeping such
+a batch would be a deletion the consent summary never counted, which is
+the same failure this case exists to prevent.
+
+Both halves therefore work from one snapshot, taken before the delete:
+the batches whose membership the delete actually reduces. The summary
+counts that set and the maintenance touches that set, so the two cannot
+disagree. After the delete there is no way to tell a batch this prune
+emptied from one that was empty all along.
+
+The `--batch` selector is deliberately excluded: it names one batch, and
+TC-TRG-098 pins that its row survives a member prune. Deleting it there
+would surprise a user who asked only to clear its completed members.
+
+Exercised by `TestForget_TCTRG107_status_prune_clears_emptied_batches`,
+`TestForget_TCTRG107_status_prune_keeps_populated_batches`,
+`TestForget_TCTRG107_status_prune_leaves_pre_existing_empty_batches`,
+`TestForget_TCTRG107_repo_status_prune_clears_emptied_batches`,
+`TestForget_TCTRG107_branch_status_prune_maintains_batches`, and
+`TestForget_TCTRG107_repo_prune_spares_another_repo`.
 
 ## MIG — Phase 6 migration
 
