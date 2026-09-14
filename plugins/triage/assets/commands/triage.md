@@ -162,6 +162,12 @@ For each item (batch or individual):
 
    Present each item with these fields, in this order:
 
+   - **who raised it** — the record's `source`, verbatim. It is the
+     only attribution the user gets, and it is what separates a
+     teammate's comment from a bot's when both sit in the same queue.
+     Never drop it because the investigation agreed or disagreed with
+     the finding; who said a thing and whether it holds up are separate
+     facts.
    - **file:line** — from the record. Say so when the code has moved
      since import, and give the position you actually found it at.
    - **description** — what the issue is, in your own words.

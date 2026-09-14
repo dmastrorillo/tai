@@ -107,6 +107,7 @@ func TestTriageCommand_TCAST003_presents_an_investigated_review(t *testing.T) {
 
 	// Every field the presentation owes the reader.
 	for _, want := range []string{
+		"**who raised it**",
 		"**file:line**",
 		"**description**",
 		"**cause**",

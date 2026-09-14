@@ -414,8 +414,9 @@ Exercised by `plugins/triage/assets/assets_test.go` →
 
 - **Given** `plugins/triage/assets/commands/triage.md`,
 - **When** its presentation contract is read,
-- **Then** it names six fields the loop must present — file:line,
-  description, cause, why fix it, suggested fix, concerns if skipped,
+- **Then** it names seven fields the loop must present — who raised
+  it, file:line, description, cause, why fix it, suggested fix,
+  concerns if skipped,
 - **And** it states that `cause` is derived by reading the code in that
   step and never taken from the stored record,
 - **And** it does not instruct the loop to surface `tai triage show`'s
@@ -428,7 +429,15 @@ now. Echoing the record puts an unverified cause and a possibly stale
 fix in front of them and asks them to trust both, so the loop opens the
 file first and presents what it found.
 
-Two of the six fields are not stored at all. `cause` is always derived.
+Attribution comes from the record's `source` and is presented
+verbatim. It is the only attribution the reader gets — the GitHub login
+captured in `comment_external_refs.reviewer` is stored but never read
+back — and it is what distinguishes a teammate's comment from a bot's
+in a queue holding both. It is not conditional on what the
+investigation concluded: who raised a finding and whether it holds up
+are separate facts.
+
+Two of the seven fields are not stored at all. `cause` is always derived.
 `suggested_fix` and `why_fix` are used when the record carries them and
 worked out during the investigation when it does not, which is why no
 schema change accompanies this — the gap is filled at presentation
