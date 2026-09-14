@@ -74,6 +74,18 @@ Phase 1 walks every pending comment looking for evidence it has already been fix
 
 Running investigation first means the board only ever shows comments that are genuinely live, and that contradiction has no way to arise. The cost is that the developer waits while the AI reads git history before the browser opens, which the AI announces.
 
+### The board renders the investigation, not the stored record
+
+The board displays the seven fields the triage loop presents: who raised it, the location, the description, the cause, why to fix it, the suggested fix, and the concerns if skipped. Those are not the comment's stored columns. `cause` is not stored at all and is always derived by reading the code at decision time; the others are the stored record sharpened, or replaced outright, by what that reading found.
+
+The reason is the same one that put the investigation in the loop: a comment was written against the tree as it stood at import, and the decision is about the tree as it stands now. A record repeated back unchecked carries a cause nobody confirmed and a fix that may no longer apply. That argument does not weaken when the decision is made in bulk — if anything a surface built for fast calls is the worse place to show unverified material.
+
+So the board takes the briefing on stdin and opens no database. The pipeline is unchanged in every part except the last: the AI reads the stored records with `tai triage show`, investigates each one, and then, instead of typing the result into the conversation one comment at a time, pipes the whole set to `tai triage board -` for the developer to decide in one pass. The intents come back and the loop continues exactly as before.
+
+An earlier shape had the board query storage directly and render the stored columns. It was rejected once the loop's presentation contract made the investigated fields mandatory: a board reading SQLite can produce at best a degraded six of the seven and none of `cause`, and the developer would be making bulk calls on material the conversation is forbidden to show them.
+
+Taking the briefing on stdin also mirrors `tai triage import -`, the other verb in this plugin whose input is AI-produced JSON, and it means the board process holds no database handle at all.
+
 ### A loopback listener on an ephemeral port, behind an unguessable path
 
 Three constraints shaped the server:
@@ -97,7 +109,7 @@ A blocking foreground invocation whose stdout carries the intents was rejected: 
 - **The browser page has no automated coverage.** Handler behaviour, the intents artifact, and `tai triage board intents` output are all testable and are covered. What a click does in the page is not. This is declared in `plugins/triage/test-cases.md` the same way the slash commands' conversational contracts already are, rather than papered over with a handler test that implies coverage it does not have.
 - **Headless machines.** On a box with no browser, launching one fails. The board prints the URL and keeps serving rather than treating this as an error, so an SSH developer can forward the port.
 - **A developer can abandon a board.** The process holds a port and blocks until submit or until it is killed. There is no timeout: an abandoned board is a stray process the developer kills, and inventing an expiry would risk discarding a half-finished pass.
-- **Two surfaces now describe a comment.** The board's rendering and `tai triage show`'s markdown must stay in agreement, or the developer sees one thing on the board and the AI quotes another in conversation. Both read `listSQL` in `plugins/triage/internal/triage`, which its own comment calls the canonical SELECT for list and show, so there is one projection rather than two kept in step by discipline. A rendering scenario asserts every field that `tai triage show` renders appears in the served HTML, so a template that stops consuming part of that projection fails a test rather than silently showing less than the conversation quotes.
+- **The briefing is a second thing to keep correct.** The board renders what the AI hands it, so a briefing that is complete and well-formed but wrong — a cause the AI did not actually confirm, a location it did not re-check — renders as confidently as a right one. Nothing in the board can catch that; the guard is the `triage-command` obligation that produces the fields, not the surface that displays them. The schema enforces presence, never truth.
 
 ## Open Questions
 
