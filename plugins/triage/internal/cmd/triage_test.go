@@ -120,14 +120,21 @@ func buildPRPayload(number int, title, head, comments string) string {
 }
 
 func buildPRPayloadWithBatches(number int, title, head, batches, comments string) string {
+	return buildPRPayloadInRepo("acme/app", number, title, head, batches, comments)
+}
+
+// buildPRPayloadInRepo stages a PR under an arbitrary repo, for tests
+// that need to prove one repo's prune leaves another repo alone.
+func buildPRPayloadInRepo(repo string, number int, title, head, batches, comments string) string {
 	return strings.NewReplacer(
+		"$REPO", repo,
 		"$NUMBER", strconv.Itoa(number),
 		"$TITLE", title,
 		"$HEAD", head,
 		"$BATCHES", batches,
 		"$COMMENTS", comments,
 	).Replace(`{
-  "repo": "acme/app",
+  "repo": "$REPO",
   "target": {
     "kind": "pr",
     "pr": { "number": $NUMBER, "title": "$TITLE", "url": "https://x", "head_branch": "$HEAD" }
@@ -138,8 +145,16 @@ func buildPRPayloadWithBatches(number int, title, head, batches, comments string
 }
 
 func buildBranchPayload(name, comments string) string {
+	return buildBranchPayloadWithBatches(name, "[]", comments)
+}
+
+// buildBranchPayloadWithBatches is the branch counterpart to
+// buildPRPayloadWithBatches, for the batch-maintenance paths that
+// reach batches by branch_id rather than pr_id.
+func buildBranchPayloadWithBatches(name, batches, comments string) string {
 	return strings.NewReplacer(
 		"$NAME", name,
+		"$BATCHES", batches,
 		"$COMMENTS", comments,
 	).Replace(`{
   "repo": "acme/app",
@@ -147,6 +162,7 @@ func buildBranchPayload(name, comments string) string {
     "kind": "branch",
     "branch": { "name": "$NAME" }
   },
+  "batches": $BATCHES,
   "comments": [$COMMENTS]
 }`)
 }
