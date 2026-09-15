@@ -3,7 +3,7 @@ name: "TAI: Fix"
 description: "Work through accepted review comments and implement the fixes."
 category: "Workflow"
 tags: [tai, triage, fix]
-version: 1
+version: 2
 ---
 # /tai-triage:fix — implement the fixes for accepted comments
 
@@ -138,13 +138,23 @@ Fixed <N> of <M> accepted comments for <repo> <scope-label>.
 Blocked:
   [crit] 7: <title> — <one-line reason>
 
-Run `/tai-triage:verify` to confirm these and mark them completed.
+Commit and push these, then run `/tai-triage:verify` to confirm them and
+mark them completed.
 ```
 
 Omit the `Blocked:` list entirely when nothing is blocked. Omit the
 `Already done:` count when it is zero. Always emit the closing
-`/tai-triage:verify` line — it is the next step, and AI consumers need
-a stable anchor to pick up.
+commit-push-verify line — it is the next step, and AI consumers need a
+stable anchor to pick up.
+
+**Say commit and push, not just verify.** For a PR scope,
+`/tai-triage:verify` gathers its evidence from `gh pr diff`, which sees
+only what has been pushed. Sent there with the fixes sitting in the
+working tree — or committed locally and not pushed — it finds the PR
+diff unchanged, caps every comment at MEDIUM confidence, and asks the
+user to confirm each one against weaker evidence than they actually
+have. The work is done; the evidence just has not reached the place
+verify looks.
 
 ## 5. Obligations
 
@@ -152,8 +162,9 @@ a stable anchor to pick up.
   `tai triage dismiss`, or `tai triage forget`. This command does not
   change state. `/tai-triage:verify` owns the accepted → completed
   transition.
-- Do NOT commit, stage, push, or create a PR. The user reviews the
-  working tree and decides how it lands.
+- Do NOT commit, stage, push, or create a PR yourself. The user reviews
+  the working tree and decides how it lands; the recap tells them to
+  commit and push before verifying, and the decision stays theirs.
 - Do NOT fix comments that are `pending`, `dismissed`, or `completed`.
   Pending has not been decided yet — say so and point at
   `/tai-triage:triage`.

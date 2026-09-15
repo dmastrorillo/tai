@@ -204,3 +204,28 @@ func TestTriageCommand_TCAST004_documents_the_board_briefing(t *testing.T) {
 		}
 	}
 }
+
+// TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify
+// pins the handoff between the two commands. /tai-triage:verify reads a
+// PR scope's evidence from `gh pr diff`, which sees only pushed commits,
+// so a recap naming verify alone sends the user into a run that caps
+// every fix they just made at MEDIUM confidence.
+func TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "fix.md"))
+	if err != nil {
+		t.Fatalf("read fix.md: %v", err)
+	}
+	text := string(body)
+	flat := strings.Join(strings.Fields(text), " ")
+
+	if !strings.Contains(flat, "Commit and push these, then run `/tai-triage:verify`") {
+		t.Error("fix.md's recap must tell the user to commit and push before verifying")
+	}
+	if !strings.Contains(flat, "which sees only what has been pushed") {
+		t.Error("fix.md must explain that verify's evidence comes from the pushed diff")
+	}
+	// The command still must not do it itself.
+	if !strings.Contains(flat, "Do NOT commit, stage, push, or create a PR yourself") {
+		t.Error("fix.md must still forbid the command from committing or pushing")
+	}
+}

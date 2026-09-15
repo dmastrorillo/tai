@@ -1516,6 +1516,27 @@ own presentation contract forbids.
 Exercised by `plugins/triage/assets/assets_test.go` →
 `TestTriageCommand_TCAST004_documents_the_board_briefing`.
 
+### TC-AST-005 — `/tai-triage:fix` sends the user to commit and push before verifying
+
+- **Given** `plugins/triage/assets/commands/fix.md`,
+- **When** its recap template is read,
+- **Then** the closing line tells the user to commit and push the fixes
+  and then run `/tai-triage:verify`,
+- **And** the file explains that `/tai-triage:verify` reads `gh pr diff`,
+  which sees only pushed commits,
+- **And** it still forbids the command from committing or pushing on the
+  user's behalf.
+
+`/tai-triage:verify` gathers a PR scope's evidence from the pushed diff
+and downgrades a comment to MEDIUM confidence when that diff does not
+corroborate the working tree. A recap that names only `/tai-triage:verify`
+therefore sends the user into a run where every fix they just made looks
+weaker than it is, and asks them to confirm each one on evidence the
+push would have supplied.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify`.
+
 ## BRD — triage board
 
 The board is the bulk-decision surface: the AI investigates every pending
