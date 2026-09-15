@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tai triage board — {{.Repo}} {{.ScopeLabel}}</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1a1a18; --muted: #6b6b66; --line: #e2e2dd;
+    --card: #ffffff; --accept: #1b7f4b; --dismiss: #a33; --chip: #f0f0ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161a; --fg: #e8e8e4; --muted: #9a9a94; --line: #2c2c32;
+      --card: #1e1e23; --accept: #4ec07f; --dismiss: #e2727c; --chip: #2a2a30;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg);
+    border-bottom: 1px solid var(--line); padding: 14px 20px;
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .count { color: var(--muted); font-size: 13px; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px; }
+  .batch { border: 1px solid var(--line); border-radius: 10px;
+    margin: 0 0 20px; background: var(--card); overflow: hidden; }
+  .batch-head { padding: 12px 16px; border-bottom: 1px solid var(--line);
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .batch-key { font-weight: 700; font-family: ui-monospace, monospace; }
+  .comment { padding: 16px; border-top: 1px solid var(--line); }
+  .batch > .comment:first-of-type { border-top: none; }
+  .cid { font-family: ui-monospace, monospace; color: var(--muted); }
+  .sev { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    padding: 2px 7px; border-radius: 999px; background: var(--chip); }
+  .sev-critical { background: #c0392b; color: #fff; }
+  .sev-major { background: #d98324; color: #1a1a18; }
+  .title-row { display: flex; gap: 10px; align-items: center;
+    flex-wrap: wrap; margin-bottom: 8px; }
+  .loc { font-family: ui-monospace, monospace; font-size: 13px; color: var(--muted); }
+  dl { margin: 10px 0 0; display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; }
+  dt { color: var(--muted); font-size: 12px; text-transform: uppercase;
+    letter-spacing: .05em; }
+  dd { margin: 0; white-space: pre-wrap; }
+  .origin { font-size: 11px; color: var(--muted); font-style: italic; }
+  .controls { display: flex; gap: 8px; align-items: center;
+    margin-top: 12px; flex-wrap: wrap; }
+  button { font: inherit; padding: 5px 13px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--card);
+    color: var(--fg); cursor: pointer; }
+  button[aria-pressed="true"][data-intent="accept"] {
+    background: var(--accept); border-color: var(--accept); color: #fff; }
+  button[aria-pressed="true"][data-intent="dismiss"] {
+    background: var(--dismiss); border-color: var(--dismiss); color: #fff; }
+  input[type=text] { flex: 1; min-width: 220px; font: inherit;
+    padding: 5px 10px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--fg); }
+  #submit { background: var(--fg); color: var(--bg); border-color: var(--fg);
+    font-weight: 600; padding: 7px 18px; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .done { text-align: center; padding: 60px 20px; }
+  @media (max-width: 620px) { dl { grid-template-columns: 1fr; gap: 2px 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{.Repo}} — {{.ScopeLabel}}</h1>
+  <span class="count" id="tally">{{.Total}} pending</span>
+  <span style="flex:1"></span>
+  <button id="submit" type="button">Submit decisions</button>
+</header>
+
+<main id="main">
+{{if eq .Total 0}}
+  <p class="empty">Nothing pending in this scope — there is nothing to decide.
+  Submitting records an empty set of intents.</p>
+{{end}}
+
+{{range .Groups}}
+  {{if .Batch}}
+  <section class="batch" data-batch="{{.Batch.BatchKey}}">
+    <div class="batch-head">
+      <span class="batch-key">{{.Batch.BatchKey}}</span>
+      <span>{{.Batch.Title}}</span>
+      <span style="flex:1"></span>
+      <button type="button" data-batch-intent="accept" data-batch-key="{{.Batch.BatchKey}}">Accept all</button>
+      <button type="button" data-batch-intent="dismiss" data-batch-key="{{.Batch.BatchKey}}">Dismiss all</button>
+      <input type="text" data-batch-note="{{.Batch.BatchKey}}" placeholder="Note for the whole batch (optional)">
+    </div>
+    {{range .Comments}}{{template "comment" .}}{{end}}
+  </section>
+  {{else}}
+  <section class="batch">
+    {{range .Comments}}{{template "comment" .}}{{end}}
+  </section>
+  {{end}}
+{{end}}
+</main>
+
+{{define "comment"}}
+<article class="comment" data-id="{{.ID}}">
+  <div class="title-row">
+    <span class="cid">#{{.ID}}</span>
+    <span class="sev sev-{{.Severity}}">{{.Severity}}</span>
+    <span class="loc">{{.Location}}</span>
+    <span style="flex:1"></span>
+    <span class="origin">raised by {{.RaisedBy}}</span>
+  </div>
+  <dl>
+    <dt>Description</dt><dd>{{.Description}}</dd>
+    <dt>Cause</dt><dd>{{.Cause}}</dd>
+    <dt>Why fix it</dt><dd>{{.WhyFix}}</dd>
+    <dt>Suggested fix</dt>
+    <dd>{{.SuggestedFix}}
+      <div class="origin">{{if eq .SuggestedFixOrigin "investigation"}}proposed by the investigation, not the reviewer{{else}}the reviewer's proposal{{end}}</div>
+    </dd>
+    <dt>Concerns if skipped</dt><dd>{{.ConcernsIfSkipped}}</dd>
+  </dl>
+  <div class="controls">
+    <button type="button" data-intent="accept" aria-pressed="false">Accept</button>
+    <button type="button" data-intent="dismiss" aria-pressed="false">Dismiss</button>
+    <input type="text" data-note="{{.ID}}" placeholder="Note (optional) — a reason, a refinement, or a question">
+  </div>
+</article>
+{{end}}
+
+<script>
+(function () {
+  var submitPath = {{.SubmitPath}};
+  var total = {{.Total}};
+
+  function setIntent(article, intent) {
+    article.querySelectorAll('button[data-intent]').forEach(function (b) {
+      var on = b.dataset.intent === intent;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    article.dataset.intent = intent || '';
+    tally();
+  }
+
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (!b) return;
+
+    if (b.dataset.batchIntent) {
+      var section = b.closest('.batch');
+      var note = section.querySelector('input[data-batch-note]');
+      section.querySelectorAll('article.comment').forEach(function (a) {
+        setIntent(a, b.dataset.batchIntent);
+        var own = a.querySelector('input[data-note]');
+        if (note && note.value && !own.value) own.value = note.value;
+      });
+      return;
+    }
+
+    if (b.dataset.intent) {
+      var article = b.closest('article.comment');
+      var next = article.dataset.intent === b.dataset.intent ? '' : b.dataset.intent;
+      setIntent(article, next);
+      return;
+    }
+
+    if (b.id === 'submit') submit();
+  });
+
+  function tally() {
+    var decided = document.querySelectorAll('article.comment[data-intent="accept"], article.comment[data-intent="dismiss"]').length;
+    document.getElementById('tally').textContent =
+      total === 0 ? 'nothing pending'
+                  : decided + ' of ' + total + ' decided — the rest go to the conversation';
+  }
+
+  function submit() {
+    var payload = [];
+    document.querySelectorAll('article.comment').forEach(function (a) {
+      payload.push({
+        id: parseInt(a.dataset.id, 10),
+        intent: a.dataset.intent || 'unanswered',
+        note: (a.querySelector('input[data-note]') || {}).value || ''
+      });
+    });
+    fetch(submitPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function () {
+      document.getElementById('main').innerHTML =
+        '<p class="done">Decisions recorded. You can close this tab — the rest of the triage continues in your terminal.</p>';
+      document.getElementById('submit').disabled = true;
+    });
+  }
+
+  tally();
+})();
+</script>
+</body>
+</html>
