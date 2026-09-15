@@ -74,6 +74,6 @@ Each slice carries the `test-cases.md` entries for the behaviour it implements. 
 
 - [x] 9.1 `go build ./... && go test ./... && go vet ./... && gofmt -l .` clean; `go test -race ./...` clean.
 - [x] 9.2 `golangci-lint run` at zero.
-- [ ] 9.3 Manual pass: run a real triage against a PR with more than five surviving comments, accept the board offer, bulk-accept the majority, dismiss one `critical` with a note, leave several unanswered with and without notes, and confirm the conversation debates the critical, batches the accepts, and walks the unanswered ones in order.
-- [ ] 9.4 Manual pass on a headless host: confirm the URL prints, the server keeps running, and the board works over a forwarded port.
-- [ ] 9.5 Archive this change to `openspec/changes/archive/<merge-date>-add-triage-board/` in the same commit as the implementation.
+- [x] 9.3 Manual pass: run a real triage against a PR with more than five surviving comments, accept the board offer, bulk-accept the majority, dismiss one `critical` with a note, leave several unanswered with and without notes, and confirm the conversation debates the critical, batches the accepts, and walks the unanswered ones in order.
+- [ ] 9.4 Manual pass on a headless host: confirm the URL prints, the server keeps running, and the board works over a forwarded port. NOT DONE at archive time — no headless host was available. The behaviour is covered by TC-BRD-011's declaration that a failed browser launch is not fatal, which is itself manual; the forwarded-port path has never been exercised.
+- [x] 9.5 Archive this change to `openspec/changes/archive/<merge-date>-add-triage-board/` in the same commit as the implementation.
