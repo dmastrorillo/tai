@@ -263,6 +263,25 @@ const (
 	// TriageConfirmationRequired: tai forget was invoked non-
 	// interactively without --yes or a truthy TAI_ACCEPT_DESTRUCTIVE.
 	TriageConfirmationRequired Code = "TRIAGE_CONFIRMATION_REQUIRED"
+
+	// TriageBoardInvalidJSON: the briefing piped to `tai triage board -`
+	// is not valid JSON. Mirrors ImportInvalidJSON, the other verb in
+	// this plugin whose input is AI-produced JSON.
+	TriageBoardInvalidJSON Code = "TRIAGE_BOARD_INVALID_JSON"
+
+	// TriageBoardSchemaInvalid: the briefing parses but violates the
+	// schema. Every violation is reported in one message, so the AI
+	// regenerating it fixes them in one pass.
+	TriageBoardSchemaInvalid Code = "TRIAGE_BOARD_SCHEMA_INVALID"
+
+	// TriageBoardUnavailable: no loopback listener could be bound, so
+	// the board cannot be served.
+	TriageBoardUnavailable Code = "TRIAGE_BOARD_UNAVAILABLE"
+
+	// TriageNoIntents: an intents artifact was requested for a scope
+	// that has none. Also the "not yet submitted" signal a harness
+	// polls when it cannot be notified of the board process exiting.
+	TriageNoIntents Code = "TRIAGE_NO_INTENTS"
 )
 
 // ExitCode returns the OS exit code mapped to c. Codes outside the known
@@ -316,10 +335,12 @@ func (c Code) ExitCode() int {
 		return exitcode.Usage
 	case ImportSchemaInvalid, ImportAmbiguousRefs, ImportDuplicateRefs:
 		return exitcode.Data
-	case TriageNoScope, TriageAmbiguousScope, TriageNotFound:
+	case TriageNoScope, TriageAmbiguousScope, TriageNotFound, TriageNoIntents:
 		return exitcode.Precondition
-	case TriageInvalidFlags, TriageConfirmationRequired:
+	case TriageInvalidFlags, TriageConfirmationRequired, TriageBoardInvalidJSON:
 		return exitcode.Usage
+	case TriageBoardSchemaInvalid, TriageBoardUnavailable:
+		return exitcode.Data
 	default:
 		return exitcode.Internal
 	}

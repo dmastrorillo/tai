@@ -31,6 +31,7 @@ short, stable codes; numbers increment within each category starting at
 | [`AST`](#ast--shipped-assets) | The markdown the plugin tarball ships for the host to install |
 | [`IMP`](#imp--import) | `tai triage import -`, JSON validation, upsert semantics |
 | [`TRG`](#trg--triage-state) | list / show / accept / dismiss / complete / status / forget |
+| [`BRD`](#brd--triage-board) | The triage board: briefing validation, loopback server, rendered HTML, intents artifact, `board intents` |
 | [`MIG`](#mig--phase-6-migration) | Phase-6 plugin-host migration: binary identity, DB path under `<TAI_DATA_DIR>/plugins/triage/state/`, wire-contract consumption |
 
 (`/tai:import`, `/tai:triage`, and `/tai:verify` slash commands are
@@ -1488,6 +1489,58 @@ Exercised by `TestForget_TCTRG107_status_prune_clears_emptied_batches`,
 `TestForget_TCTRG107_repo_status_prune_clears_emptied_batches`,
 `TestForget_TCTRG107_branch_status_prune_maintains_batches`, and
 `TestForget_TCTRG107_repo_prune_spares_another_repo`.
+
+## BRD — triage board
+
+The board is the bulk-decision surface: the AI investigates every pending
+comment, pipes the result to `tai triage board -` as a briefing, and the
+developer accepts, dismisses or leaves each one alone in one pass. The
+board renders what it is given and derives nothing — it holds no database
+handle and shells out to nothing.
+
+**What is covered and what is not.** The served HTML, the briefing
+validator, the intents artifact and `tai triage board intents`'s output all
+carry TC-BRD IDs and Go tests. What a click does in the page once that HTML
+has loaded does not: there is no browser in the test process. The exemption
+is the page's own interaction only, and is narrower than the one recorded
+for the slash commands, whose conversational contracts carry no TC-IDs at
+all.
+
+### TC-BRD-006 — every schema violation is reported in one message
+
+- **Given** a briefing whose first comment omits `cause`, whose second
+  omits `raised_by`, and whose third names a `batch_key` absent from
+  `batches`,
+- **When** `tai triage board -` runs,
+- **Then** stderr names all three violations, each with its
+  JSON-Pointer-style path,
+- **And** the CLI exits once with `TRIAGE_BOARD_SCHEMA_INVALID`.
+
+Reporting one violation per run would cost the AI a round trip for each,
+so the validator collects every violation before returning.
+
+### TC-BRD-007 — an unknown field is rejected
+
+- **Given** a briefing whose comment carries a field the schema does not
+  name,
+- **When** `tai triage board -` runs,
+- **Then** the CLI exits with `TRIAGE_BOARD_SCHEMA_INVALID`.
+
+### TC-BRD-030 — presentation order matches the triage loop's
+
+- **Given** a briefing with two batches — one whose highest severity is
+  `critical` and one whose highest is `major` — and two non-batched
+  comments of equal severity,
+- **When** the briefing is ordered for presentation,
+- **Then** the batches come first, the `critical` batch before the `major`
+  one,
+- **And** batches of equal highest severity are ordered by `batch_key`
+  ascending,
+- **And** the non-batched comments follow, equal severities ordered by
+  `id` ascending.
+
+The board and the conversational loop present one queue in one order, so a
+developer who switches between them does not see the work reshuffled.
 
 ## MIG — Phase 6 migration
 
