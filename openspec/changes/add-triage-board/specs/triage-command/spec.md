@@ -6,7 +6,7 @@ After phase 1 (investigation) completes and before entering the phase-2 loop, th
 
 The offer is an offer. The slash command SHALL NOT launch `tai triage board` unless the user accepts it, and SHALL NOT offer it at all when five or fewer comments remain pending. A declined offer SHALL be followed by the phase-2 loop exactly as though the board did not exist.
 
-When the user accepts, the slash command SHALL carry out phase 2's step-1 investigation for every pending comment in the scope — the same obligation it already carries when presenting a comment in conversation — assemble the results into the briefing the `triage-board` capability defines, and launch `tai triage board -` with the scope flags resolved in phase 1, as a background process with that briefing on stdin, surfacing the board URL the command prints. It SHALL then wait for the board process to exit, which the board does on submit. Where the agent harness does not notify on background-process exit, the slash command SHALL instead poll `tai triage board intents` for the same scope until it emits intents. A poll MUST recognise the not-yet state by the `TRIAGE_NO_INTENTS` code in the error footer, not by the exit code alone: exit `2` is shared with `TRIAGE_NOT_FOUND`, `TRIAGE_NO_SCOPE` and `TRIAGE_AMBIGUOUS_SCOPE`, so a poller branching on the number would read a scope error as "keep waiting" forever.
+When the user accepts, the slash command SHALL carry out phase 2's step-1 investigation for every pending comment in the scope — the same obligation it already carries when presenting a comment in conversation — assemble the results into the briefing the `triage-board` capability defines, and launch `tai triage board -` with the scope flags resolved in phase 1, as a background process with that briefing on stdin, surfacing the board URL the command prints. The slash command SHALL then stop and wait for the user to say they have submitted. It MUST NOT poll for the artifact, watch the board process, or otherwise try to detect the submission itself: the person deciding is present in the conversation and says when they are done, and every check made before then is a turn spent discovering something they were about to volunteer.
 
 The count is evaluated after investigation so that a scope in which most comments were auto-completed does not produce an offer for the handful that survive.
 
@@ -32,6 +32,7 @@ The count is evaluated after investigation so that a scope in which most comment
 
 - **GIVEN** the user accepted the offer for PR 142
 - **THEN** the slash command investigates every pending comment and pipes the briefing to `tai triage board - --pr 142` in the background
+- **AND** waits for the user to say they have submitted rather than polling for the artifact
 - **AND** surfaces the printed board URL
 - **AND** waits for the process to exit before reading intents
 

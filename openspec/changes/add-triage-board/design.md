@@ -96,13 +96,15 @@ Three constraints shaped the server:
 
 ### Handing the intents back to the AI
 
-The slash command launches the board as a background process. The board serves, blocks until submit, writes the intents artifact, and exits `0`. An agent harness that notifies on background-process exit — which the harness the slash command targets does — wakes the AI at exactly the right moment, with no polling contract to specify.
+The slash command launches the board in the background, surfaces the URL, and then waits for the user to say they have submitted. It does not poll, watch the process, or check the artifact until asked.
 
-Not every harness offers that notification, and the plugin ships to whichever AI tool owns the target directory, so exit-notify cannot be the only mechanism. A harness without it polls `tai triage board intents`, which exits `TRIAGE_NO_INTENTS` while no artifact exists and emits the intents once one does. That exit is the not-yet signal, so polling needs no verb of its own.
+The person making the decisions is in the conversation. They know the moment they hit submit, and saying so costs them three words. Every mechanism that discovers it independently — polling the artifact, waiting on process exit, a status verb — spends turns and tokens finding out something the user was about to volunteer, and each carries its own failure mode: a poll that reads a scope error as "keep waiting", an exit notification the harness may not offer.
 
-A dedicated `tai triage board status` verb was considered for the polling case and rejected: it would carry its own output format, error contract and tests while adding no capability `board intents` does not already have.
+Waiting also works everywhere. The plugin ships to whichever AI tool owns the target directory, and "wait for the user" needs nothing from the harness at all.
 
-A blocking foreground invocation whose stdout carries the intents was rejected: a developer working a 40-comment board takes ten to twenty minutes, which exceeds the per-command timeout of the harness the slash command targets, and a timeout would discard every decision they had made.
+A blocking foreground invocation whose stdout carries the intents was rejected separately: a developer working a 40-comment board takes ten to twenty minutes, which exceeds the per-command timeout of the harness the slash command targets, and a timeout would discard every decision they had made.
+
+`TRIAGE_NO_INTENTS` remains the signal that a scope has no submitted board — read once, when the user says they are done, not in a loop.
 
 ## Risks / Trade-offs
 

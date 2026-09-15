@@ -1506,6 +1506,45 @@ is the page's own interaction only, and is narrower than the one recorded
 for the slash commands, whose conversational contracts carry no TC-IDs at
 all.
 
+### TC-BRD-001 — a valid briefing serves the board without opening the database
+
+- **Given** a briefing carrying one comment with all seven presentation
+  fields and no `batch_key`, piped on stdin,
+- **When** `tai triage board -` runs,
+- **Then** the board serves that comment,
+- **And** no database file is opened or created.
+
+### TC-BRD-002 — missing positional argument is a usage error
+
+- **Given** no positional argument,
+- **When** `tai triage board` runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`,
+- **And** the message says the briefing is read from stdin.
+
+### TC-BRD-003 — a positional other than `-` is a usage error
+
+- **Given** the positional argument `142`,
+- **When** `tai triage board 142` runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`.
+
+### TC-BRD-004 — scope flags are not accepted
+
+- **Given** a valid briefing on stdin,
+- **When** `tai triage board - --pr 142` runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`,
+- **And** the message says the scope comes from the briefing.
+
+The briefing carries `repo` and `scope`, which name the intents artifact.
+The scope-resolution rule the other triage verbs share reads the current
+git branch and the `prs` / `branches` tables; this verb may do neither.
+
+### TC-BRD-005 — malformed JSON is rejected before anything is bound
+
+- **Given** stdin carrying text that is not valid JSON,
+- **When** `tai triage board -` runs,
+- **Then** the CLI exits `1` with `TRIAGE_BOARD_INVALID_JSON`,
+- **And** no listener is bound.
+
 ### TC-BRD-006 — every schema violation is reported in one message
 
 - **Given** a briefing whose first comment omits `cause`, whose second
@@ -1526,6 +1565,25 @@ so the validator collects every violation before returning.
 - **When** `tai triage board -` runs,
 - **Then** the CLI exits with `TRIAGE_BOARD_SCHEMA_INVALID`.
 
+### TC-BRD-008 — a rejected briefing has no side effects
+
+- **Given** a briefing that fails validation,
+- **When** `tai triage board -` runs,
+- **Then** no listener is bound,
+- **And** no browser is launched,
+- **And** no intents artifact is written.
+
+### TC-BRD-009 — the board binds loopback on a kernel-assigned port
+
+- **Given** a valid briefing,
+- **When** `tai triage board -` runs,
+- **Then** a listener is bound on `127.0.0.1` with a kernel-assigned port,
+- **And** stdout carries the full board URL including its random path
+  prefix.
+
+A fixed port would collide with whatever else the developer is running and
+produce a failure that has nothing to do with triage.
+
 ### TC-BRD-010 — a request without the path prefix is refused
 
 - **Given** a board served under `/b/<prefix>/`,
@@ -1538,12 +1596,30 @@ browser tab on an unrelated site included, can reach `127.0.0.1` on any
 port. The prefix is 32 hexadecimal characters from a cryptographically
 secure source, generated per invocation, so it cannot be guessed.
 
+### TC-BRD-011 — a failed browser launch is not fatal
+
+- **Given** a machine on which no browser can be launched,
+- **When** `tai triage board -` runs,
+- **Then** the command keeps serving,
+- **And** stdout still carries the board URL.
+
 ### TC-BRD-012 — submit writes the artifact and exits zero
 
 - **Given** a running board,
 - **When** the developer submits,
 - **Then** the intents artifact for the briefing's scope is written,
 - **And** the command exits `0`.
+
+### TC-BRD-013 — a listener that cannot bind surfaces TRIAGE_BOARD_UNAVAILABLE
+
+- **Given** a listener that fails to bind,
+- **When** `tai triage board -` runs with a valid briefing,
+- **Then** the CLI exits `3` with `TRIAGE_BOARD_UNAVAILABLE`,
+- **And** no intents artifact is written.
+
+A kernel-assigned port has no deterministic way to fail, so the failure is
+injected through the package-level `listen` seam. This case is what pins
+the code's exit bucket, and `pkg/errcode` is append-only.
 
 ### TC-BRD-014 — all seven presentation fields reach the page
 
@@ -1647,6 +1723,44 @@ calls that produced it.
 
 An unslugged `/` would place the file outside the directory the board
 owns.
+
+### TC-BRD-026 — `board intents` emits the artifact as markdown
+
+- **Given** an intents artifact for PR 142 with three entries,
+- **When** `tai triage board intents --pr 142` runs,
+- **Then** stdout carries the submit timestamp and one line per entry with
+  its ID, intent and note, in presentation order,
+- **And** the CLI exits `0`.
+
+### TC-BRD-027 — `board intents` surfaces TRIAGE_NO_INTENTS when the scope has none
+
+- **Given** a scope with no intents artifact,
+- **When** `tai triage board intents` runs,
+- **Then** the CLI exits `2` with `TRIAGE_NO_INTENTS`,
+- **And** no artifact is created.
+
+The artifact is written on submit, so this code also distinguishes a
+board that is open but undecided from a scope that was never briefed.
+Nothing polls for it: the developer says when they have submitted.
+
+### TC-BRD-028 — reading intents is repeatable and non-destructive
+
+- **Given** an intents artifact,
+- **When** `tai triage board intents` runs twice,
+- **Then** both runs produce identical output,
+- **And** the artifact still exists after both.
+
+### TC-BRD-029 — the board's error codes render through the foundation template
+
+- **Given** each of `TRIAGE_BOARD_INVALID_JSON`,
+  `TRIAGE_BOARD_SCHEMA_INVALID`, `TRIAGE_BOARD_UNAVAILABLE` and
+  `TRIAGE_NO_INTENTS`,
+- **When** the code is surfaced,
+- **Then** stderr carries the foundation error template,
+- **And** the footer reads `[exit 1: TRIAGE_BOARD_INVALID_JSON]`,
+  `[exit 3: TRIAGE_BOARD_SCHEMA_INVALID]`,
+  `[exit 3: TRIAGE_BOARD_UNAVAILABLE]` and
+  `[exit 2: TRIAGE_NO_INTENTS]` respectively.
 
 ### TC-BRD-030 — presentation order matches the triage loop's
 
