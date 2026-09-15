@@ -1526,6 +1526,76 @@ so the validator collects every violation before returning.
 - **When** `tai triage board -` runs,
 - **Then** the CLI exits with `TRIAGE_BOARD_SCHEMA_INVALID`.
 
+### TC-BRD-010 — a request without the path prefix is refused
+
+- **Given** a board served under `/b/<prefix>/`,
+- **When** a request arrives for `/` or for a different prefix,
+- **Then** the response status is `404`,
+- **And** the body carries no content from the briefing.
+
+Loopback is not a boundary on a shared machine: any local process, a
+browser tab on an unrelated site included, can reach `127.0.0.1` on any
+port. The prefix is 32 hexadecimal characters from a cryptographically
+secure source, generated per invocation, so it cannot be guessed.
+
+### TC-BRD-012 — submit writes the artifact and exits zero
+
+- **Given** a running board,
+- **When** the developer submits,
+- **Then** the intents artifact for the briefing's scope is written,
+- **And** the command exits `0`.
+
+### TC-BRD-014 — all seven presentation fields reach the page
+
+- **Given** a briefing with one comment,
+- **When** the board is rendered,
+- **Then** the served HTML contains that comment's `raised_by`,
+  `location`, `description`, `cause`, `why_fix`, `suggested_fix` and
+  `concerns_if_skipped`.
+
+These are the fields the triage loop presents one at a time. A board
+showing fewer would ask the developer to decide in bulk on less than the
+conversation gives them.
+
+### TC-BRD-015 — the suggested fix names its origin
+
+- **Given** a comment whose `suggested_fix_origin` is `investigation`,
+- **When** the board is rendered,
+- **Then** the served HTML marks that fix as the investigation's rather
+  than the reviewer's.
+
+### TC-BRD-016 — batch members are grouped with both control levels
+
+- **Given** a briefing with a five-member batch `B1`,
+- **When** the board is rendered,
+- **Then** the five members appear grouped under `B1` with its key and
+  title,
+- **And** a batch-level control sets one intent on all five,
+- **And** each member carries its own control.
+
+### TC-BRD-017 — batches precede non-batched comments
+
+- **Given** a briefing with one batch whose highest-severity member is
+  `major`, and a non-batched `critical` comment,
+- **When** the board is rendered,
+- **Then** the batch appears before the non-batched comment.
+
+### TC-BRD-018 — a note input accompanies every comment and every batch
+
+- **Given** a briefing with a three-member batch and two non-batched
+  comments,
+- **When** the board is rendered,
+- **Then** the served HTML carries a note input for each of the five
+  comments,
+- **And** a note input for the batch.
+
+### TC-BRD-019 — an empty briefing renders and submits
+
+- **Given** a briefing whose `comments` is empty,
+- **When** the board is rendered,
+- **Then** the served HTML says there is nothing to decide,
+- **And** submitting it writes an intents artifact carrying no entries.
+
 ### TC-BRD-020 — the artifact records all three intents
 
 - **Given** the developer accepts comment 1, dismisses comment 2 with a
@@ -1543,6 +1613,18 @@ so the validator collects every violation before returning.
 
 An `unanswered` note is what the developer wants from the conversation
 about that comment; it reaches the loop when the comment is presented.
+
+### TC-BRD-022 — a batch call is recorded as its per-member intents
+
+- **Given** a five-member batch whose batch-level control is set to
+  `accept` and whose member `B1.4` is then set to `dismiss` with a note,
+- **When** the board is submitted,
+- **Then** the artifact carries four `accept` entries and one `dismiss`
+  entry carrying the note,
+- **And** carries no batch-level entry.
+
+A batch decided with exceptions is represented as exactly the per-member
+calls that produced it.
 
 ### TC-BRD-023 — resubmitting a scope replaces its artifact
 
