@@ -1490,6 +1490,32 @@ Exercised by `TestForget_TCTRG107_status_prune_clears_emptied_batches`,
 `TestForget_TCTRG107_branch_status_prune_maintains_batches`, and
 `TestForget_TCTRG107_repo_prune_spares_another_repo`.
 
+### TC-AST-004 — the shipped command documents the board briefing
+
+- **Given** `plugins/triage/assets/commands/triage.md`,
+- **When** its board section is read,
+- **Then** it documents every field of the briefing JSON, which are
+  required, and the value sets for `severity` and
+  `suggested_fix_origin`,
+- **And** it states that the board is offered only above five surviving
+  comments and never launched unasked,
+- **And** it states that the investigation is moved ahead of the
+  presentation rather than replaced by it,
+- **And** it carries the intent-equivalence rule and the prohibition on
+  intent-only obligations or exemptions,
+- **And** it names `TRIAGE_BOARD_INVALID_JSON`,
+  `TRIAGE_BOARD_SCHEMA_INVALID` and `TRIAGE_NO_INTENTS`,
+- **And** it tells the loop not to poll for the submission but to wait
+  for the user to say they are done.
+
+The board renders what it is briefed with and derives nothing, so an AI
+left to guess the schema — or one that copies `tai triage show`'s stored
+fields into it — produces exactly the un-investigated surface the loop's
+own presentation contract forbids.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestTriageCommand_TCAST004_documents_the_board_briefing`.
+
 ## BRD — triage board
 
 The board is the bulk-decision surface: the AI investigates every pending

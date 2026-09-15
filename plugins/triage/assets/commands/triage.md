@@ -3,7 +3,7 @@ name: "TAI: Triage"
 description: "Walk through pending PR review comments interactively, batches-first."
 category: "Workflow"
 tags: [tai, triage, review]
-version: 2
+version: 3
 ---
 # /tai-triage:triage — walk pending review comments to a decision
 
@@ -128,6 +128,144 @@ conversation. Err toward the false negative every time.
 Do NOT call `tai triage complete` based on circumstantial signals alone (e.g.
 "the file was edited recently"). The evidence must be specific to the
 comment.
+
+## 3.5 The board — bulk decisions before the loop
+
+Count the comments still `pending` after phase 1. When more than five
+remain, OFFER the board. At five or fewer, do not mention it: opening a
+browser for three comments is slower than talking.
+
+The offer is an offer. Do NOT launch the board unless the user accepts.
+If they decline, go to section 4 and walk every comment as usual.
+
+When they accept:
+
+1. **Investigate every surviving comment first.** This is the same
+   investigation section 4 step 1 already requires before presenting a
+   comment — open the file at the flagged lines, read the surrounding
+   code, work out the seven fields. It is moved ahead of the
+   presentation, not replaced by it. The board renders what you give it
+   and derives nothing, so a field you did not work out is a field the
+   user decides without.
+2. **Assemble the briefing** in the schema below.
+3. **Pipe it to the board**, backgrounded, and surface the URL it
+   prints:
+
+   ```sh
+   cat <<'EOF' | tai triage board -
+   { "repo": "...", ... }
+   EOF
+   ```
+
+   The board takes no `--pr` / `--branch` flags — the briefing's `repo`
+   and `scope` name the target.
+4. **Say the board is open, and stop.** Tell the user the board is up,
+   that you will pick the rest up when they are done, and then WAIT for
+   them to say so.
+
+   Do NOT poll `tai triage board intents`. Do NOT watch the board
+   process. Do NOT check whether the artifact has appeared. The person
+   deciding is in this conversation and will tell you when they have
+   submitted; every check you make before then spends a turn finding out
+   something they were about to volunteer.
+5. **When they say they are done**, read the intents with
+   `tai triage board intents` (passing the scope flags section 2
+   resolved) and carry them into section 4. If it exits
+   `TRIAGE_NO_INTENTS`, the board has not been submitted — say so and
+   wait again rather than retrying in a loop.
+
+### Briefing schema
+
+```json
+{
+  "repo": "<owner>/<name>",
+  "scope": { "kind": "pr", "pr": 142 },
+  "batches": [
+    { "batch_key": "B1", "title": "Replace execSync with execFileSync" }
+  ],
+  "comments": [
+    {
+      "id": 7,
+      "batch_key": "B1",
+      "severity": "critical",
+      "raised_by": "coderabbit",
+      "location": "src/api/auth.ts:15-29",
+      "description": "execSync interpolates user input into a shell string.",
+      "cause": "setConfig() passes k and v straight into execSync; both reach it from the PR title via the rerun button.",
+      "why_fix": "A value containing shell metacharacters is interpreted rather than passed through.",
+      "suggested_fix": "Replace execSync with execFileSync('git', ['config', k, v]).",
+      "suggested_fix_origin": "reviewer",
+      "concerns_if_skipped": "Anyone who can influence a PR title gains command execution on the build host."
+    }
+  ]
+}
+```
+
+Field rules:
+
+- `scope.kind` is `pr` or `branch`, carrying `pr` (integer) or `branch`
+  (string) respectively.
+- Every comment field is REQUIRED and non-empty except `batch_key`,
+  which is omitted for a comment in no batch.
+- `id` is the integer position `tai triage list` prints, and it is what
+  comes back in the intents.
+- `severity` is one of `critical`, `major`, `minor`, `nitpick`. It
+  drives order and grouping.
+- `suggested_fix_origin` is `reviewer` when the fix came from the
+  stored record, `investigation` when you derived it. The board shows
+  the difference, so the user knows whose proposal they are reading.
+- Every `batch_key` a comment names MUST appear in `batches`.
+- Unknown fields are rejected.
+
+The seven presentation fields are `raised_by`, `location`,
+`description`, `cause`, `why_fix`, `suggested_fix` and
+`concerns_if_skipped` — the same seven section 4 step 1 requires. Do NOT
+copy `tai triage show`'s stored fields into them unchanged: `cause` is
+always yours, and the rest are the record sharpened or replaced by what
+you found.
+
+### When the briefing is rejected
+
+- `TRIAGE_BOARD_INVALID_JSON` (exit 1) — the payload is not valid JSON.
+- `TRIAGE_BOARD_SCHEMA_INVALID` (exit 3) — it parses but breaks a rule
+  above. Every violation is listed at once, each with its path, so fix
+  all of them and pipe once more rather than one per attempt.
+
+Nothing is bound and no browser opens when a briefing is rejected.
+
+### What comes back
+
+`tai triage board intents` emits one line per comment:
+
+```
+- 7: accept — use an argv slice, not a template string
+- 9: dismiss — branch creation is restricted to the security team
+- 11: unanswered — explain this one to me
+```
+
+**An intent is exactly equivalent to the user having typed that answer
+at that comment's decision prompt in section 4.** Every obligation below
+applies to it unchanged:
+
+- `accept` → `tai triage accept <id>`, with any note captured via
+  `--resolution`. A run of accepts MAY be persisted in one pass under a
+  single progress line; every other decision keeps its own.
+- `dismiss` → section 5's dismissal-debate contract, at the severity
+  calibration that contract already specifies. A `critical` dismissal
+  gets the full debate including a concrete scenario. The note is the
+  user's opening argument, NOT the recorded reason: `--reason` reflects
+  the debate's outcome. A dismissal carrying no note is reasoning-free
+  and gets pushed back on before it is persisted.
+- `unanswered` → the comment is walked in section 4 exactly as it would
+  be with no board at all. Where it carries a note, surface and address
+  that note as part of presenting the comment.
+- A comment absent from the intents is `unanswered`.
+- `TRIAGE_NO_INTENTS` when no board was offered at all means simply that
+  there is nothing to read: walk the whole scope in section 4.
+
+You MUST NOT introduce any obligation that applies to an intent and not
+to a typed answer, or any exemption that applies to an intent and not to
+a typed answer.
 
 ## 4. Phase 2 — triage loop
 
@@ -331,6 +469,15 @@ Split the decision in this order:
    here is silent and persistent — the confirmation step is the only
    defence.
 
+   This defends against misreading a split expressed in prose, so it
+   does NOT apply to a split that arrives as per-member intents from the
+   board: those carry no prose to misread. Apply an intent-sourced split
+   without a confirmation prompt. What matters is the resulting member
+   states and the `mixed` batch status, not which call you make first —
+   the batch's status is recomputed from its members after every
+   transition, so a batch-wide call followed by overrides and a run of
+   per-member calls reach the same place.
+
 2. **Apply the batch-wide call first.**
 
    ```sh
@@ -441,6 +588,15 @@ say so.)
 
 ## 9. Guardrails — things you MUST NOT do
 
+- Do NOT let the board write a decision. It records intents to a file
+  and never touches the database; `tai triage accept` / `dismiss` /
+  `complete` remain the only way a comment's status changes, and they
+  run after the conversation, not before it.
+- Do NOT present the board with stored fields. `tai triage board -`
+  renders exactly what you brief it with, so an un-investigated
+  briefing puts an unverified cause in front of a bulk decision.
+- Do NOT poll for the board's submission. Launch it, say it is open,
+  and wait for the user to tell you they are done.
 - Do NOT bypass the CLI by writing to the SQLite database directly.
   Every state change goes through `tai triage accept` / `tai triage dismiss` / `tai
   complete`. If you find yourself reaching for `sqlite3` or for the
@@ -450,7 +606,9 @@ say so.)
   the DB. No `gh`, no `st_reviews`, no `curl`. (The one exception is
   stack-mode enumeration in section 8, which calls
   `st_reviews`/`gh pr list` once to discover the stack — no per-PR
-  network calls beyond that.)
+  network calls beyond that.) `tai triage board -` and
+  `tai triage board intents` are local: the board binds a loopback
+  socket for the browser on this machine and makes no outbound request.
 - Do NOT re-import comments mid-loop. If the user says "there are
   more comments to look at", tell them to run `/tai-triage:import` again
   after this loop finishes.
