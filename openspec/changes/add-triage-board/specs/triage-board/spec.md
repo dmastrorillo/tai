@@ -4,7 +4,7 @@
 
 The system SHALL provide a `tai triage board` subcommand that accepts a single positional argument `-`, signalling that the briefing JSON is read from stdin. Invoking it with no argument, or with any other positional argument, MUST exit `1` with `UNKNOWN_SUBCOMMAND` — a board without a briefing has nothing to show, so silent help is misleading.
 
-The subcommand SHALL resolve a scope using the `triage` capability's scope-resolution rule (`--pr` > `--branch` > auto-detect); the scope names the intents artifact it writes.
+The briefing's `repo` and `scope` name the intents artifact the subcommand writes. `tai triage board` accepts no `--pr` / `--branch` flags: the scope-resolution rule the other triage verbs share reaches for the current git branch and the `prs` / `branches` tables, and this subcommand may do neither. The briefing already carries both values and the validator already checks them.
 
 The listener SHALL bind `127.0.0.1` on port `0` (kernel-assigned). The board SHALL be served under a path prefix containing 32 hexadecimal characters drawn from a cryptographically secure random source, generated fresh on every invocation. Any request whose path does not carry the current prefix SHALL receive `404` with no body content derived from the briefing.
 
@@ -16,7 +16,7 @@ The subcommand SHALL NOT open the database, and SHALL NOT read from the network 
 
 #### Scenario: Board binds loopback on an ephemeral port
 
-- **WHEN** `tai triage board --pr 142` is invoked in a scope with pending comments
+- **WHEN** `tai triage board -` is invoked with a valid briefing on stdin
 - **THEN** a listener is bound on `127.0.0.1` with a kernel-assigned port
 - **AND** stdout contains the full board URL including the random path prefix
 
@@ -30,7 +30,7 @@ The subcommand SHALL NOT open the database, and SHALL NOT read from the network 
 #### Scenario: Browser launch failure is not fatal
 
 - **GIVEN** a machine on which no browser can be launched
-- **WHEN** `tai triage board` is invoked
+- **WHEN** `tai triage board -` is invoked with a valid briefing
 - **THEN** the command continues serving
 - **AND** stdout still carries the board URL
 - **AND** the command does not exit
@@ -45,7 +45,7 @@ The subcommand SHALL NOT open the database, and SHALL NOT read from the network 
 
 #### Scenario: Listener cannot bind
 
-- **WHEN** `tai triage board` is invoked and no loopback listener can be bound
+- **WHEN** `tai triage board -` is invoked with a valid briefing and no loopback listener can be bound
 - **THEN** the CLI exits with `TRIAGE_BOARD_UNAVAILABLE`
 - **AND** no intents artifact is written
 

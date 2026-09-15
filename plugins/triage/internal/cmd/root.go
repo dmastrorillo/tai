@@ -78,6 +78,7 @@ func NewRoot() *cli.Command {
 			newDismissCommand(),
 			newCompleteCommand(),
 			newStatusCommand(),
+			newBoardCommand(),
 			newForgetCommand(),
 		},
 

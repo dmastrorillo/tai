@@ -136,3 +136,96 @@ func TestTriageCommand_TCAST003_presents_an_investigated_review(t *testing.T) {
 		t.Error("triage.md must not ask for a references field")
 	}
 }
+
+// TestTriageCommand_TCAST004_documents_the_board_briefing pins the board
+// contract in the shipped command. The board renders what it is briefed
+// with and derives nothing, so an AI that has to guess the schema, or
+// that copies stored fields into it, produces a surface the loop's own
+// presentation contract forbids.
+func TestTriageCommand_TCAST004_documents_the_board_briefing(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "triage.md"))
+	if err != nil {
+		t.Fatalf("read triage.md: %v", err)
+	}
+	text := string(body)
+	// Prose assertions match against a whitespace-collapsed copy so a
+	// reflow of the markdown does not fail a test about its meaning.
+	flat := strings.Join(strings.Fields(text), " ")
+
+	// Every field the briefing carries, so the AI never has to guess.
+	for _, want := range []string{
+		`"raised_by"`, `"location"`, `"description"`, `"cause"`,
+		`"why_fix"`, `"suggested_fix"`, `"suggested_fix_origin"`,
+		`"concerns_if_skipped"`, `"batch_key"`, `"severity"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("triage.md must document the %s briefing field", want)
+		}
+	}
+
+	// The board is offered, never assumed, and only above the threshold.
+	if !strings.Contains(flat, "more than five") {
+		t.Error("triage.md must state the threshold below which the board is not mentioned")
+	}
+	if !strings.Contains(flat, "Do NOT launch the board unless the user accepts") {
+		t.Error("triage.md must state that the board is offered, not assumed")
+	}
+
+	// The investigation is moved ahead of the presentation, not replaced.
+	if !strings.Contains(flat, "moved ahead of the presentation, not replaced by it") {
+		t.Error("triage.md must say the board reuses the loop's investigation rather than skipping it")
+	}
+
+	// An intent carries no special obligations.
+	if !strings.Contains(flat, "exactly equivalent to the user having typed that answer") {
+		t.Error("triage.md must state the intent-equivalence rule")
+	}
+	if !strings.Contains(flat, "MUST NOT introduce any obligation that applies to an intent") {
+		t.Error("triage.md must forbid intent-only obligations and exemptions")
+	}
+
+	// The board is launched and then waited on, never polled: the user
+	// is in the conversation and says when they have submitted.
+	if !strings.Contains(flat, "Do NOT poll") {
+		t.Error("triage.md must tell the loop not to poll for the submission")
+	}
+	if !strings.Contains(flat, "WAIT for them to say so") {
+		t.Error("triage.md must tell the loop to wait for the user to say they submitted")
+	}
+
+	// Both rejection codes, and the code for a scope with no board.
+	for _, want := range []string{
+		"TRIAGE_BOARD_INVALID_JSON",
+		"TRIAGE_BOARD_SCHEMA_INVALID",
+		"TRIAGE_NO_INTENTS",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("triage.md must document %q", want)
+		}
+	}
+}
+
+// TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify
+// pins the handoff between the two commands. /tai-triage:verify reads a
+// PR scope's evidence from `gh pr diff`, which sees only pushed commits,
+// so a recap naming verify alone sends the user into a run that caps
+// every fix they just made at MEDIUM confidence.
+func TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "fix.md"))
+	if err != nil {
+		t.Fatalf("read fix.md: %v", err)
+	}
+	text := string(body)
+	flat := strings.Join(strings.Fields(text), " ")
+
+	if !strings.Contains(flat, "Commit and push these, then run `/tai-triage:verify`") {
+		t.Error("fix.md's recap must tell the user to commit and push before verifying")
+	}
+	if !strings.Contains(flat, "which sees only what has been pushed") {
+		t.Error("fix.md must explain that verify's evidence comes from the pushed diff")
+	}
+	// The command still must not do it itself.
+	if !strings.Contains(flat, "Do NOT commit, stage, push, or create a PR yourself") {
+		t.Error("fix.md must still forbid the command from committing or pushing")
+	}
+}
