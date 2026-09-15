@@ -1526,6 +1526,46 @@ so the validator collects every violation before returning.
 - **When** `tai triage board -` runs,
 - **Then** the CLI exits with `TRIAGE_BOARD_SCHEMA_INVALID`.
 
+### TC-BRD-020 — the artifact records all three intents
+
+- **Given** the developer accepts comment 1, dismisses comment 2 with a
+  note, and leaves comment 3 alone,
+- **When** the board is submitted,
+- **Then** the artifact carries `accept` for 1, `dismiss` with the note
+  for 2, and `unanswered` for 3.
+
+### TC-BRD-021 — a note on an unanswered comment is preserved
+
+- **Given** the developer leaves comment 4 undecided but writes a note,
+- **When** the board is submitted,
+- **Then** the artifact carries `{id: 4, intent: "unanswered"}` with that
+  note.
+
+An `unanswered` note is what the developer wants from the conversation
+about that comment; it reaches the loop when the comment is presented.
+
+### TC-BRD-023 — resubmitting a scope replaces its artifact
+
+- **Given** an intents artifact already written for PR 142,
+- **When** a second board for PR 142 is submitted,
+- **Then** the artifact holds only the second submission's entries.
+
+### TC-BRD-024 — artifacts are scope-keyed
+
+- **Given** intents artifacts for PR 142 and PR 200 in the same repo,
+- **Then** each is stored at its own path,
+- **And** reading intents for PR 142 never returns PR 200's entries.
+
+### TC-BRD-025 — a branch name containing a slash stays inside the intents directory
+
+- **Given** a briefing whose scope is the branch `feat/oauth`,
+- **When** its artifact path is derived,
+- **Then** the path resolves inside
+  `<TAI_DATA_DIR>/plugins/triage/state/intents/`.
+
+An unslugged `/` would place the file outside the directory the board
+owns.
+
 ### TC-BRD-030 — presentation order matches the triage loop's
 
 - **Given** a briefing with two batches — one whose highest severity is
