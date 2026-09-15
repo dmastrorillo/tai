@@ -1,11 +1,15 @@
 package board
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func serverFor(t *testing.T, b Briefing) *Server {
@@ -278,5 +282,160 @@ func TestBoard_TCBRD012_submit_answers_the_page(t *testing.T) {
 	}
 	if !got["ok"] {
 		t.Errorf("want an ok response so the page can confirm, got %s", rec.Body.String())
+	}
+}
+
+// TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit drives
+// Serve itself rather than Handler: the real net.Listen, the announced
+// URL, the browser launch, a genuine HTTP round trip, and the shutdown
+// that follows a submit. Everything else in this file bypasses Serve
+// via httptest, so without this the wiring that makes the command work
+// end to end has no coverage.
+//
+// NoBrowserForTesting is mandatory here, not incidental. A test run must
+// never open a real window.
+func TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit(t *testing.T) {
+	NoBrowserForTesting(t)
+
+	s := serverFor(t, Briefing{
+		Repo: "acme/app", Scope: prScope(142),
+		Comments: []Comment{fullComment(1, ""), fullComment(2, "")},
+	})
+
+	urls := make(chan string, 1)
+	done := make(chan []IntentEntry, 1)
+	errs := make(chan error, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		entries, err := s.Serve(ctx, func(u string) { urls <- u })
+		if err != nil {
+			errs <- err
+			return
+		}
+		done <- entries
+	}()
+
+	var url string
+	select {
+	case url = <-urls:
+	case err := <-errs:
+		t.Fatalf("Serve returned before announcing: %v", err)
+	case <-ctx.Done():
+		t.Fatal("Serve never announced a URL")
+	}
+
+	if !strings.HasPrefix(url, "http://127.0.0.1:") {
+		t.Errorf("the board must bind loopback, got %q", url)
+	}
+	if !strings.Contains(url, "/b/"+s.prefix+"/") {
+		t.Errorf("the announced URL must carry the path prefix, got %q", url)
+	}
+
+	// A real request over the bound socket, not httptest.
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET the announced URL: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET the board: want 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "src/api/auth.ts:15-29") {
+		t.Error("the served page did not carry the briefed comment")
+	}
+
+	post, err := http.Post(url+"submit", "application/json",
+		strings.NewReader(`[{"id":1,"intent":"accept","note":"via the real socket"}]`))
+	if err != nil {
+		t.Fatalf("POST submit: %v", err)
+	}
+	_ = post.Body.Close()
+
+	select {
+	case entries := <-done:
+		if len(entries) != 2 {
+			t.Fatalf("every briefed comment gets an entry, got %d", len(entries))
+		}
+		byID := map[int]IntentEntry{}
+		for _, e := range entries {
+			byID[e.ID] = e
+		}
+		if byID[1].Intent != IntentAccept || byID[1].Note != "via the real socket" {
+			t.Errorf("comment 1 round-tripped wrong: %+v", byID[1])
+		}
+		if byID[2].Intent != IntentUnanswered {
+			t.Errorf("an untouched comment must come back unanswered, got %q", byID[2].Intent)
+		}
+	case err := <-errs:
+		t.Fatalf("Serve returned an error after submit: %v", err)
+	case <-ctx.Done():
+		t.Fatal("Serve did not return after the board was submitted")
+	}
+}
+
+// TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled covers
+// the other way out of Serve's blocking select: a caller that gives up
+// before the developer submits.
+func TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled(t *testing.T) {
+	NoBrowserForTesting(t)
+
+	s := serverFor(t, Briefing{
+		Repo: "acme/app", Scope: prScope(1),
+		Comments: []Comment{fullComment(1, "")},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	announced := make(chan struct{})
+	result := make(chan error, 1)
+
+	go func() {
+		_, err := s.Serve(ctx, func(string) { close(announced) })
+		result <- err
+	}()
+
+	<-announced
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("want context.Canceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after its context was cancelled")
+	}
+}
+
+// TestBoard_TCBRD010_the_landing_path_redirects_without_carrying_the_secret
+// pins the defence against leaking the board's path prefix through
+// process arguments. The browser is launched with the landing URL, which
+// any local user may read from argv; it must carry no secret, and it
+// must still reach the board.
+func TestBoard_TCBRD010_the_landing_path_redirects_without_carrying_the_secret(t *testing.T) {
+	s := serverFor(t, Briefing{
+		Repo: "acme/app", Scope: prScope(1),
+		Comments: []Comment{fullComment(1, "")},
+	})
+
+	landing := s.LandingURL("127.0.0.1:1234")
+	if strings.Contains(landing, s.prefix) {
+		t.Fatalf("the URL handed to the browser must not carry the path prefix: %s", landing)
+	}
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, landingPath, nil))
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("want 302 from the landing path, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/b/"+s.prefix+"/" {
+		t.Errorf("the redirect must point at the board, got %q", got)
+	}
+	if strings.Contains(rec.Body.String(), "execSync") {
+		t.Error("the redirect body leaked briefing content")
 	}
 }

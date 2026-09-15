@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net"
 	"net/http"
 	"os/exec"
@@ -106,6 +107,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc(base+"/submit", s.handleSubmit)
 	root := http.NewServeMux()
 	root.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The landing path carries no secret, so it is safe to hand to
+		// a browser on the command line. It redirects over the socket
+		// that already holds the prefix.
+		if r.URL.Path == landingPath {
+			http.Redirect(w, r, base+"/", http.StatusFound)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, base+"/") {
 			http.NotFound(w, r)
 			return
@@ -115,9 +123,23 @@ func (s *Server) Handler() http.Handler {
 	return root
 }
 
-// URL is the board's entry point, valid once Serve has bound.
+// landingPath is the secret-free entry point. Requests to it are
+// redirected to the prefixed board over the already-bound socket.
+const landingPath = "/open"
+
+// URL is the board's entry point, valid once Serve has bound. It
+// carries the path prefix and is what the developer is shown.
 func (s *Server) URL(addr string) string {
 	return fmt.Sprintf("http://%s/b/%s/", addr, s.prefix)
+}
+
+// LandingURL is what the browser is launched with. It deliberately
+// omits the prefix: a browser is started by exec'ing `open`/`xdg-open`
+// with the URL as an argument, and process arguments are readable by
+// every other local user on macOS and most Linux configurations. Handing
+// the secret to argv would publish the very thing the prefix protects.
+func (s *Server) LandingURL(addr string) string {
+	return "http://" + addr + landingPath
 }
 
 type pageData struct {
@@ -142,6 +164,10 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplate.Execute(w, data); err != nil {
+		// The one way the board fails after binding successfully, and
+		// without this the developer sees a blank page and no trail.
+		slog.Error("rendering the board page failed",
+			"path", r.URL.Path, "error", err)
 		http.Error(w, "rendering the board failed", http.StatusInternalServerError)
 	}
 }
@@ -209,9 +235,9 @@ func (s *Server) Serve(ctx context.Context, announce func(url string)) ([]Intent
 	}
 	defer func() { _ = ln.Close() }()
 
-	url := s.URL(ln.Addr().String())
-	announce(url)
-	openBrowser(url)
+	addr := ln.Addr().String()
+	announce(s.URL(addr))
+	openBrowser(s.LandingURL(addr))
 
 	srv := &http.Server{Handler: s.Handler()}
 	go func() { _ = srv.Serve(ln) }()

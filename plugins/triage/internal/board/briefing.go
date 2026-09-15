@@ -119,7 +119,8 @@ func Validate(b Briefing) []ValidationError {
 	v.checkRepo(b.Repo)
 	v.checkScope(b.Scope)
 	known := v.checkBatches(b.Batches)
-	v.checkComments(b.Comments, known)
+	referenced := v.checkComments(b.Comments, known)
+	v.checkBatchesAreReferenced(b.Batches, referenced)
 	return v.errs
 }
 
@@ -190,7 +191,10 @@ func (v *validator) checkBatches(batches []Batch) map[string]struct{} {
 	return known
 }
 
-func (v *validator) checkComments(comments []Comment, known map[string]struct{}) {
+// checkComments returns the set of batch keys the comments referenced,
+// so the reverse check can find a batch nothing points at.
+func (v *validator) checkComments(comments []Comment, known map[string]struct{}) map[string]struct{} {
+	referenced := make(map[string]struct{})
 	seen := make(map[int]struct{}, len(comments))
 	for i, c := range comments {
 		base := fmt.Sprintf("comments[%d]", i)
@@ -226,10 +230,29 @@ func (v *validator) checkComments(comments []Comment, known map[string]struct{})
 		}
 
 		if c.BatchKey != "" {
+			referenced[c.BatchKey] = struct{}{}
 			if _, ok := known[c.BatchKey]; !ok {
 				v.add(base+".batch_key",
 					fmt.Sprintf("%q is not declared in batches", c.BatchKey))
 			}
+		}
+	}
+	return referenced
+}
+
+// checkBatchesAreReferenced is the mirror of the comment-side check. A
+// batch no comment points at renders as nothing at all — Order builds
+// its groups from the comments — so without this a briefing that
+// declares a batch and omits its members produces a board quietly
+// missing that work, with no error to correct from.
+func (v *validator) checkBatchesAreReferenced(batches []Batch, referenced map[string]struct{}) {
+	for i, b := range batches {
+		if b.BatchKey == "" {
+			continue
+		}
+		if _, ok := referenced[b.BatchKey]; !ok {
+			v.add(fmt.Sprintf("batches[%d].batch_key", i),
+				fmt.Sprintf("%q is declared but no comment references it", b.BatchKey))
 		}
 	}
 }

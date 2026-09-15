@@ -230,3 +230,17 @@ func seedPRScope(t *testing.T, _ *cmdtest.Isolated) {
 	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), payload, "import", "-")
 	cmdtest.AssertNoError(t, r)
 }
+
+// TestBoard_TCBRD032_repo_flag_is_not_accepted pins the second of the two
+// guards keeping the board's scope sourced from the briefing rather than
+// from flags. The other one — --pr / --branch — is covered by TC-BRD-004.
+func TestBoard_TCBRD032_repo_flag_is_not_accepted(t *testing.T) {
+	cmdtest.Isolate(t)
+	board.NoBrowserForTesting(t)
+
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), validBriefing, "--repo", "acme/app", "board", "-")
+
+	cmdtest.AssertError(t, r)
+	cmdtest.AssertErrorFooter(t, r, "UNKNOWN_SUBCOMMAND", 1)
+	cmdtest.AssertStderrContains(t, r, "repo identity is read from the briefing")
+}

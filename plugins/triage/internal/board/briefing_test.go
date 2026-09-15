@@ -149,3 +149,63 @@ func TestOrder_TCBRD030_batches_first_then_severity_then_id(t *testing.T) {
 			groups[3].Comments[0].ID, groups[4].Comments[0].ID)
 	}
 }
+
+// TestValidate_TCBRD031_scope_rejects_both_pr_and_branch pins the arm of
+// checkScope that decides which artifact path a briefing writes to.
+// Accepting both silently would write one scope's intents under
+// another's name.
+func TestValidate_TCBRD031_scope_rejects_both_pr_and_branch(t *testing.T) {
+	n := 142
+	cases := []struct {
+		name     string
+		scope    Scope
+		wantPath string
+	}{
+		{"kind pr carrying a branch", Scope{Kind: "pr", PR: &n, Branch: "feat/x"}, "scope.branch"},
+		{"kind branch carrying a pr", Scope{Kind: "branch", Branch: "feat/x", PR: &n}, "scope.pr"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := Validate(Briefing{
+				Repo:     "acme/app",
+				Scope:    tc.scope,
+				Comments: []Comment{comment(1, "minor", "")},
+			})
+			var found bool
+			for _, e := range errs {
+				if e.Path == tc.wantPath {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("want a violation at %s, got %+v", tc.wantPath, errs)
+			}
+		})
+	}
+}
+
+// TestValidate_TCBRD033_a_batch_no_comment_references_is_rejected pins
+// the mirror of the comment-side batch check. Order builds its groups
+// from the comments, so an unreferenced batch renders as nothing; caught
+// at validation it is an error the AI can correct from.
+func TestValidate_TCBRD033_a_batch_no_comment_references_is_rejected(t *testing.T) {
+	errs := Validate(Briefing{
+		Repo:  "acme/app",
+		Scope: prScope(142),
+		Batches: []Batch{
+			{BatchKey: "B1", Title: "referenced"},
+			{BatchKey: "B2", Title: "declared and forgotten"},
+		},
+		Comments: []Comment{comment(1, "major", "B1")},
+	})
+
+	var found bool
+	for _, e := range errs {
+		if e.Path == "batches[1].batch_key" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("want a violation naming the unreferenced batch, got %+v", errs)
+	}
+}

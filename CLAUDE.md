@@ -184,9 +184,21 @@ Production code lives under `core/internal/`, `plugins/<name>/internal/`, or `pk
 
 Run the integration tier with `go test -tags=integration ./...`.
 
-### Test bypasses for `pkg/`-level validators
+### Test seams: the `ForTesting` package-var swap
 
-Some `pkg/` validators (e.g. `core/internal/config.validateRepoURL`) reject inputs that the e2e test harness needs (`file://` URLs for hermetic bare-repo fixtures, etc.). The pattern is: each validator dispatches through a package-level `*Func` variable that defaults to the strict production implementation. The package exports a `<Name>ForTesting(t testing.TB)` helper that swaps in a permissive variant and registers a `t.Cleanup` to restore the strict default. The `testing.TB` parameter makes accidental production use a glaring code-review red flag; the t.Cleanup keeps each test self-contained. Example: `config.AllowFileURLsForTesting(t)` in `core/internal/cmd/sync_test.go`.
+Some behaviour cannot be reached from a test without control over a dependency the production path owns — a validator that rejects the fixture, a registry the test needs an entry in, a listener that has no deterministic way to fail.
+
+The pattern is the same in every case: the production path dispatches through a package-level variable holding the real implementation, and the package exports a `<Name>ForTesting(t testing.TB)` helper that swaps in the variant the test needs and registers a `t.Cleanup` to restore the default. The `testing.TB` parameter is the guard — a production binary reaching the helper has to import `testing` deliberately, which is a glaring code-review red flag — and the `t.Cleanup` keeps each test self-contained.
+
+It is used for validators, and for anything else a test must control:
+
+- `config.AllowFileURLsForTesting(t)` — accept `file://` repo URLs for hermetic bare-repo fixtures.
+- `plugins.RegisterForTesting(t, name, src)` — inject a first-party registry entry.
+- `sync.AutoInstallForTesting(t, fn)` — replace the plugin auto-install step.
+- `board.ListenFailureForTesting(t, err)` — make the next loopback bind fail, which a kernel-assigned port otherwise never does.
+- `board.NoBrowserForTesting(t)` — stop a test run opening a real browser window.
+
+Reach for it when a seam is genuinely unreachable otherwise. It is not a licence for package-level mutable state in general — see Conventions.
 
 Test naming convention: `TestCommandName_TCID_short_description`, e.g. `TestVersion_TCCMD001_prints_version_string`. The `TCID` segment is the test-case ID with hyphens stripped, preserving every character — `TC-CMD-001 → TCCMD001`, not `TCMD001`. The TC-ID in the name is the breadcrumb back to the right `test-cases.md` (`core/`, `pkg/`, or `plugins/<name>/`).
 

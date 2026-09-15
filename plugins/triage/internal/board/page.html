@@ -60,6 +60,8 @@
     font-weight: 600; padding: 7px 18px; }
   .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
   .done { text-align: center; padding: 60px 20px; }
+  .failure { background: var(--dismiss); color: #fff; padding: 12px 16px;
+    border-radius: 8px; margin: 0 0 16px; }
   @media (max-width: 620px) { dl { grid-template-columns: 1fr; gap: 2px 0; } }
 </style>
 </head>
@@ -164,6 +166,17 @@
     if (b.id === 'submit') submit();
   });
 
+  function fail(message) {
+    var banner = document.getElementById('failure');
+    if (!banner) {
+      banner = document.createElement('p');
+      banner.id = 'failure';
+      banner.className = 'failure';
+      document.getElementById('main').prepend(banner);
+    }
+    banner.textContent = message;
+  }
+
   function tally() {
     var decided = document.querySelectorAll('article.comment[data-intent="accept"], article.comment[data-intent="dismiss"]').length;
     document.getElementById('tally').textContent =
@@ -180,14 +193,22 @@
         note: (a.querySelector('input[data-note]') || {}).value || ''
       });
     });
+    var btn = document.getElementById('submit');
+    btn.disabled = true;
     fetch(submitPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(function () {
+    }).then(function (response) {
+      if (!response.ok) throw new Error('the board replied ' + response.status);
       document.getElementById('main').innerHTML =
         '<p class="done">Decisions recorded. You can close this tab — the rest of the triage continues in your terminal.</p>';
-      document.getElementById('submit').disabled = true;
+    }).catch(function (err) {
+      // A failed submit must never read as a successful one: the whole
+      // pass is still in the page, and re-enabling the button is the
+      // only way back to it.
+      btn.disabled = false;
+      fail('Nothing was recorded — ' + err.message + '. Your decisions are still on this page; press Submit again.');
     });
   }
 

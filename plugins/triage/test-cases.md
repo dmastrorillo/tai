@@ -1540,6 +1540,9 @@ all.
 - **Then** the board serves that comment,
 - **And** no database file is opened or created.
 
+No test is named for this ID; its assertions live inside `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit`.
+
 ### TC-BRD-002 — missing positional argument is a usage error
 
 - **Given** no positional argument,
@@ -1547,11 +1550,17 @@ all.
 - **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`,
 - **And** the message says the briefing is read from stdin.
 
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD002_missing_positional_is_a_usage_error`.
+
 ### TC-BRD-003 — a positional other than `-` is a usage error
 
 - **Given** the positional argument `142`,
 - **When** `tai triage board 142` runs,
 - **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD003_a_positional_other_than_dash_is_a_usage_error`.
 
 ### TC-BRD-004 — scope flags are not accepted
 
@@ -1564,12 +1573,18 @@ The briefing carries `repo` and `scope`, which name the intents artifact.
 The scope-resolution rule the other triage verbs share reads the current
 git branch and the `prs` / `branches` tables; this verb may do neither.
 
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD004_scope_flags_are_not_accepted`.
+
 ### TC-BRD-005 — malformed JSON is rejected before anything is bound
 
 - **Given** stdin carrying text that is not valid JSON,
 - **When** `tai triage board -` runs,
 - **Then** the CLI exits `1` with `TRIAGE_BOARD_INVALID_JSON`,
 - **And** no listener is bound.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD005_malformed_json_is_rejected`.
 
 ### TC-BRD-006 — every schema violation is reported in one message
 
@@ -1584,12 +1599,26 @@ git branch and the `prs` / `branches` tables; this verb may do neither.
 Reporting one violation per run would cost the AI a round trip for each,
 so the validator collects every violation before returning.
 
+Exercised by `plugins/triage/internal/board/briefing_test.go` →
+`TestValidate_TCBRD006_rejects_bad_enums_and_scope`, and
+`plugins/triage/internal/board/briefing_test.go` →
+`TestValidate_TCBRD006_reports_every_violation_at_once`, and
+`plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD006_every_violation_is_reported_at_once`.
+
 ### TC-BRD-007 — an unknown field is rejected
 
 - **Given** a briefing whose comment carries a field the schema does not
   name,
 - **When** `tai triage board -` runs,
 - **Then** the CLI exits with `TRIAGE_BOARD_SCHEMA_INVALID`.
+
+Exercised by `plugins/triage/internal/board/briefing_test.go` →
+`TestValidate_TCBRD007_accepts_a_minimal_briefing`, and
+`plugins/triage/internal/board/briefing_test.go` →
+`TestValidate_TCBRD007_rejects_an_unknown_field`, and
+`plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD007_an_unknown_field_is_rejected`.
 
 ### TC-BRD-008 — a rejected briefing has no side effects
 
@@ -1598,6 +1627,11 @@ so the validator collects every violation before returning.
 - **Then** no listener is bound,
 - **And** no browser is launched,
 - **And** no intents artifact is written.
+
+No test is named for this ID; its assertions live inside `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD005_malformed_json_is_rejected`, and
+`plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD006_every_violation_is_reported_at_once`.
 
 ### TC-BRD-009 — the board binds loopback on a kernel-assigned port
 
@@ -1609,6 +1643,11 @@ so the validator collects every violation before returning.
 
 A fixed port would collide with whatever else the developer is running and
 produce a failure that has nothing to do with triage.
+
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit`, and
+`plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled`.
 
 ### TC-BRD-010 — a request without the path prefix is refused
 
@@ -1622,6 +1661,11 @@ browser tab on an unrelated site included, can reach `127.0.0.1` on any
 port. The prefix is 32 hexadecimal characters from a cryptographically
 secure source, generated per invocation, so it cannot be guessed.
 
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD010_refuses_a_request_without_the_path_prefix`, and
+`plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD010_the_landing_path_redirects_without_carrying_the_secret`.
+
 ### TC-BRD-011 — a failed browser launch is not fatal
 
 - **Given** a machine on which no browser can be launched,
@@ -1629,12 +1673,19 @@ secure source, generated per invocation, so it cannot be guessed.
 - **Then** the command keeps serving,
 - **And** stdout still carries the board URL.
 
+No Go test names this ID. The browser launch is a best-effort
+`exec.Start` whose failure the board ignores by construction; what a
+real launch does on a given host is verified manually.
+
 ### TC-BRD-012 — submit writes the artifact and exits zero
 
 - **Given** a running board,
 - **When** the developer submits,
 - **Then** the intents artifact for the briefing's scope is written,
 - **And** the command exits `0`.
+
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD012_submit_answers_the_page`.
 
 ### TC-BRD-013 — a listener that cannot bind surfaces TRIAGE_BOARD_UNAVAILABLE
 
@@ -1646,6 +1697,9 @@ secure source, generated per invocation, so it cannot be guessed.
 A kernel-assigned port has no deterministic way to fail, so the failure is
 injected through the package-level `listen` seam. This case is what pins
 the code's exit bucket, and `pkg/errcode` is append-only.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD013_a_listener_that_cannot_bind_surfaces_the_code`.
 
 ### TC-BRD-014 — all seven presentation fields reach the page
 
@@ -1659,12 +1713,18 @@ These are the fields the triage loop presents one at a time. A board
 showing fewer would ask the developer to decide in bulk on less than the
 conversation gives them.
 
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD014_renders_all_seven_presentation_fields`.
+
 ### TC-BRD-015 — the suggested fix names its origin
 
 - **Given** a comment whose `suggested_fix_origin` is `investigation`,
 - **When** the board is rendered,
 - **Then** the served HTML marks that fix as the investigation's rather
   than the reviewer's.
+
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD015_marks_an_investigation_authored_fix`.
 
 ### TC-BRD-016 — batch members are grouped with both control levels
 
@@ -1675,12 +1735,18 @@ conversation gives them.
 - **And** a batch-level control sets one intent on all five,
 - **And** each member carries its own control.
 
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD016_groups_batch_members_with_both_control_levels`.
+
 ### TC-BRD-017 — batches precede non-batched comments
 
 - **Given** a briefing with one batch whose highest-severity member is
   `major`, and a non-batched `critical` comment,
 - **When** the board is rendered,
 - **Then** the batch appears before the non-batched comment.
+
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD017_puts_batches_before_non_batched_comments`.
 
 ### TC-BRD-018 — a note input accompanies every comment and every batch
 
@@ -1691,12 +1757,18 @@ conversation gives them.
   comments,
 - **And** a note input for the batch.
 
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD018_gives_every_comment_and_batch_a_note_input`.
+
 ### TC-BRD-019 — an empty briefing renders and submits
 
 - **Given** a briefing whose `comments` is empty,
 - **When** the board is rendered,
 - **Then** the served HTML says there is nothing to decide,
 - **And** submitting it writes an intents artifact carrying no entries.
+
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD019_renders_and_submits_an_empty_briefing`.
 
 ### TC-BRD-020 — the artifact records all three intents
 
@@ -1705,6 +1777,11 @@ conversation gives them.
 - **When** the board is submitted,
 - **Then** the artifact carries `accept` for 1, `dismiss` with the note
   for 2, and `unanswered` for 3.
+
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD020_records_all_three_intents`, and
+`plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD020_submit_records_every_briefed_comment`.
 
 ### TC-BRD-021 — a note on an unanswered comment is preserved
 
@@ -1715,6 +1792,9 @@ conversation gives them.
 
 An `unanswered` note is what the developer wants from the conversation
 about that comment; it reaches the loop when the comment is presented.
+
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD021_keeps_a_note_on_an_unanswered_comment`.
 
 ### TC-BRD-022 — a batch call is recorded as its per-member intents
 
@@ -1728,17 +1808,28 @@ about that comment; it reaches the loop when the comment is presented.
 A batch decided with exceptions is represented as exactly the per-member
 calls that produced it.
 
+Exercised by `plugins/triage/internal/board/server_test.go` →
+`TestBoard_TCBRD022_a_batch_split_is_recorded_per_member`.
+
 ### TC-BRD-023 — resubmitting a scope replaces its artifact
 
 - **Given** an intents artifact already written for PR 142,
 - **When** a second board for PR 142 is submitted,
 - **Then** the artifact holds only the second submission's entries.
 
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD023_resubmitting_replaces_the_artifact`.
+
 ### TC-BRD-024 — artifacts are scope-keyed
 
 - **Given** intents artifacts for PR 142 and PR 200 in the same repo,
 - **Then** each is stored at its own path,
 - **And** reading intents for PR 142 never returns PR 200's entries.
+
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD024_artifacts_are_scope_keyed`, and
+`plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD024_pr_and_branch_paths_differ`.
 
 ### TC-BRD-025 — a branch name containing a slash stays inside the intents directory
 
@@ -1750,6 +1841,9 @@ calls that produced it.
 An unslugged `/` would place the file outside the directory the board
 owns.
 
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD025_a_branch_with_a_slash_stays_inside_the_directory`.
+
 ### TC-BRD-026 — `board intents` emits the artifact as markdown
 
 - **Given** an intents artifact for PR 142 with three entries,
@@ -1757,6 +1851,9 @@ owns.
 - **Then** stdout carries the submit timestamp and one line per entry with
   its ID, intent and note, in presentation order,
 - **And** the CLI exits `0`.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoardIntents_TCBRD026_emits_the_artifact_as_markdown`.
 
 ### TC-BRD-027 — `board intents` surfaces TRIAGE_NO_INTENTS when the scope has none
 
@@ -1769,12 +1866,20 @@ The artifact is written on submit, so this code also distinguishes a
 board that is open but undecided from a scope that was never briefed.
 Nothing polls for it: the developer says when they have submitted.
 
+Exercised by `plugins/triage/internal/board/intents_test.go` →
+`TestIntents_TCBRD027_absence_is_reported_not_errored`, and
+`plugins/triage/internal/cmd/board_test.go` →
+`TestBoardIntents_TCBRD027_no_artifact_surfaces_TRIAGE_NO_INTENTS`.
+
 ### TC-BRD-028 — reading intents is repeatable and non-destructive
 
 - **Given** an intents artifact,
 - **When** `tai triage board intents` runs twice,
 - **Then** both runs produce identical output,
 - **And** the artifact still exists after both.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoardIntents_TCBRD028_reading_is_repeatable_and_non_destructive`.
 
 ### TC-BRD-029 — the board's error codes render through the foundation template
 
@@ -1787,6 +1892,11 @@ Nothing polls for it: the developer says when they have submitted.
   `[exit 3: TRIAGE_BOARD_SCHEMA_INVALID]`,
   `[exit 3: TRIAGE_BOARD_UNAVAILABLE]` and
   `[exit 2: TRIAGE_NO_INTENTS]` respectively.
+
+No test is named for this ID; its assertions live inside `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD005_malformed_json_is_rejected`, and
+`plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD013_a_listener_that_cannot_bind_surfaces_the_code`.
 
 ### TC-BRD-030 — presentation order matches the triage loop's
 
@@ -1803,6 +1913,9 @@ Nothing polls for it: the developer says when they have submitted.
 
 The board and the conversational loop present one queue in one order, so a
 developer who switches between them does not see the work reshuffled.
+
+Exercised by `plugins/triage/internal/board/briefing_test.go` →
+`TestOrder_TCBRD030_batches_first_then_severity_then_id`.
 
 ## MIG — Phase 6 migration
 
