@@ -54,6 +54,9 @@ func newBoardCommand() *cli.Command {
 }
 
 func runBoard(ctx context.Context, c *cli.Command) error {
+	if board.IsServeChild() {
+		return runBoardServer(ctx, c)
+	}
 	if c.IsSet(RepoFlag) {
 		return errcode.New(errcode.UnknownSubcommand,
 			"--repo is not accepted by `tai triage board` (repo identity is read from the briefing)").
@@ -87,65 +90,77 @@ func runBoard(ctx context.Context, c *cli.Command) error {
 			)
 	}
 
-	b, err := readBriefing(c.Reader)
+	b, body, err := readBriefing(c.Reader)
 	if err != nil {
 		return err
 	}
 
-	srv, err := board.NewServer(b)
-	if err != nil {
-		return err
-	}
-
-	entries, err := srv.Serve(ctx, func(url string) {
+	return board.Launch(body, func(url string) {
 		_, _ = fmt.Fprintf(c.Writer, "Board ready at %s\n", url)
 		_, _ = fmt.Fprintf(c.Writer, "Decide what you can, then submit. Anything you leave alone goes to the conversation.\n")
+		_, _ = fmt.Fprintf(c.Writer, "Read the decisions with `tai triage board intents %s`.\n",
+			scopeFlagsOf(b.Scope))
 	})
+}
+
+// runBoardServer is the board's server process. It is this same binary
+// re-executed with ServeChildEnv set, so the argument grammar and the
+// briefing on stdin are identical to the launching command's — the only
+// difference is that its stdout is a pipe back to that command rather
+// than a terminal, and it serves rather than returning.
+//
+// The briefing is validated a second time here rather than trusted from
+// the pipe. It costs microseconds, and the alternative is a server
+// process whose behaviour depends on a contract nothing checks.
+func runBoardServer(ctx context.Context, c *cli.Command) error {
+	b, _, err := readBriefing(c.Reader)
 	if err != nil {
 		return err
 	}
 
-	path, err := board.WriteIntents(board.NewIntents(b.Repo, b.Scope, entries))
+	entries, err := board.ServeDetached(ctx, b, c.Writer)
 	if err != nil {
 		return err
 	}
-	noun := "intents"
-	if len(entries) == 1 {
-		noun = "intent"
+
+	if _, err := board.WriteIntents(board.NewIntents(b.Repo, b.Scope, entries)); err != nil {
+		return err
 	}
-	_, _ = fmt.Fprintf(c.Writer, "Recorded %d %s for %s %s.\n",
-		len(entries), noun, b.Repo, scopeLabelOf(b.Scope))
-	_, _ = fmt.Fprintf(c.Writer, "  %s\n", path)
 	return nil
 }
 
-// readBriefing reads, decodes and validates stdin. Nothing is bound and
-// no browser is launched until it returns cleanly: a rejected briefing
-// must leave no trace.
-func readBriefing(r io.Reader) (board.Briefing, error) {
+// readBriefing reads, decodes and validates stdin, returning the decoded
+// briefing alongside the bytes it came from. No process is started and
+// nothing is bound until it returns cleanly: a rejected briefing must
+// leave no trace.
+//
+// The raw bytes are returned because the server process is fed the same
+// briefing this one validated. Re-encoding the decoded value would send
+// it something subtly different from what passed the schema check.
+func readBriefing(r io.Reader) (board.Briefing, []byte, error) {
 	limited := io.LimitReader(r, maxBriefingStdinBytes+1)
 	body, err := io.ReadAll(limited)
 	if err != nil {
-		return board.Briefing{}, errcode.Wrap(errcode.TriageBoardInvalidJSON, err,
+		return board.Briefing{}, nil, errcode.Wrap(errcode.TriageBoardInvalidJSON, err,
 			"reading the briefing from stdin")
 	}
 	if int64(len(body)) > maxBriefingStdinBytes {
-		return board.Briefing{}, errcode.Newf(errcode.TriageBoardInvalidJSON,
+		return board.Briefing{}, nil, errcode.Newf(errcode.TriageBoardInvalidJSON,
 			"briefing exceeds the %d-byte stdin limit", maxBriefingStdinBytes).
 			WithHelp("brief one scope at a time")
 	}
 
 	b, decodeErr := board.DecodeBytes(body)
 	if decodeErr != nil {
-		return board.Briefing{}, errcode.Wrap(errcode.TriageBoardInvalidJSON, decodeErr,
+		return board.Briefing{}, nil, errcode.Wrap(errcode.TriageBoardInvalidJSON, decodeErr,
 			"decoding the briefing").
 			WithHelp("verify the briefing is valid JSON and matches the schema in the /tai-triage:triage command")
 	}
 
 	if vErrs := board.Validate(b); len(vErrs) > 0 {
-		return board.Briefing{}, briefingInvalidError(vErrs)
+		return board.Briefing{}, nil, briefingInvalidError(vErrs)
 	}
-	return b, nil
+	return b, body, nil
 }
 
 // briefingInvalidError renders every violation as its own Help bullet.
@@ -169,12 +184,15 @@ func briefingInvalidError(vErrs []board.ValidationError) error {
 	return e.WithHelp(bullets...)
 }
 
-func scopeLabelOf(s board.Scope) string {
+// scopeFlagsOf renders the scope as the flags `tai triage board intents`
+// takes, so the launching command can hand the developer the exact line
+// that reads their decisions back.
+func scopeFlagsOf(s board.Scope) string {
 	if s.Kind == "branch" {
-		return "branch " + s.Branch
+		return "--branch " + s.Branch
 	}
 	if s.PR != nil {
-		return fmt.Sprintf("PR #%d", *s.PR)
+		return fmt.Sprintf("--pr %d", *s.PR)
 	}
-	return "PR"
+	return "--pr <number>"
 }

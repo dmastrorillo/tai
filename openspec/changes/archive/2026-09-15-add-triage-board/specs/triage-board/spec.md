@@ -8,9 +8,13 @@ The briefing's `repo` and `scope` name the intents artifact the subcommand write
 
 The listener SHALL bind `127.0.0.1` on port `0` (kernel-assigned). The board SHALL be served under a path prefix containing 32 hexadecimal characters drawn from a cryptographically secure random source, generated fresh on every invocation. Any request whose path does not carry the current prefix SHALL receive `404` with no body content derived from the briefing.
 
-On start the command SHALL write the full board URL to stdout, then attempt to open the developer's browser at that URL. A failed browser launch is NOT an error: the command SHALL continue serving and the printed URL remains the developer's entry point.
+Once the listener is bound the command SHALL hand it to a detached server process, write the full board URL to stdout, attempt to open the developer's browser at that URL, and exit `0`. It SHALL NOT wait for a decision. A failed browser launch is NOT an error: the detached server keeps serving and the printed URL remains the developer's entry point.
 
-On submit the command SHALL write the intents artifact for the scope, write a one-line confirmation to stdout, and exit `0`. If the listener cannot bind, the command SHALL exit with `TRIAGE_BOARD_UNAVAILABLE`.
+The command exits while the board is still serving because a developer works a board for ten to twenty minutes, which outlives the per-command timeout of every harness the slash command targets. A blocking command makes the caller responsible for backgrounding it correctly, and a caller that gets that wrong loses the URL — the one thing it needs — with no error to read. Detaching is the CLI's job, so the caller's invocation is an ordinary foreground pipe whose stdout it can read.
+
+The detached server SHALL serve under the same path prefix the announced URL carries, SHALL write the intents artifact for the scope on submit, and SHALL then exit. Its stdout carries nothing: the announcement was made by the command that spawned it, and the artifact is how the decisions come back. If the listener cannot bind, or the server process cannot be spawned, the command SHALL exit with `TRIAGE_BOARD_UNAVAILABLE` having announced nothing and opened no browser.
+
+Neither the path prefix nor the briefing SHALL be passed to the server process as a command-line argument or an environment variable. Process arguments are readable by every other local user on macOS and most Linux configurations, which is the reason the browser is launched at a secret-free landing path; an inherited pipe is readable by neither.
 
 The subcommand SHALL NOT open the database, and SHALL NOT read from the network or shell out to `gh`, `git`, or any other external command. Everything it renders comes from the briefing on stdin.
 
@@ -31,17 +35,31 @@ The subcommand SHALL NOT open the database, and SHALL NOT read from the network 
 
 - **GIVEN** a machine on which no browser can be launched
 - **WHEN** `tai triage board -` is invoked with a valid briefing
-- **THEN** the command continues serving
+- **THEN** the detached server continues serving
 - **AND** stdout still carries the board URL
-- **AND** the command does not exit
+- **AND** the command exits `0`
 
-#### Scenario: Submit writes intents and exits zero
+#### Scenario: Launch returns without waiting for a decision
 
-- **GIVEN** a running board
+- **WHEN** `tai triage board -` is invoked with a valid briefing on stdin
+- **THEN** the command exits `0` without any submit having arrived
+- **AND** stdout carries the board URL
+- **AND** the announced URL is served after the command has exited
+
+#### Scenario: Submit writes intents from the detached server
+
+- **GIVEN** a board whose launching command has already exited
 - **WHEN** the developer submits the board
 - **THEN** the intents artifact for the scope is written
-- **AND** the command exits `0`
+- **AND** the server process exits
 - **AND** no comment's `status` in the database has changed
+
+#### Scenario: A server process that cannot be spawned
+
+- **WHEN** `tai triage board -` is invoked with a valid briefing and the server process cannot be spawned
+- **THEN** the CLI exits with `TRIAGE_BOARD_UNAVAILABLE`
+- **AND** stdout carries no board URL
+- **AND** no intents artifact is written
 
 #### Scenario: Listener cannot bind
 

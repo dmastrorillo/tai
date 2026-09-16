@@ -226,8 +226,12 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Serve(ctx context.Context, announce func(url string)) ([]IntentEntry, error) {
 	ln, err := listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, errcode.Wrap(errcode.TriageBoardUnavailable, err,
-			"binding a loopback listener for the board").
+		// The cause is repeated into the message because the error
+		// template renders Msg and nothing else, and in a detached
+		// board this message is all the launching command has to pass
+		// on — this process's stderr is /dev/null.
+		return nil, errcode.Wrapf(errcode.TriageBoardUnavailable, err,
+			"binding a loopback listener for the board: %s", err).
 			WithHelp(
 				"check whether a local firewall or sandbox blocks binding 127.0.0.1",
 				"the board needs no outbound network access, only a loopback socket",
