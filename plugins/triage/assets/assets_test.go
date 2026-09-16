@@ -229,3 +229,83 @@ func TestFixCommand_TCAST005_sends_the_user_to_commit_and_push_before_verify(t *
 		t.Error("fix.md must still forbid the command from committing or pushing")
 	}
 }
+
+// launchBlock returns the shell block triage.md shows for launching the
+// board: the first fenced `sh` block after the step that pipes the
+// briefing in. Scoped that tightly on purpose — the surrounding prose
+// names `&` and `nohup` in order to forbid them, so a check over the
+// whole section would fail on the sentence that makes it correct.
+func launchBlock(t *testing.T, text string) string {
+	t.Helper()
+	const step = "**Pipe it to the board**"
+	at := strings.Index(text, step)
+	if at < 0 {
+		t.Fatalf("triage.md no longer has a step that pipes the briefing to the board")
+	}
+	rest := text[at:]
+	open := strings.Index(rest, "```sh")
+	if open < 0 {
+		t.Fatal("the board's launch step shows no shell block")
+	}
+	rest = rest[open+len("```sh"):]
+	close := strings.Index(rest, "```")
+	if close < 0 {
+		t.Fatal("the board's launch block is unterminated")
+	}
+	return rest[:close]
+}
+
+// TC-AST-006 — `tai triage board -` detaches itself and exits, so the
+// example that launches it is an ordinary foreground pipe.
+func TestTriageCommand_TCAST006_launches_the_board_in_the_foreground(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "triage.md"))
+	if err != nil {
+		t.Fatalf("read triage.md: %v", err)
+	}
+	text := string(body)
+	flat := strings.Join(strings.Fields(text), " ")
+
+	block := launchBlock(t, text)
+	for _, forbidden := range []string{"&", "nohup", "disown", "setsid"} {
+		if strings.Contains(block, forbidden) {
+			t.Errorf("the board's launch example must be a foreground pipe, found %q in:\n%s",
+				forbidden, block)
+		}
+	}
+
+	// The prose and the example drifted apart once already: the step
+	// said "backgrounded" beside an example that was not. A reader who
+	// follows the prose severs the stdout the same step tells them to
+	// read the URL from.
+	if strings.Contains(flat, "backgrounded") {
+		t.Error("triage.md must not tell the loop to background the board")
+	}
+	if !strings.Contains(flat, "exits; the board keeps serving") {
+		t.Error("triage.md must say the command exits while the board keeps serving")
+	}
+}
+
+// TC-AST-007 — TRIAGE_NO_INTENTS cannot tell an undecided board from a
+// dead one, and the two need opposite responses.
+func TestTriageCommand_TCAST007_distinguishes_an_undecided_board_from_a_dead_one(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(commandsDir, "triage.md"))
+	if err != nil {
+		t.Fatalf("read triage.md: %v", err)
+	}
+	flat := strings.Join(strings.Fields(string(body)), " ")
+
+	if !strings.Contains(flat, "It does not say whether the board is undecided or gone") {
+		t.Error("triage.md must say TRIAGE_NO_INTENTS does not distinguish the two cases")
+	}
+	if !strings.Contains(flat, "curl -sf -o /dev/null <board-url>") {
+		t.Error("triage.md must give the check that tells an undecided board from a dead one")
+	}
+	if !strings.Contains(flat, "offer to relaunch it from the same briefing") {
+		t.Error("triage.md must say what to do when the board is gone")
+	}
+	// The check is a single request at a moment the user chose, which is
+	// why it does not contradict the no-polling rule in step 4.
+	if !strings.Contains(flat, "which is not the polling step 4 forbids") {
+		t.Error("triage.md must reconcile the liveness check with its own no-polling rule")
+	}
+}

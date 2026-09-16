@@ -96,7 +96,7 @@ Three constraints shaped the server:
 
 ### Handing the intents back to the AI
 
-The slash command launches the board in the background, surfaces the URL, and then waits for the user to say they have submitted. It does not poll, watch the process, or check the artifact until asked.
+The slash command launches the board with an ordinary foreground pipe, surfaces the URL the command prints, and then waits for the user to say they have submitted. It does not poll, watch the process, or check the artifact until asked.
 
 The person making the decisions is in the conversation. They know the moment they hit submit, and saying so costs them three words. Every mechanism that discovers it independently — polling the artifact, waiting on process exit, a status verb — spends turns and tokens finding out something the user was about to volunteer, and each carries its own failure mode: a poll that reads a scope error as "keep waiting", an exit notification the harness may not offer.
 
@@ -104,13 +104,21 @@ Waiting also works everywhere. The plugin ships to whichever AI tool owns the ta
 
 A blocking foreground invocation whose stdout carries the intents was rejected separately: a developer working a 40-comment board takes ten to twenty minutes, which exceeds the per-command timeout of the harness the slash command targets, and a timeout would discard every decision they had made.
 
+Moving the *result* off stdout into the artifact was only half of that. The command still blocked, so the caller had to background it, and the instruction to do so was one word of prose beside an example that did not. Backgrounding is also exactly what severs the stdout the same step needs to read the URL from, and the two failure modes compound: an agent that gets no URL and finds no process concludes the launch failed and tries a different invocation, while the browser windows it already opened pile up on the developer's screen — the one signal that would have corrected it, and the one place the agent cannot look.
+
+**So the command detaches itself.** It validates, binds, hands the bound listener to a server process in its own session, prints the URL, opens the browser and exits `0`. The caller writes an ordinary foreground pipe and reads the URL the way it reads any command's output; nothing about keeping a process alive across a tool call is its problem any more. The reasoning is the same one that put waiting for the user ahead of every mechanism that discovers a submit independently: what works everywhere beats what works in the harness in front of you.
+
+The listener is bound by the launching command rather than the server process so that `TRIAGE_BOARD_UNAVAILABLE` is still decided where the briefing was validated — before anything is announced and before a browser opens. The server process inherits the bound socket; connections that arrive before it accepts wait in the kernel's backlog, so the browser may be launched immediately.
+
+The prefix and the briefing reach the server process down an inherited pipe rather than through argv or the environment. Argv is readable by every other local user on macOS and most Linux configurations, which is already why the browser is handed a secret-free landing path; routing the secret around argv and then putting it back in for the child would undo that.
+
 `TRIAGE_NO_INTENTS` remains the signal that a scope has no submitted board — read once, when the user says they are done, not in a loop.
 
 ## Risks / Trade-offs
 
 - **The browser page has no automated coverage.** Handler behaviour, the intents artifact, and `tai triage board intents` output are all testable and are covered. What a click does in the page is not. This is declared in `plugins/triage/test-cases.md` the same way the slash commands' conversational contracts already are, rather than papered over with a handler test that implies coverage it does not have.
 - **Headless machines.** On a box with no browser, launching one fails. The board prints the URL and keeps serving rather than treating this as an error, so an SSH developer can forward the port.
-- **A developer can abandon a board.** The process holds a port and blocks until submit or until it is killed. There is no timeout: an abandoned board is a stray process the developer kills, and inventing an expiry would risk discarding a half-finished pass.
+- **A developer can abandon a board.** The server process holds a port and serves until submit or until it is killed, and it outlives the shell that launched it by design. There is no timeout: an abandoned board is a stray process the developer kills, and inventing an expiry would risk discarding a half-finished pass. The cost of detaching is that the stray is no longer in the foreground where it is obvious — `tai triage board intents` reports what was decided, and the port is the developer's to reclaim.
 - **The briefing is a second thing to keep correct.** The board renders what the AI hands it, so a briefing that is complete and well-formed but wrong — a cause the AI did not actually confirm, a location it did not re-check — renders as confidently as a right one. Nothing in the board can catch that; the guard is the `triage-command` obligation that produces the fields, not the surface that displays them. The schema enforces presence, never truth.
 
 ## Open Questions

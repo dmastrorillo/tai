@@ -460,6 +460,48 @@ Verified by `make release-snapshot` plus inspection of
 `dist/triage/tai-plugin-triage-*.tar.gz`; the category directory name
 is load-bearing, since the host routes on it.
 
+### TC-AST-006 — the board's launch example is an ordinary foreground pipe
+
+- **Given** `plugins/triage/assets/commands/triage.md`,
+- **When** its board section is read,
+- **Then** the example that launches the board contains no `&`, `nohup`,
+  `disown` or `setsid`,
+- **And** the surrounding prose does not instruct the reader to
+  background it.
+
+`tai triage board -` detaches itself and exits once the board is serving
+(TC-BRD-033), so the caller writes a plain foreground pipe and reads the
+URL from stdout.
+
+The file previously said "backgrounded" in prose beside an example that
+was not, which is worse than either alone: a reader who follows the prose
+severs the stdout the same step tells them to read the URL from, and a
+reader who follows the example blocks until their harness times out. The
+check covers both forms because a fix to one would leave the other
+looking correct.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestTriageCommand_TCAST006_launches_the_board_in_the_foreground`.
+
+### TC-AST-007 — the board section separates an undecided board from a dead one
+
+- **Given** `plugins/triage/assets/commands/triage.md`,
+- **When** its handling of `TRIAGE_NO_INTENTS` from
+  `tai triage board intents` is read,
+- **Then** it tells the reader to check the announced URL still answers
+  before concluding the board is merely undecided.
+
+`TRIAGE_NO_INTENTS` means only that no artifact exists. "The developer has
+not submitted yet" and "the board is gone" produce the same code, and the
+instruction to wait rather than retry is right for the first and a
+deadlock for the second: the reader waits, the developer says they are
+done, and neither can see why the other is wrong. One request against the
+URL already on the transcript tells them apart, and it is not a poll — it
+happens once, when the developer says they have finished.
+
+Exercised by `plugins/triage/assets/assets_test.go` →
+`TestTriageCommand_TCAST007_distinguishes_an_undecided_board_from_a_dead_one`.
+
 ---
 
 ## IMP — import
@@ -1561,8 +1603,8 @@ all.
 - **Then** the board serves that comment,
 - **And** no database file is opened or created.
 
-No test is named for this ID; its assertions live inside `plugins/triage/internal/board/server_test.go` →
-`TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit`.
+No test is named for this ID; its assertions live inside `plugins/triage/internal/board/detach_test.go` →
+`TestBoard_TCBRD012_the_detached_server_announces_and_returns_on_submit`.
 
 ### TC-BRD-002 — missing positional argument is a usage error
 
@@ -1660,15 +1702,22 @@ No test is named for this ID; its assertions live inside `plugins/triage/interna
 - **When** `tai triage board -` runs,
 - **Then** a listener is bound on `127.0.0.1` with a kernel-assigned port,
 - **And** stdout carries the full board URL including its random path
-  prefix.
+  prefix,
+- **And** the announced URL names the port that was bound.
 
 A fixed port would collide with whatever else the developer is running and
 produce a failure that has nothing to do with triage.
 
+The bind happens in the launching command rather than in the detached
+server (TC-BRD-033) so that a bind failure is decided where the briefing
+was validated — before anything is announced and before a browser opens.
+
 Exercised by `plugins/triage/internal/board/server_test.go` →
-`TestBoard_TCBRD009_serve_binds_announces_and_returns_on_submit`, and
-`plugins/triage/internal/board/server_test.go` →
-`TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled`.
+`TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled`. The bind
+and announce assertions live inside
+`plugins/triage/internal/board/detach_test.go` →
+`TestBoard_TCBRD012_the_detached_server_announces_and_returns_on_submit`,
+which drives the same socket through the layer that now owns it.
 
 ### TC-BRD-010 — a request without the path prefix is refused
 
@@ -1691,22 +1740,34 @@ Exercised by `plugins/triage/internal/board/server_test.go` →
 
 - **Given** a machine on which no browser can be launched,
 - **When** `tai triage board -` runs,
-- **Then** the command keeps serving,
-- **And** stdout still carries the board URL.
+- **Then** the detached server keeps serving,
+- **And** stdout still carries the board URL,
+- **And** the command exits `0`.
 
 No Go test names this ID. The browser launch is a best-effort
 `exec.Start` whose failure the board ignores by construction; what a
 real launch does on a given host is verified manually.
 
-### TC-BRD-012 — submit writes the artifact and exits zero
+The URL on stdout is the developer's entry point when no window opened,
+and it is the only channel that carries it — nothing writes it to a
+file. An SSH developer forwards the port and opens it themselves.
 
-- **Given** a running board,
+### TC-BRD-012 — submit writes the artifact and the server exits
+
+- **Given** a board whose launching command has already exited,
 - **When** the developer submits,
 - **Then** the intents artifact for the briefing's scope is written,
-- **And** the command exits `0`.
+- **And** the server process exits.
+
+The command that launched the board exited as soon as the board was
+serving (TC-BRD-033), so nothing is left in the foreground to report the
+submit and the artifact is how the decisions come back. `tai triage board
+intents` is the read side.
 
 Exercised by `plugins/triage/internal/board/server_test.go` →
-`TestBoard_TCBRD012_submit_answers_the_page`.
+`TestBoard_TCBRD012_submit_answers_the_page`, and
+`plugins/triage/internal/board/detach_test.go` →
+`TestBoard_TCBRD012_the_detached_server_announces_and_returns_on_submit`.
 
 ### TC-BRD-013 — a listener that cannot bind surfaces TRIAGE_BOARD_UNAVAILABLE
 
@@ -1937,6 +1998,89 @@ developer who switches between them does not see the work reshuffled.
 
 Exercised by `plugins/triage/internal/board/briefing_test.go` →
 `TestOrder_TCBRD030_batches_first_then_severity_then_id`.
+
+### TC-BRD-031 — a scope naming both a PR and a branch is rejected
+
+- **Given** a briefing whose `scope` carries `kind: "branch"`, a `branch`
+  and a `pr`,
+- **When** the briefing is validated,
+- **Then** `scope.pr` is reported as a violation.
+
+The two arms name different artifacts, so a scope carrying both leaves
+the file the board writes ambiguous. Each `kind` accepts exactly the
+field it names and refuses the other.
+
+Exercised by `plugins/triage/internal/board/briefing_test.go` →
+`TestValidate_TCBRD031_scope_rejects_both_pr_and_branch`.
+
+### TC-BRD-032 — `--repo` is not accepted
+
+- **Given** a valid briefing on stdin,
+- **When** `tai triage board - --repo acme/app` runs,
+- **Then** the CLI exits `1` with `UNKNOWN_SUBCOMMAND`,
+- **And** the message says repo identity is read from the briefing.
+
+The second of the two identity inputs the board refuses. TC-BRD-004
+covers the scope flags; this covers the repo flag, and the reason is the
+same — the briefing carries `repo`, and a flag that disagreed with it
+would name an artifact the briefing does not describe.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD032_repo_flag_is_not_accepted`.
+
+### TC-BRD-033 — the command exits once the board is serving, without waiting for a decision
+
+- **Given** a valid briefing on stdin,
+- **When** `tai triage board -` runs,
+- **Then** the command exits `0` without any submit having arrived,
+- **And** stdout carries the board URL,
+- **And** the bound listener has been handed to a detached server process.
+
+A developer works a board for ten to twenty minutes. Blocking for that
+long outlives the per-command timeout of every harness the slash command
+targets, so the caller had to background the command — and backgrounding
+is exactly what severs the stdout the same caller must read the URL from.
+Detaching is the CLI's job; the caller writes an ordinary foreground
+pipe.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD033_returns_without_waiting_for_a_submit`.
+
+### TC-BRD-034 — the server process cannot be spawned
+
+- **Given** a valid briefing and a server process that fails to spawn,
+- **When** `tai triage board -` runs,
+- **Then** the CLI exits `3` with `TRIAGE_BOARD_UNAVAILABLE`,
+- **And** stdout carries no board URL,
+- **And** no intents artifact is written.
+
+The announcement follows the spawn rather than preceding it, so a URL on
+stdout is evidence that something is serving it. Announcing first would
+hand the caller an address that never answers, and the caller's only
+recourse would be to guess why.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD034_a_server_that_cannot_be_spawned_surfaces_the_code`.
+
+### TC-BRD-035 — the real binary detaches, and the board outlives it
+
+- **Given** the compiled `triage` binary and a valid briefing,
+- **When** it is run to completion with stdin piped and stdout captured,
+- **Then** it exits `0` and stdout carries the board URL,
+- **And** the announced URL answers `200` after the process has exited,
+- **And** a submit to that URL writes the intents artifact,
+- **And** the server process exits once it has.
+
+The only case that exercises the re-exec. Every other board case runs the
+command tree in-process, where the hand-off is a test seam and a broken
+spawn would still pass — which is the shape of the bug this case exists
+for: a launch path that looks right from inside the process and produces
+no board outside it. Skipped under `go test -short`, and the browser is
+neutralised with a `PATH` shim rather than the in-process seam, because
+the process under test is a real one.
+
+Exercised by `plugins/triage/internal/cmd/board_detach_test.go` →
+`TestBoard_TCBRD035_the_binary_detaches_and_the_board_outlives_it`.
 
 ## MIG — Phase 6 migration
 
