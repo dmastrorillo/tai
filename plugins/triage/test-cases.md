@@ -1708,9 +1708,10 @@ No test is named for this ID; its assertions live inside `plugins/triage/interna
 A fixed port would collide with whatever else the developer is running and
 produce a failure that has nothing to do with triage.
 
-The bind happens in the launching command rather than in the detached
-server (TC-BRD-033) so that a bind failure is decided where the briefing
-was validated — before anything is announced and before a browser opens.
+The bind happens inside the server process (TC-BRD-033), which also
+generates the path prefix and opens the browser. The launching command
+announces nothing until that process reports the URL back, so a bind
+failure surfaces as TRIAGE_BOARD_UNAVAILABLE with nothing announced.
 
 Exercised by `plugins/triage/internal/board/server_test.go` →
 `TestBoard_TCBRD009_serve_returns_when_the_context_is_cancelled`. The bind
@@ -1780,8 +1781,15 @@ A kernel-assigned port has no deterministic way to fail, so the failure is
 injected through the package-level `listen` seam. This case is what pins
 the code's exit bucket, and `pkg/errcode` is append-only.
 
-Exercised by `plugins/triage/internal/cmd/board_test.go` →
-`TestBoard_TCBRD013_a_listener_that_cannot_bind_surfaces_the_code`.
+The bind happens inside the server process, which has no terminal, so the
+reason travels back over the readiness pipe. TC-BRD-036 drives that line
+through both halves of its format and asserts the exit code the launching
+command produces from it.
+
+Exercised by `plugins/triage/internal/board/detach_test.go` →
+`TestBoard_TCBRD013_a_listener_that_cannot_bind_is_reported_up_the_pipe`,
+and end to end by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD036_a_child_bind_failure_becomes_the_cli_exit_code`.
 
 ### TC-BRD-014 — all seven presentation fields reach the page
 
@@ -1978,7 +1986,7 @@ Exercised by `plugins/triage/internal/cmd/board_test.go` →
 No test is named for this ID; its assertions live inside `plugins/triage/internal/cmd/board_test.go` →
 `TestBoard_TCBRD005_malformed_json_is_rejected`, and
 `plugins/triage/internal/cmd/board_test.go` →
-`TestBoard_TCBRD013_a_listener_that_cannot_bind_surfaces_the_code`.
+`TestBoard_TCBRD036_a_child_bind_failure_becomes_the_cli_exit_code`.
 
 ### TC-BRD-030 — presentation order matches the triage loop's
 
@@ -2034,7 +2042,8 @@ Exercised by `plugins/triage/internal/cmd/board_test.go` →
 - **When** `tai triage board -` runs,
 - **Then** the command exits `0` without any submit having arrived,
 - **And** stdout carries the board URL,
-- **And** the bound listener has been handed to a detached server process.
+- **And** a detached server process was started and handed the briefing,
+- **And** the URL on stdout is the one that process reported.
 
 A developer works a board for ten to twenty minutes. Blocking for that
 long outlives the per-command timeout of every harness the slash command
@@ -2061,6 +2070,49 @@ recourse would be to guess why.
 
 Exercised by `plugins/triage/internal/cmd/board_test.go` →
 `TestBoard_TCBRD034_a_server_that_cannot_be_spawned_surfaces_the_code`.
+
+### TC-BRD-037 — the server process writes what it cannot say to a log
+
+- **Given** a board launched by the real binary,
+- **When** the server process is running,
+- **Then** `<TAI_DATA_DIR>/plugins/triage/state/board.log` exists,
+- **And** the server process's stderr is what writes to it.
+
+The board has exactly one thing that can fail once it is serving: the
+page template. `handlePage` logs that failure, and the process has no
+terminal to log it to — it is detached, and the readiness pipe closed
+when the launching command exited. Without the file, a render bug is a
+500 in the browser and nothing anywhere on the machine.
+
+A log that cannot be opened must never stop a board launching, so the
+fallback is the null device and the launch proceeds.
+
+No test is named for this ID; its assertions live inside
+`plugins/triage/internal/cmd/board_detach_test.go` →
+`TestBoard_TCBRD035_the_binary_detaches_and_the_board_outlives_it`,
+which is the only case that starts a real detached process.
+
+### TC-BRD-036 — a bind failure inside the server process becomes the CLI's exit code
+
+- **Given** a server process that starts and whose listener cannot bind,
+- **When** `tai triage board -` runs with a valid briefing,
+- **Then** the CLI exits `3` with `TRIAGE_BOARD_UNAVAILABLE`,
+- **And** stderr carries the bind failure's own reason,
+- **And** stdout carries no board URL,
+- **And** no intents artifact is written.
+
+The readiness line has two halves — the server writes it, the launching
+command parses it — and this is the only case that runs both. TC-BRD-013
+covers the writing side and TC-BRD-034 covers a launch that fails before
+any line exists; between them the format could change on one side alone
+and the suite would stay green.
+
+It is also the bearer TC-BRD-013's own Then clause asks for: that clause
+names an exit code, and an exit code is only produced at the CLI
+boundary.
+
+Exercised by `plugins/triage/internal/cmd/board_test.go` →
+`TestBoard_TCBRD036_a_child_bind_failure_becomes_the_cli_exit_code`.
 
 ### TC-BRD-035 — the real binary detaches, and the board outlives it
 

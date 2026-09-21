@@ -49,13 +49,19 @@ func TestBoard_TCBRD035_the_binary_detaches_and_the_board_outlives_it(t *testing
 		t.Fatalf("`triage board -` failed: %v", err)
 	}
 
+	// A detached server is running from here on, and nothing reaps it
+	// but a submit. Its shutdown is registered before the first step
+	// that can abort the test — the URL parse below is the likeliest,
+	// because it matches a literal this change reformatted — so a
+	// failure there leaves no stray server holding a port.
+	t.Cleanup(func() { shutdownBoard(string(out)) })
+
 	url := boardURLFrom(t, string(out))
 	if launch.ProcessState == nil || !launch.ProcessState.Exited() {
 		t.Fatal("the launching process did not exit")
 	}
 
 	// The launching process is gone; the board is not.
-	t.Cleanup(func() { _, _ = http.Post(url+"submit", "application/json", strings.NewReader("[]")) })
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("the board did not outlive the command that launched it: %v", err)
@@ -84,6 +90,15 @@ func TestBoard_TCBRD035_the_binary_detaches_and_the_board_outlives_it(t *testing
 	}
 
 	waitForBoardGone(t, url)
+
+	// TC-BRD-037: the server process has no terminal, so its stderr is
+	// a file. Asserted here rather than in its own test because it is a
+	// property of a real detached process and this is the only case
+	// that starts one.
+	logPath := filepath.Join(env.DataDir, "plugins", "triage", "state", "board.log")
+	if _, err := os.Stat(logPath); err != nil {
+		t.Errorf("the server process's log was not created at %s: %v", logPath, err)
+	}
 }
 
 func buildTriageBinary(t *testing.T) string {
@@ -113,14 +128,39 @@ func browserShim(t *testing.T) string {
 
 func boardURLFrom(t *testing.T, stdout string) string {
 	t.Helper()
+	url, ok := findBoardURL(stdout)
+	if !ok {
+		t.Fatalf("stdout announced no board URL:\n%s", stdout)
+	}
+	return url
+}
+
+// findBoardURL is boardURLFrom without the testing.T, so the cleanup
+// path can look for the URL without being able to fail the test it is
+// cleaning up after.
+func findBoardURL(stdout string) (string, bool) {
 	const marker = "Board ready at "
 	for _, line := range strings.Split(stdout, "\n") {
 		if after, ok := strings.CutPrefix(line, marker); ok {
-			return strings.TrimSpace(after)
+			return strings.TrimSpace(after), true
 		}
 	}
-	t.Fatalf("stdout announced no board URL:\n%s", stdout)
-	return ""
+	return "", false
+}
+
+// shutdownBoard submits an empty board, which is how a detached server
+// is asked to exit. Best-effort by design: it runs on the way out of a
+// test that may already have failed, and a server that has gone is the
+// outcome it wants anyway.
+func shutdownBoard(stdout string) {
+	url, ok := findBoardURL(stdout)
+	if !ok {
+		return
+	}
+	resp, err := http.Post(url+"submit", "application/json", strings.NewReader("[]"))
+	if err == nil {
+		_ = resp.Body.Close()
+	}
 }
 
 func waitForFile(t *testing.T, path string) {

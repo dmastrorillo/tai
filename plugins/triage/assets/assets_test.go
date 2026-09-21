@@ -266,7 +266,7 @@ func TestTriageCommand_TCAST006_launches_the_board_in_the_foreground(t *testing.
 	flat := strings.Join(strings.Fields(text), " ")
 
 	block := launchBlock(t, text)
-	for _, forbidden := range []string{"&", "nohup", "disown", "setsid"} {
+	for _, forbidden := range []string{"&", "disown", "nohup", "setsid"} {
 		if strings.Contains(block, forbidden) {
 			t.Errorf("the board's launch example must be a foreground pipe, found %q in:\n%s",
 				forbidden, block)

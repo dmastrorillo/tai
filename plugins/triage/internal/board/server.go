@@ -232,10 +232,7 @@ func (s *Server) Serve(ctx context.Context, announce func(url string)) ([]Intent
 		// on — this process's stderr is /dev/null.
 		return nil, errcode.Wrapf(errcode.TriageBoardUnavailable, err,
 			"binding a loopback listener for the board: %s", err).
-			WithHelp(
-				"check whether a local firewall or sandbox blocks binding 127.0.0.1",
-				"the board needs no outbound network access, only a loopback socket",
-			)
+			WithHelp(loopbackBindHelp()...)
 	}
 	defer func() { _ = ln.Close() }()
 

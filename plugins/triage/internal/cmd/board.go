@@ -95,7 +95,7 @@ func runBoard(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	return board.Launch(body, func(url string) {
+	return board.Launch(ctx, body, func(url string) {
 		_, _ = fmt.Fprintf(c.Writer, "Board ready at %s\n", url)
 		_, _ = fmt.Fprintf(c.Writer, "Decide what you can, then submit. Anything you leave alone goes to the conversation.\n")
 		_, _ = fmt.Fprintf(c.Writer, "Read the decisions with `tai triage board intents %s`.\n",

@@ -2,7 +2,9 @@ package cmd_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,13 +238,14 @@ func TestBoard_TCBRD032_repo_flag_is_not_accepted(t *testing.T) {
 
 // captureBriefing swaps the spawn seam for one that records the briefing
 // it was handed and reports a board at url, so a test can drive the
-// launching command without a real process being spawned.
+// launching command without a real process being spawned. The line it
+// returns goes through the real readiness parser.
 func captureBriefing(t *testing.T, url string) <-chan []byte {
 	t.Helper()
 	got := make(chan []byte, 1)
-	board.HandOffForTesting(t, func(briefing []byte) (string, error) {
+	board.SpawnForTesting(t, func(briefing []byte) (io.Reader, func(), error) {
 		got <- append([]byte(nil), briefing...)
-		return url, nil
+		return strings.NewReader(board.FormatReady(url)), func() {}, nil
 	})
 	return got
 }
@@ -283,8 +286,8 @@ func TestBoard_TCBRD033_returns_without_waiting_for_a_submit(t *testing.T) {
 
 func TestBoard_TCBRD034_a_server_that_cannot_be_spawned_surfaces_the_code(t *testing.T) {
 	env := cmdtest.Isolate(t)
-	board.HandOffForTesting(t, func([]byte) (string, error) {
-		return "", errors.New("bind: permission denied")
+	board.SpawnForTesting(t, func([]byte) (io.Reader, func(), error) {
+		return nil, nil, errors.New("bind: permission denied")
 	})
 
 	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), validBriefing, "board", "-")
@@ -297,5 +300,43 @@ func TestBoard_TCBRD034_a_server_that_cannot_be_spawned_surfaces_the_code(t *tes
 	}
 	if names := intentsDirEntries(t, env); len(names) != 0 {
 		t.Errorf("a launch that never served wrote %v", names)
+	}
+}
+
+// TestBoard_TCBRD036_a_child_bind_failure_becomes_the_cli_exit_code
+// drives the readiness-line format through both of its halves: the
+// server process's `reportFailure` writes the line and the launching
+// command's parser reads it, so a change to the wire format on one side
+// alone fails here.
+//
+// TC-BRD-034 covers the launch failing before a line is ever written.
+// This covers the case where the child starts, fails to bind, and has
+// only that line to say so with.
+func TestBoard_TCBRD036_a_child_bind_failure_becomes_the_cli_exit_code(t *testing.T) {
+	env := cmdtest.Isolate(t)
+	board.ListenFailureForTesting(t, errors.New("bind: permission denied"))
+	board.SpawnForTesting(t, func(briefing []byte) (io.Reader, func(), error) {
+		b, err := board.DecodeBytes(briefing)
+		if err != nil {
+			return nil, nil, err
+		}
+		pr, pw := io.Pipe()
+		go func() {
+			defer func() { _ = pw.Close() }()
+			_, _ = board.ServeDetached(context.Background(), b, pw)
+		}()
+		return pr, func() { _ = pr.Close() }, nil
+	})
+
+	r := cmdtest.RunWithStdin(t, cmd.NewRoot(), validBriefing, "board", "-")
+
+	cmdtest.AssertError(t, r)
+	cmdtest.AssertErrorFooter(t, r, "TRIAGE_BOARD_UNAVAILABLE", 3)
+	cmdtest.AssertStderrContains(t, r, "bind: permission denied")
+	if strings.Contains(r.Stdout, "Board ready") {
+		t.Errorf("a URL was announced for a board that never bound: %q", r.Stdout)
+	}
+	if names := intentsDirEntries(t, env); len(names) != 0 {
+		t.Errorf("a board that never served wrote %v", names)
 	}
 }
