@@ -148,14 +148,20 @@ When they accept:
    and derives nothing, so a field you did not work out is a field the
    user decides without.
 2. **Assemble the briefing** in the schema below.
-3. **Pipe it to the board**, backgrounded, and surface the URL it
-   prints:
+3. **Pipe it to the board** and surface the URL it prints:
 
    ```sh
    cat <<'EOF' | tai triage board -
    { "repo": "...", ... }
    EOF
    ```
+
+   This is an ordinary foreground call and it returns in milliseconds.
+   The command binds the board, opens a browser, prints the URL and
+   exits; the board keeps serving until the user submits. Detaching is
+   the CLI's job, so do not add `&` or `nohup` and do not redirect the
+   output away from yourself — the URL it prints is your only handle on
+   the board.
 
    The board takes no `--pr` / `--branch` flags — the briefing's `repo`
    and `scope` name the target.
@@ -170,9 +176,27 @@ When they accept:
    something they were about to volunteer.
 5. **When they say they are done**, read the intents with
    `tai triage board intents` (passing the scope flags section 2
-   resolved) and carry them into section 4. If it exits
-   `TRIAGE_NO_INTENTS`, the board has not been submitted — say so and
-   wait again rather than retrying in a loop.
+   resolved) and carry them into section 4.
+
+   If it exits `TRIAGE_NO_INTENTS`, that code means only that no
+   artifact exists. It does not say whether the board is undecided or
+   gone, and the two need opposite responses. Ask the board itself,
+   once, using the URL you printed in step 3:
+
+   ```sh
+   curl -sf -o /dev/null <board-url> && echo alive || echo gone
+   ```
+
+   Alive: the board is open and nothing has been submitted. Say so and
+   wait again rather than retrying in a loop. Gone: the server is no
+   longer running, so no submission can ever arrive. Say so and offer to
+   relaunch it from the same briefing.
+
+   This is one request at the moment the user says they have finished,
+   which is not the polling step 4 forbids. That rule exists so you do
+   not spend turns discovering something the user was about to tell you;
+   here they have already told you, and the check answers a question
+   only the board can.
 
 ### Briefing schema
 
